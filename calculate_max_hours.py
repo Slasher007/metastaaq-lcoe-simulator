@@ -28,7 +28,12 @@ def calculate_max_hours(df, target_price=15, ppa_price=80, return_extended_info=
     df = df.copy()
     
     # Combine 'Date' and 'Heure' to create 'timestamp' and convert to datetime
-    df['timestamp'] = pd.to_datetime(df['Date'] + ' ' + df['Heure'].astype(str) + ':00:00')
+    # Handle case where Date might already be datetime
+    if df['Date'].dtype == 'datetime64[ns]':
+        df['timestamp'] = df['Date'].dt.strftime('%Y-%m-%d') + ' ' + df['Heure'].astype(str) + ':00:00'
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+    else:
+        df['timestamp'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Heure'].astype(str) + ':00:00')
     df['year'] = df['timestamp'].dt.year
     df['month'] = df['timestamp'].dt.month
 
