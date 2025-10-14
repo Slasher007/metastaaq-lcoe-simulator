@@ -9,6 +9,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 # Import individual functions to have better control over plotting
 from calculate_max_hours import calculate_max_hours
+from calculate_operation_strategies import calculate_hybrid_strategy
 from display_table import display_table
 from calculate_percentage_difference import calculate_percentage_difference
 from get_required_hours_per_month_custom import get_required_hours_per_month_custom
@@ -144,15 +145,35 @@ with st.sidebar.expander("📅 Service Ratios", expanded=True):
 # Calculate average service ratio for display purposes
 avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
 
+# Operation Strategy Selection
+st.sidebar.markdown("#### 🎯 Operation Strategy")
+strategy_type = st.sidebar.selectbox(
+    "Choose Operation Strategy",
+    options=["Service Ratio-Based", "Target Price-Based"],
+    index=0,
+    help="Select the strategy for electrolyzer operation optimization"
+)
+
+# Strategy-specific parameters
+if strategy_type == "Service Ratio-Based":
+    st.info("ℹ️ Service Ratio strategy automatically determines optimal hours based on PPA price threshold.")
+    initial_service_ratio = 0.98  # Not used, but kept for compatibility
+
 # Price parameters
 with st.sidebar.expander("💰 Price", expanded=True):
-    target_prices = [st.slider(
-        "Average Target Spot Price (€/MWh)",
-        min_value=5,
-        max_value=50,
-        value=30,
-        step=1
-    )]
+    if strategy_type == "Service Ratio-Based":
+        st.info("ℹ️ Service Ratio strategy cumulates spot hours while keeping average cost below PPA price.")
+        # For Service Ratio strategy, we don't need target price - it's determined by PPA price
+        # But we keep it for compatibility with the function signature
+        target_prices = [30]  # Fixed value, not used in the algorithm
+    else:
+        target_prices = [st.slider(
+            "Average Target Spot Price (€/MWh)",
+            min_value=5,
+            max_value=50,
+            value=30,
+            step=1
+        )]
 
     # PV and PPA Price Parameters
     pv_price = st.slider(
@@ -554,12 +575,31 @@ if run_simulation:
                 all_results = []
                 
                 for i, target_price in enumerate(target_prices):
-                    st.write(f"**Analyzing average target spot price: {target_price} €/MWh (Extended to PPA {ppa_price}€/MWh)**")
+                    st.write(f"**Analyzing with {strategy_type} Strategy:**")
+                    if strategy_type == "Service Ratio-Based":
+                        st.write(f"**PPA Price Threshold: {ppa_price} €/MWh | PV Price: {pv_price} €/MWh**")
+                    else:
+                        st.write(f"**Target Price: {target_price} €/MWh | PPA Price: {ppa_price} €/MWh | PV Price: {pv_price} €/MWh**")
                     
-                    # Run simulation components using monthly service ratios
+                    # Run simulation components using selected strategy
                     expected_monthly_hours = get_required_hours_per_month_custom(monthly_service_ratios)
                     expected_monthly_power = get_expected_monthly_power_cons_custom(electrolyser_power, expected_monthly_hours)
-                    result, extended_info = calculate_max_hours(data_content, target_price, ppa_price, return_extended_info=True)
+                    
+                    # Choose strategy based on user selection
+                    if strategy_type == "Service Ratio-Based":
+                        strategy_key = 'service_ratio'
+                        result, extended_info = calculate_hybrid_strategy(
+                            data_content, target_price, ppa_price, pv_price, 
+                            strategy_key, 
+                            initial_service_ratio=initial_service_ratio,
+                            return_extended_info=True
+                        )
+                    else:  # Target Price-Based
+                        strategy_key = 'target_price'
+                        result, extended_info = calculate_hybrid_strategy(
+                            data_content, target_price, ppa_price, pv_price, 
+                            strategy_key, return_extended_info=True
+                        )
                     df_result = display_table(result)
                     
                     # Calculate differences
@@ -567,12 +607,32 @@ if run_simulation:
                     df_power_consumption = df_result * electrolyser_power
                     df_power_diff = calculate_percentage_difference(df_power_consumption, expected_monthly_power)
                     
-                    # Display results table
-                    st.write("**📊 Available Hours per Month:**")
+                    # Display results table with strategy-appropriate labeling
+                    if strategy_type == "Service Ratio-Based":
+                        st.write("**📊 Operating Hours per Month (Service Ratio Strategy):**")
+                    else:
+                        st.write("**📊 Available Hours per Month:**")
                     st.dataframe(df_result, width='stretch')
                     
+                    # Display strategy-specific information
+                    st.write(f"**🎯 Strategy Details: {strategy_type}**")
+                    if strategy_type == "Service Ratio-Based":
+                        st.write(f"• **Strategy**: Cumulate spot hours while average cost < PPA price")
+                        st.write(f"• **Price Logic**: Use spot price when spot ≤ PPA, otherwise use PPA price")
+                        st.write(f"• **Optimization**: Maximize operating hours below PPA price threshold")
+                        st.write(f"• **No Target Price**: Hours determined by PPA price constraint only")
+                    else:  # Target Price-Based
+                        st.write(f"• **Strategy**: Operate only when spot price ≤ target price")
+                        if len(selected_years) > 1:
+                            st.write(f"• **Multi-year Mode**: Using monthly average adjustments for consistency")
+                        else:
+                            st.write(f"• **Single-year Mode**: Using direct target price threshold")
+                    
                     # Create and display charts using full width
-                    st.write("**📈 Available Hours Chart:**")
+                    if strategy_type == "Service Ratio-Based":
+                        st.write("**📈 Operating Hours Chart (Service Ratio Strategy):**")
+                    else:
+                        st.write("**📈 Available Hours Chart:**")
                     
                     # Chart 1: Available Hours with Extended Hours Visualization (Full Width)
                     fig1, ax1 = plt.subplots(figsize=(12, 6))
@@ -587,8 +647,22 @@ if run_simulation:
                         for month in df_plot.index:
                             if str(year) in extended_info and month in extended_info[str(year)]:
                                 info = extended_info[str(year)][month]
-                                base_hours_data.loc[month, year] = info['base_hours']
-                                extended_hours_data.loc[month, year] = info['extended_hours']
+                                
+                                # Handle different extended_info structures
+                                if 'base_hours' in info and 'extended_hours' in info:
+                                    # Original calculate_max_hours structure
+                                    base_hours_data.loc[month, year] = info['base_hours']
+                                    extended_hours_data.loc[month, year] = info['extended_hours']
+                                elif 'target_hours' in info:
+                                    # New strategy structure - treat all as base hours for now
+                                    total_hours = info.get('target_hours', info.get('qualifying_hours', 0))
+                                    base_hours_data.loc[month, year] = total_hours
+                                    extended_hours_data.loc[month, year] = 0
+                                else:
+                                    # Fallback
+                                    total_hours = info.get('total_hours', 0)
+                                    base_hours_data.loc[month, year] = total_hours
+                                    extended_hours_data.loc[month, year] = 0
                             else:
                                 base_hours_data.loc[month, year] = df_plot.loc[month, year] if pd.notna(df_plot.loc[month, year]) else 0
                                 extended_hours_data.loc[month, year] = 0
@@ -657,18 +731,26 @@ if run_simulation:
                                            edgecolor='red', 
                                            alpha=0.8))
                     
-                    # Add legend entry for extended hours using Rectangle patch for better alpha rendering
+                    # Add legend entry for extended hours only if using original strategy
                     from matplotlib.patches import Rectangle
-                    extended_patch = Rectangle((0, 0), 1, 1, facecolor='gray', alpha=0.6, label='Extended Hours (avg < PPA)')
-                    
-                    # Get current handles and labels, then add the extended hours patch
                     handles, labels = ax1.get_legend_handles_labels()
-                    handles.append(extended_patch)
-                    labels.append('Extended Hours (avg < PPA)')
+                    
+                    # Only add extended hours legend if we have extended hours data
+                    has_extended_hours = extended_hours_data.sum().sum() > 0
+                    if has_extended_hours:
+                        extended_patch = Rectangle((0, 0), 1, 1, facecolor='gray', alpha=0.6, label='Extended Hours (avg < PPA)')
+                        handles.append(extended_patch)
+                        labels.append('Extended Hours (avg < PPA)')
                     
                     ax1.set_xlabel('Month')
-                    ax1.set_ylabel('Available Hours')
-                    ax1.set_title(f'Spot Available Hours - Average Target Price {target_price}€/MWh (Extended to PPA {ppa_price}€/MWh)\n')
+                    if strategy_type == "Service Ratio-Based":
+                        ax1.set_ylabel('Operating Hours')
+                    else:
+                        ax1.set_ylabel('Available Hours')
+                    if strategy_type == "Service Ratio-Based":
+                        ax1.set_title(f'Operating Hours - {strategy_type} Strategy (PPA Threshold: {ppa_price}€/MWh)\n')
+                    else:
+                        ax1.set_title(f'Available Hours - {strategy_type} Strategy (Target: {target_price}€/MWh)\n')
                     ax1.tick_params(axis='x', rotation=45)
                     ax1.legend(handles=handles, labels=labels, loc='upper right')
                     
@@ -824,10 +906,21 @@ if run_simulation:
                         for year_str in extended_info:
                             for month in extended_info[year_str]:
                                 info = extended_info[year_str][month]
-                                hours = info['total_hours'] if info['total_hours'] is not None else 0
-                                avg_price = info['actual_avg_price']
                                 
-                                if hours > 0:
+                                # Handle different extended_info structures
+                                if 'total_hours' in info:
+                                    hours = info['total_hours'] if info['total_hours'] is not None else 0
+                                elif 'target_hours' in info:
+                                    hours = info['target_hours'] if info['target_hours'] is not None else 0
+                                elif 'qualifying_hours' in info:
+                                    hours = info['qualifying_hours'] if info['qualifying_hours'] is not None else 0
+                                else:
+                                    hours = 0
+                                
+                                # Get average price - different field names in different strategies
+                                avg_price = info.get('actual_avg_price', info.get('average_cost', info.get('average_qualifying_price', target_price)))
+                                
+                                if hours > 0 and avg_price > 0:
                                     total_hours += hours
                                     total_cost += hours * avg_price
                         
@@ -1084,7 +1177,9 @@ if run_simulation:
                         month_spot_price = target_price  # fallback
                         for year_str in extended_info:
                             if month in extended_info[year_str]:
-                                month_spot_price = extended_info[year_str][month]['actual_avg_price']
+                                info = extended_info[year_str][month]
+                                # Handle different extended_info structures
+                                month_spot_price = info.get('actual_avg_price', info.get('average_cost', info.get('average_qualifying_price', target_price)))
                                 break  # Use first year found (or could average across years)
                         
                         # Calculate coverage ratios and costs
