@@ -460,6 +460,51 @@ plt.legend(title='Year')
 plt.tight_layout()
 st.pyplot(fig_price)
 
+# Add box plot figure showing price distribution per month
+st.markdown("#### 📦 Price Distribution by Month (Box Plot)")
+
+# Create box plot figure
+fig_box, ax_box = plt.subplots(figsize=(12, 6))
+
+# Create box plot for price distribution by month
+box_data = []
+box_labels = []
+month_order = list(calendar.month_name)[1:]  # January to December
+
+for month_num in range(1, 13):
+    month_name = calendar.month_name[month_num]
+    # Get all prices for this month across all years
+    month_data = data_content[data_content['Month'] == month_num]['Prix']
+    if len(month_data) > 0:
+        box_data.append(month_data)
+        box_labels.append(month_name)
+
+# Create the box plot
+bp = ax_box.boxplot(box_data, labels=box_labels, patch_artist=True)
+
+# Color the boxes with different colors
+colors = plt.cm.Set3(range(len(box_data)))
+for patch, color in zip(bp['boxes'], colors):
+    patch.set_facecolor(color)
+    patch.set_alpha(0.7)
+
+# Customize the plot
+ax_box.set_title('Electricity Price Distribution by Month', fontweight='bold', fontsize=14)
+ax_box.set_xlabel('Month')
+ax_box.set_ylabel('Price (€/MWh)')
+ax_box.grid(True, alpha=0.3)
+
+# Rotate x-axis labels for better readability
+plt.xticks(rotation=45, ha='right')
+
+# Add statistics text box
+stats_text = f"Dataset: {len(data_content)} data points\nYears: {sorted(data_content['Year'].unique())}"
+ax_box.text(0.02, 0.98, stats_text, transform=ax_box.transAxes, 
+           verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
+plt.tight_layout()
+st.pyplot(fig_box)
+
 # Add a visual summary of monthly service ratios before results
 st.markdown("#### 📅 Current Monthly Service Ratios")
 service_ratio_df = pd.DataFrame({
