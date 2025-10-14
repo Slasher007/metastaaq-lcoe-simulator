@@ -639,9 +639,9 @@ if run_simulation:
                     df_plot = df_result.T
                     monthly_avg = df_plot.mean(axis=1)
                     
-                    # Create separate dataframes for base and extended hours
-                    base_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
-                    extended_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
+                    # Create separate dataframes for spot and PPA hours
+                    spot_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
+                    ppa_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
                     
                     for year in df_plot.columns:
                         for month in df_plot.index:
@@ -649,27 +649,31 @@ if run_simulation:
                                 info = extended_info[str(year)][month]
                                 
                                 # Handle different extended_info structures
-                                if 'base_hours' in info and 'extended_hours' in info:
-                                    # Original calculate_max_hours structure
-                                    base_hours_data.loc[month, year] = info['base_hours']
-                                    extended_hours_data.loc[month, year] = info['extended_hours']
+                                if 'spot_hours' in info and 'ppa_hours' in info:
+                                    # Service Ratio Strategy structure with spot/PPA breakdown
+                                    spot_hours_data.loc[month, year] = info.get('spot_hours', 0)
+                                    ppa_hours_data.loc[month, year] = info.get('ppa_hours', 0)
+                                elif 'base_hours' in info and 'extended_hours' in info:
+                                    # Original calculate_max_hours structure - treat base as spot, extended as PPA
+                                    spot_hours_data.loc[month, year] = info['base_hours']
+                                    ppa_hours_data.loc[month, year] = info['extended_hours']
                                 elif 'target_hours' in info:
-                                    # New strategy structure - treat all as base hours for now
+                                    # New strategy structure - treat all as spot hours for now
                                     total_hours = info.get('target_hours', info.get('qualifying_hours', 0))
-                                    base_hours_data.loc[month, year] = total_hours
-                                    extended_hours_data.loc[month, year] = 0
+                                    spot_hours_data.loc[month, year] = total_hours
+                                    ppa_hours_data.loc[month, year] = 0
                                 else:
                                     # Fallback
                                     total_hours = info.get('total_hours', 0)
-                                    base_hours_data.loc[month, year] = total_hours
-                                    extended_hours_data.loc[month, year] = 0
+                                    spot_hours_data.loc[month, year] = total_hours
+                                    ppa_hours_data.loc[month, year] = 0
                             else:
-                                base_hours_data.loc[month, year] = df_plot.loc[month, year] if pd.notna(df_plot.loc[month, year]) else 0
-                                extended_hours_data.loc[month, year] = 0
+                                spot_hours_data.loc[month, year] = df_plot.loc[month, year] if pd.notna(df_plot.loc[month, year]) else 0
+                                ppa_hours_data.loc[month, year] = 0
                     
                     # Fill NaN values with 0
-                    base_hours_data = base_hours_data.fillna(0)
-                    extended_hours_data = extended_hours_data.fillna(0)
+                    spot_hours_data = spot_hours_data.fillna(0)
+                    ppa_hours_data = ppa_hours_data.fillna(0)
                     
                     # Create manual bar chart to properly handle stacked visualization
                     x_pos = range(len(df_plot.index))
@@ -682,29 +686,36 @@ if run_simulation:
                     for i, year in enumerate(df_plot.columns):
                         x_offset = [x + width * (i - len(df_plot.columns)/2 + 0.5) for x in x_pos]
                         
-                        # Base hours
-                        base_values = base_hours_data[year].values
-                        ax1.bar(x_offset, base_values, width, 
-                               label=f'{year}', color=colors[i], alpha=0.8)
+                        # Spot hours (bottom layer)
+                        spot_values = spot_hours_data[year].values
+                        ax1.bar(x_offset, spot_values, width, 
+                               label=f'{year} (Spot)' if i == 0 else "", color=colors[i], alpha=0.8)
                         
-                        # Extended hours (stacked on top)
-                        extended_values = extended_hours_data[year].values
-                        ax1.bar(x_offset, extended_values, width, 
-                               bottom=base_values, color='gray', alpha=0.6)
+                        # PPA hours (stacked on top)
+                        ppa_values = ppa_hours_data[year].values
+                        ax1.bar(x_offset, ppa_values, width, 
+                               bottom=spot_values, color=colors[i], alpha=0.5, 
+                               label=f'{year} (PPA)' if i == 0 else "")
                         
-                        # Add text annotations on bars - REMOVED per user request
-                        # for j, (x, base_val, ext_val) in enumerate(zip(x_offset, base_values, extended_values)):
-                        #     # Annotate base hours (center of base bar)
-                        #     if base_val > 0:
-                        #         ax1.text(x, base_val/2, f'{int(base_val)}', 
-                        #                 ha='center', va='center', fontsize=8, fontweight='bold', 
-                        #                 color='white')
-                        #     
-                        #     # Annotate extended hours (center of extended bar)
-                        #     if ext_val > 0:
-                        #         ax1.text(x, base_val + ext_val/2, f'{int(ext_val)}', 
-                        #                 ha='center', va='center', fontsize=8, fontweight='bold', 
-                        #                 color='white')
+                        # Add cumulative hour annotations on top of stacked bars
+                        for j, (x, spot_val, ppa_val) in enumerate(zip(x_offset, spot_values, ppa_values)):
+                            total_hours = spot_val + ppa_val
+                            if total_hours > 0:
+                                # Display total cumulative hours on top of the bar
+                                ax1.text(x, total_hours + 5, f'{int(total_hours)}h', 
+                                        ha='center', va='bottom', fontsize=9, fontweight='bold', 
+                                        color='black')
+                                
+                                # Optionally show breakdown inside bars if there's enough space
+                                if spot_val > 20:  # Only show if spot section is large enough
+                                    ax1.text(x, spot_val/2, f'S:{int(spot_val)}', 
+                                            ha='center', va='center', fontsize=8, fontweight='bold', 
+                                            color='white')
+                                
+                                if ppa_val > 20:  # Only show if PPA section is large enough
+                                    ax1.text(x, spot_val + ppa_val/2, f'P:{int(ppa_val)}', 
+                                            ha='center', va='center', fontsize=8, fontweight='bold', 
+                                            color='white')
                     
                     # Set x-axis labels
                     ax1.set_xticks(x_pos)
@@ -731,16 +742,23 @@ if run_simulation:
                                            edgecolor='red', 
                                            alpha=0.8))
                     
-                    # Add legend entry for extended hours only if using original strategy
+                    # Add legend entries for spot and PPA hours
                     from matplotlib.patches import Rectangle
                     handles, labels = ax1.get_legend_handles_labels()
                     
-                    # Only add extended hours legend if we have extended hours data
-                    has_extended_hours = extended_hours_data.sum().sum() > 0
-                    if has_extended_hours:
-                        extended_patch = Rectangle((0, 0), 1, 1, facecolor='gray', alpha=0.6, label='Extended Hours (avg < PPA)')
-                        handles.append(extended_patch)
-                        labels.append('Extended Hours (avg < PPA)')
+                    # Add spot and PPA legend entries
+                    has_spot_hours = spot_hours_data.sum().sum() > 0
+                    has_ppa_hours = ppa_hours_data.sum().sum() > 0
+                    
+                    if has_spot_hours:
+                        spot_patch = Rectangle((0, 0), 1, 1, facecolor='blue', alpha=0.8, label='Spot Hours')
+                        handles.append(spot_patch)
+                        labels.append('Spot Hours')
+                    
+                    if has_ppa_hours:
+                        ppa_patch = Rectangle((0, 0), 1, 1, facecolor='blue', alpha=0.5, label='PPA Hours')
+                        handles.append(ppa_patch)
+                        labels.append('PPA Hours')
                     
                     ax1.set_xlabel('Month')
                     if strategy_type == "Service Ratio-Based":
@@ -748,9 +766,9 @@ if run_simulation:
                     else:
                         ax1.set_ylabel('Available Hours')
                     if strategy_type == "Service Ratio-Based":
-                        ax1.set_title(f'Operating Hours - {strategy_type} Strategy (PPA Threshold: {ppa_price}€/MWh)\n')
+                        ax1.set_title(f'Operating Hours - {strategy_type} Strategy (PPA Threshold: {ppa_price}€/MWh)\nStacked: Spot Hours + PPA Hours with Cumulative Totals')
                     else:
-                        ax1.set_title(f'Available Hours - {strategy_type} Strategy (Target: {target_price}€/MWh)\n')
+                        ax1.set_title(f'Available Hours - {strategy_type} Strategy (Target: {target_price}€/MWh)\nStacked: Spot Hours + PPA Hours with Cumulative Totals')
                     ax1.tick_params(axis='x', rotation=45)
                     ax1.legend(handles=handles, labels=labels, loc='upper right')
                     
@@ -784,9 +802,9 @@ if run_simulation:
                     
                     # Update section header based on battery inclusion
                     if include_battery and battery_capacity_mwh > 0:
-                        coverage_title = f"**🔋 Monthly Energy Coverage (with {storage_hours}h Daily Battery Storage):**"
+                        coverage_title = f"**🔋 Monthly Energy Coverage (with {storage_hours}h Daily Battery Storage) - Spot/PPA Breakdown:**"
                     else:
-                        coverage_title = "**🔋 Monthly Energy Coverage:**"
+                        coverage_title = "**🔋 Monthly Energy Coverage - Spot/PPA Breakdown:**"
                     
                     st.write(coverage_title)
                     
@@ -811,88 +829,102 @@ if run_simulation:
                         for month in days_in_month
                     }
                     
-                    # Calculate battery-stored energy if battery is included
+                    # Calculate actual spot and PPA energy based on hours breakdown from extended_info
+                    monthly_spot_energy = {}
+                    monthly_ppa_energy = {}
+                    
+                    for month in calendar.month_name[1:]:  # January to December
+                        spot_energy_total = 0
+                        ppa_energy_total = 0
+                        
+                        # Sum across all years in extended_info
+                        for year_str in extended_info:
+                            if month in extended_info[year_str]:
+                                info = extended_info[year_str][month]
+                                spot_hours = info.get('spot_hours', 0) or 0
+                                ppa_hours = info.get('ppa_hours', 0) or 0
+                                
+                                # Convert hours to energy (hours * electrolyzer power)
+                                spot_energy_total += spot_hours * electrolyser_power
+                                ppa_energy_total += ppa_hours * electrolyser_power
+                        
+                        # Average across years if multiple years present
+                        num_years = len([y for y in extended_info if month in extended_info[y]])
+                        if num_years > 0:
+                            monthly_spot_energy[month] = spot_energy_total / num_years
+                            monthly_ppa_energy[month] = ppa_energy_total / num_years
+                        else:
+                            # Fallback to existing calculation
+                            monthly_spot_energy[month] = monthly_available_power.get(month, 0)
+                            monthly_ppa_energy[month] = 0
+                    
+                    # Calculate energy breakdown using actual spot/PPA hours from extended_info
+                    pv_direct_mwh = {}
+                    spot_energy_mwh = {}
+                    ppa_energy_mwh = {}
+                    
+                    for month, pv_energy in pv_energy_mwh.items():
+                        max_consumption = max_monthly_consumption.get(month, 0)
+                        
+                        # PV directly covers part of consumption
+                        direct_pv_usage = min(pv_energy, max_consumption)
+                        
+                        # Get actual spot and PPA energy from hours breakdown
+                        actual_spot_energy = monthly_spot_energy.get(month, 0)
+                        actual_ppa_energy = monthly_ppa_energy.get(month, 0)
+                        
+                        # Remaining consumption after PV
+                        remaining_after_pv = max_consumption - direct_pv_usage
+                        
+                        # Cap spot and PPA energy by remaining consumption needs
+                        total_grid_energy = actual_spot_energy + actual_ppa_energy
+                        if total_grid_energy > remaining_after_pv and total_grid_energy > 0:
+                            # Scale down proportionally if total grid energy exceeds remaining needs
+                            scale_factor = remaining_after_pv / total_grid_energy
+                            actual_spot_energy *= scale_factor
+                            actual_ppa_energy *= scale_factor
+                        
+                        pv_direct_mwh[month] = direct_pv_usage
+                        spot_energy_mwh[month] = actual_spot_energy
+                        ppa_energy_mwh[month] = actual_ppa_energy if integrate_ppa else 0
+                    
+                    # Create DataFrame with actual spot/PPA breakdown
                     if include_battery and battery_capacity_mwh > 0:
-                        # Battery stores energy from cheapest spot hours, not PV excess
-                        pv_direct_mwh = {}
+                        # For battery case, split spot energy into direct and battery components
                         spot_direct_mwh = {}
                         spot_battery_mwh = {}
-                        battery_avg_price = {}
                         
-                        for month, pv_energy in pv_energy_mwh.items():
-                            available_spot_power = monthly_available_power.get(month, 0)
-                            max_consumption = max_monthly_consumption.get(month, 0)
+                        for month in spot_energy_mwh:
+                            total_spot = spot_energy_mwh[month]
+                            days_in_current_month = days_in_month.get(month, 30)
+                            monthly_battery_capacity = battery_capacity_mwh * days_in_current_month
                             
-                            # PV directly covers part of consumption (no change here)
-                            direct_pv_usage = min(pv_energy, max_consumption)
+                            # Assume battery gets cheapest 30% of spot energy (up to battery capacity)
+                            battery_portion = min(total_spot * 0.3, monthly_battery_capacity, total_spot)
+                            direct_portion = total_spot - battery_portion
                             
-                            # Remaining consumption after PV
-                            remaining_after_pv = max_consumption - direct_pv_usage
-                            
-                            if remaining_after_pv > 0 and available_spot_power > 0:
-                                # Calculate monthly battery capacity (daily capacity × days in month)
-                                days_in_current_month = days_in_month.get(month, 30)
-                                monthly_battery_capacity = battery_capacity_mwh * days_in_current_month
-                                
-                                # Split available spot energy between direct use and battery storage
-                                # Battery gets priority for cheapest hours (up to monthly cycling capacity)
-                                battery_energy = min(monthly_battery_capacity, available_spot_power, remaining_after_pv)
-                                direct_spot_energy = min(available_spot_power - battery_energy, remaining_after_pv - battery_energy)
-                                
-                                # Get average price for battery energy (cheapest hours)
-                                # For now, use target price as approximation (will be refined with actual price data)
-                                battery_avg_price[month] = target_price * 0.8  # Assume battery gets 20% cheaper energy
-                            else:
-                                battery_energy = 0
-                                direct_spot_energy = min(available_spot_power, remaining_after_pv) if remaining_after_pv > 0 else 0
-                                battery_avg_price[month] = target_price
-                            
-                            pv_direct_mwh[month] = direct_pv_usage
-                            spot_direct_mwh[month] = direct_spot_energy
-                            spot_battery_mwh[month] = battery_energy
+                            spot_direct_mwh[month] = direct_portion
+                            spot_battery_mwh[month] = battery_portion
                         
                         df_plot_data = pd.DataFrame({
                             'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
                             'PV': pd.Series(pv_direct_mwh),
                             'Spot Direct': pd.Series(spot_direct_mwh),
                             'Spot Battery': pd.Series(spot_battery_mwh),
+                            'PPA': pd.Series(ppa_energy_mwh)
                         })
                         
-                        # Calculate remaining energy needed from PPA
+                        # Calculate combined spot for compatibility
                         df_plot_data['Spot'] = df_plot_data['Spot Direct'] + df_plot_data['Spot Battery']
-                        df_plot_data['PPA'] = (
-                            df_plot_data['Maximum Consumption (MWh)'] - 
-                            df_plot_data['PV'] - 
-                            df_plot_data['Spot']
-                        ).clip(lower=0)
-                        if not integrate_ppa:
-                            df_plot_data['PPA'] = 0
                         
                     else:
-                        # Logic without battery: cap spot by remaining service-ratio-limited consumption after PV
-                        pv_direct_no_batt = {}
-                        spot_no_batt = {}
-                        for month, pv_energy in pv_energy_mwh.items():
-                            max_cons = max_monthly_consumption.get(month, 0)
-                            pv_direct = min(pv_energy, max_cons)
-                            remaining = max_cons - pv_direct
-                            spot_capped = min(monthly_available_power.get(month, 0), remaining)
-                            pv_direct_no_batt[month] = pv_direct
-                            spot_no_batt[month] = spot_capped
-                        
+                        # Without battery: use direct spot/PPA breakdown
                         df_plot_data = pd.DataFrame({
                             'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
-                            'PV': pd.Series(pv_direct_no_batt),
-                            'Spot': pd.Series(spot_no_batt)
+                            'PV': pd.Series(pv_direct_mwh),
+                            'Spot': pd.Series(spot_energy_mwh),
+                            'PPA': pd.Series(ppa_energy_mwh)
                         })
-                        
-                        df_plot_data['PPA'] = (
-                            df_plot_data['Maximum Consumption (MWh)'] - 
-                            df_plot_data['PV'] - 
-                            df_plot_data['Spot']
-                        ).clip(lower=0)
-                        if not integrate_ppa:
-                            df_plot_data['PPA'] = 0
                     
                     month_order = list(calendar.month_name)[1:]
                     df_plot_data = df_plot_data.reindex(month_order)
@@ -949,6 +981,25 @@ if run_simulation:
                     df_plot_data[plot_columns].plot(
                         kind='bar', stacked=True, ax=ax3, color=plot_colors
                     )
+                    
+                    # Add cumulative energy totals on top of bars
+                    for i, month in enumerate(df_plot_data.index):
+                        # Calculate total energy for this month
+                        if include_battery and battery_capacity_mwh > 0:
+                            total_energy = (df_plot_data.loc[month, 'PV'] + 
+                                          df_plot_data.loc[month, 'Spot Direct'] + 
+                                          df_plot_data.loc[month, 'Spot Battery'] + 
+                                          (df_plot_data.loc[month, 'PPA'] if integrate_ppa else 0))
+                        else:
+                            total_energy = (df_plot_data.loc[month, 'PV'] + 
+                                          df_plot_data.loc[month, 'Spot'] + 
+                                          (df_plot_data.loc[month, 'PPA'] if integrate_ppa else 0))
+                        
+                        # Add total energy label on top of bar
+                        if total_energy > 0:
+                            ax3.text(i, total_energy + (total_energy * 0.02), f'{total_energy:.1f} MWh', 
+                                    ha='center', va='bottom', fontsize=9, fontweight='bold', 
+                                    color='black')
                     
                     # Add percentage labels inside bars with white text
                     for i, month in enumerate(df_plot_data.index):
@@ -1023,9 +1074,9 @@ if run_simulation:
                     
                     # Set chart title based on battery inclusion
                     if include_battery and battery_capacity_mwh > 0:
-                        chart_title = f'Monthly Energy Coverage (incl. {battery_capacity_mwh:.1f} MWh Daily Battery Storage)'
+                        chart_title = f'Monthly Energy Coverage (incl. {battery_capacity_mwh:.1f} MWh Daily Battery Storage)\nStacked: PV + Spot Energy + PPA Energy with Cumulative Totals'
                     else:
-                        chart_title = 'Monthly Energy Coverage'
+                        chart_title = 'Monthly Energy Coverage\nStacked: PV + Spot Energy + PPA Energy with Cumulative Totals'
                     
                     ax3.set_title(chart_title)
                     ax3.set_xlabel('Month')
