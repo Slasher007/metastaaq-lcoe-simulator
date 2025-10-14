@@ -159,7 +159,7 @@ with st.sidebar.expander("💰 Price", expanded=True):
         "PV Price (€/MWh)",
         min_value=0,
         max_value=100,
-        value=60,
+        value=0,
         step=5,
         help="Price of photovoltaic energy"
     )
