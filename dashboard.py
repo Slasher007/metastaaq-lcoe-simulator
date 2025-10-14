@@ -692,19 +692,19 @@ if run_simulation:
                         ax1.bar(x_offset, extended_values, width, 
                                bottom=base_values, color='gray', alpha=0.6)
                         
-                        # Add text annotations on bars
-                        for j, (x, base_val, ext_val) in enumerate(zip(x_offset, base_values, extended_values)):
-                            # Annotate base hours (center of base bar)
-                            if base_val > 0:
-                                ax1.text(x, base_val/2, f'{int(base_val)}', 
-                                        ha='center', va='center', fontsize=8, fontweight='bold', 
-                                        color='white')
-                            
-                            # Annotate extended hours (center of extended bar)
-                            if ext_val > 0:
-                                ax1.text(x, base_val + ext_val/2, f'{int(ext_val)}', 
-                                        ha='center', va='center', fontsize=8, fontweight='bold', 
-                                        color='white')
+                        # Add text annotations on bars - REMOVED per user request
+                        # for j, (x, base_val, ext_val) in enumerate(zip(x_offset, base_values, extended_values)):
+                        #     # Annotate base hours (center of base bar)
+                        #     if base_val > 0:
+                        #         ax1.text(x, base_val/2, f'{int(base_val)}', 
+                        #                 ha='center', va='center', fontsize=8, fontweight='bold', 
+                        #                 color='white')
+                        #     
+                        #     # Annotate extended hours (center of extended bar)
+                        #     if ext_val > 0:
+                        #         ax1.text(x, base_val + ext_val/2, f'{int(ext_val)}', 
+                        #                 ha='center', va='center', fontsize=8, fontweight='bold', 
+                        #                 color='white')
                     
                     # Set x-axis labels
                     ax1.set_xticks(x_pos)
