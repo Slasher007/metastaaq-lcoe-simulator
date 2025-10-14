@@ -74,7 +74,7 @@ available_years = sorted(data_content['Annee'].unique()) if 'Annee' in data_cont
 selected_years = st.sidebar.multiselect(
     "Select years for analysis",
     options=available_years,
-    default=available_years
+    default=[2024] if 2024 in available_years else available_years[:1]
 )
 
 # Filter data by selected years
