@@ -688,14 +688,23 @@ if run_simulation:
                         
                         # Spot hours (bottom layer)
                         spot_values = spot_hours_data[year].values
+                        # Only add year-specific labels if single year, otherwise use generic labels
+                        if len(df_plot.columns) == 1:
+                            spot_label = f'{year} (Spot)' if i == 0 else ""
+                        else:
+                            spot_label = f'{year}' if i == 0 else ""
                         ax1.bar(x_offset, spot_values, width, 
-                               label=f'{year} (Spot)' if i == 0 else "", color=colors[i], alpha=0.8)
+                               label=spot_label, color=colors[i], alpha=0.8)
                         
                         # PPA hours (stacked on top)
                         ppa_values = ppa_hours_data[year].values
+                        if len(df_plot.columns) == 1:
+                            ppa_label = f'{year} (PPA)' if i == 0 else ""
+                        else:
+                            ppa_label = "" # No individual PPA labels for multiple years
                         ax1.bar(x_offset, ppa_values, width, 
                                bottom=spot_values, color=colors[i], alpha=0.5, 
-                               label=f'{year} (PPA)' if i == 0 else "")
+                               label=ppa_label)
                         
                         # Add cumulative hour annotations on top of stacked bars
                         for j, (x, spot_val, ppa_val) in enumerate(zip(x_offset, spot_values, ppa_values)):
@@ -709,13 +718,13 @@ if run_simulation:
                                 # Optionally show breakdown inside bars if there's enough space
                                 if spot_val > 20:  # Only show if spot section is large enough
                                     ax1.text(x, spot_val/2, f'S:{int(spot_val)}', 
-                                            ha='center', va='center', fontsize=8, fontweight='bold', 
-                                            color='white')
-                                
+                                        ha='center', va='center', fontsize=8, fontweight='bold', 
+                                        color='white')
+                            
                                 if ppa_val > 20:  # Only show if PPA section is large enough
                                     ax1.text(x, spot_val + ppa_val/2, f'P:{int(ppa_val)}', 
-                                            ha='center', va='center', fontsize=8, fontweight='bold', 
-                                            color='white')
+                                        ha='center', va='center', fontsize=8, fontweight='bold', 
+                                        color='white')
                     
                     # Set x-axis labels
                     ax1.set_xticks(x_pos)
@@ -746,19 +755,22 @@ if run_simulation:
                     from matplotlib.patches import Rectangle
                     handles, labels = ax1.get_legend_handles_labels()
                     
-                    # Add spot and PPA legend entries
+                    # Add spot and PPA legend entries based on number of years
                     has_spot_hours = spot_hours_data.sum().sum() > 0
                     has_ppa_hours = ppa_hours_data.sum().sum() > 0
                     
-                    if has_spot_hours:
-                        spot_patch = Rectangle((0, 0), 1, 1, facecolor='blue', alpha=0.8, label='Spot Hours')
-                        handles.append(spot_patch)
-                        labels.append('Spot Hours')
-                    
-                    if has_ppa_hours:
-                        ppa_patch = Rectangle((0, 0), 1, 1, facecolor='blue', alpha=0.5, label='PPA Hours')
-                        handles.append(ppa_patch)
-                        labels.append('PPA Hours')
+                    if len(df_plot.columns) > 1:
+                        # Multiple years: Add generic spot/PPA legend entries and average line
+                        if has_spot_hours:
+                            spot_patch = Rectangle((0, 0), 1, 1, facecolor='blue', alpha=0.8, label='Spot Hours')
+                            handles.append(spot_patch)
+                            labels.append('Spot Hours')
+                        
+                        if has_ppa_hours:
+                            ppa_patch = Rectangle((0, 0), 1, 1, facecolor='blue', alpha=0.5, label='PPA Hours')
+                            handles.append(ppa_patch)
+                            labels.append('PPA Hours')
+                    # For single year, the year-specific labels are already added by the bar plots
                     
                     ax1.set_xlabel('Month')
                     if strategy_type == "Service Ratio-Based":
