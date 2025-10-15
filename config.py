@@ -60,7 +60,7 @@ PARAM_RANGES = {
     "electrolyser_power": {"min": 1.0, "max": 20.0, "step": 0.5},
     "electrolyser_specific_consumption": {"min": 4.0, "max": 6.0, "step": 0.1},
     "service_ratio": {"min": 0.0, "max": 1.0, "step": 0.01},
-    "pv_price": {"min": 20.0, "max": 100.0, "step": 5.0},
+    "pv_price": {"min": 0.0, "max": 100.0, "step": 5.0},
     "ppa_price": {"min": 40.0, "max": 120.0, "step": 5.0},
     "target_price": {"min": 20.0, "max": 100.0, "step": 5.0},
     "pv_project_years": {"min": 15, "max": 30, "step": 1},
