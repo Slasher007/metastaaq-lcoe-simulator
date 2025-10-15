@@ -383,9 +383,9 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
         avg_sr = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
     avg_suffix = f' (Avg SR: {avg_sr:.1%})' if monthly_service_ratios else ''
     if include_battery and battery_capacity_mwh > 0:
-        chart_title = f'Monthly Energy Coverage{avg_suffix} (incl. {battery_capacity_mwh:.1f} MWh Daily Battery Storage)\nStacked: PV + Spot Energy + PPA Energy with Cumulative Totals'
+        chart_title = f'Monthly Energy Coverage{avg_suffix} (incl. {battery_capacity_mwh:.1f} MWh Daily Battery Storage)'
     else:
-        chart_title = f'Monthly Energy Coverage{avg_suffix}\nStacked: PV + Spot Energy + PPA Energy with Cumulative Totals'
+        chart_title = f'Monthly Energy Coverage{avg_suffix}'
     
     ax3.set_title(chart_title)
     ax3.set_xlabel('Month')
