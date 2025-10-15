@@ -274,11 +274,51 @@ def main():
                         coverage_title = f"**🔋 Monthly Energy Coverage (with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:**" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "**🔋 Monthly Energy Coverage - Spot/PPA Breakdown:**"
                         st.write(coverage_title)
                         
-                        # Prepare data for plotting
+                        # Prepare data for plotting based on forced hours and anchored PV
+                        days_per_month = {
+                            "January": 31, "February": 28, "March": 31, "April": 30,
+                            "May": 31, "June": 30, "July": 31, "August": 31,
+                            "September": 30, "October": 31, "November": 30, "December": 31
+                        }
+                        pv_list = []
+                        spot_list = []
+                        ppa_list = []
+                        for month in monthly_service_ratios.keys():
+                            ratio = monthly_service_ratios.get(month, 1.0)
+                            forced_hours = int(round(days_per_month.get(month, 30) * 24 * ratio))
+                            required_mwh = forced_hours * electrolyser_power
+
+                            pv_avail_mwh = pv_energy_data['pv_energy_mwh'].get(month, 0)
+                            pv_mwh = min(pv_avail_mwh, required_mwh)
+                            remaining_mwh = max(0, required_mwh - pv_mwh)
+
+                            # Determine Spot/PPA shares from extended_info (sum across years)
+                            total_spot_hours = 0
+                            total_ppa_hours = 0
+                            for year_str in extended_info:
+                                if month in extended_info[year_str]:
+                                    info = extended_info[year_str][month]
+                                    total_spot_hours += int(info.get('spot_hours', 0) or 0)
+                                    total_ppa_hours += int(info.get('ppa_hours', 0) or 0)
+                            grid_hours = total_spot_hours + total_ppa_hours
+                            if grid_hours > 0:
+                                spot_ratio = total_spot_hours / grid_hours
+                                ppa_ratio = total_ppa_hours / grid_hours
+                            else:
+                                spot_ratio = 1.0
+                                ppa_ratio = 0.0
+
+                            spot_mwh = remaining_mwh * spot_ratio
+                            ppa_mwh = remaining_mwh * ppa_ratio
+
+                            pv_list.append(pv_mwh)
+                            spot_list.append(spot_mwh)
+                            ppa_list.append(ppa_mwh)
+
                         df_plot_data = pd.DataFrame({
-                            'PV': [pv_energy_data['pv_energy_mwh'][month] for month in monthly_service_ratios.keys()],
-                            'Spot': [energy_breakdown['spot_energy_mwh'][month] for month in monthly_service_ratios.keys()],
-                            'PPA': [energy_breakdown['ppa_energy_mwh'][month] for month in monthly_service_ratios.keys()]
+                            'PV': pv_list,
+                            'Spot': spot_list,
+                            'PPA': ppa_list
                         }, index=list(monthly_service_ratios.keys()))
                         
                         if pv_params['include_battery'] and battery_capacity_mwh > 0:
