@@ -160,6 +160,34 @@ def main():
                                 strategy_key, return_extended_info=True
                             )
                         
+                        # Force monthly operating hours to service ratio × days × 24 when using Service Ratio-Based strategy
+                        if strategy_type == "Service Ratio-Based":
+                            try:
+                                days_per_month = {
+                                    "January": 31, "February": 28, "March": 31, "April": 30,
+                                    "May": 31, "June": 30, "July": 31, "August": 31,
+                                    "September": 30, "October": 31, "November": 30, "December": 31
+                                }
+                                for year_str, months_dict in result.items():
+                                    for month_name, _hours in months_dict.items():
+                                        ratio = monthly_service_ratios.get(month_name, 1.0)
+                                        total_hours_available = days_per_month.get(month_name, 30) * 24
+                                        forced_hours = int(round(total_hours_available * ratio))
+
+                                        # Update result hours to forced value
+                                        result[year_str][month_name] = forced_hours
+
+                                        # Update service ratio metadata (keep spot/ppa hours as computed; chart will rescale)
+                                        info = extended_info.get(year_str, {}).get(month_name, {})
+                                        if info is not None:
+                                            denom = total_hours_available if total_hours_available > 0 else 1
+                                            info['service_ratio'] = (forced_hours / denom)
+                                            if year_str in extended_info and month_name in extended_info[year_str]:
+                                                extended_info[year_str][month_name] = info
+                            except Exception as _e:
+                                # Non-fatal: continue with existing values
+                                pass
+
                         df_result = display_table(result)
                         
                         # Calculate differences
@@ -212,8 +240,14 @@ def main():
                         else:
                             st.write("**📈 Available Hours Chart:**")
                         
-                        fig1 = create_operating_hours_chart(df_result, extended_info, strategy_type, 
-                                                            pv_energy_data['pv_energy_mwh'], electrolyser_power)
+                        fig1 = create_operating_hours_chart(
+                            df_result,
+                            extended_info,
+                            strategy_type,
+                            pv_energy_data['pv_energy_mwh'],
+                            electrolyser_power,
+                            monthly_service_ratios
+                        )
                         st.pyplot(fig1)
                         
                         # Display PV images

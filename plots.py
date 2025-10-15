@@ -122,7 +122,7 @@ def create_service_ratios_chart(monthly_service_ratios):
     return fig_service
 
 
-def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_energy_mwh=None, electrolyser_power=None):
+def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_energy_mwh=None, electrolyser_power=None, monthly_service_ratios=None):
     """Create operating hours chart with PV/Spot/PPA breakdown"""
     fig1, ax1 = plt.subplots(figsize=(12, 6))
     df_plot = df_result.T
@@ -149,6 +149,20 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_ene
             else:
                 spot_hours_data.loc[month, year] = df_plot.loc[month, year]
                 ppa_hours_data.loc[month, year] = 0
+
+            # If Service Ratio-Based and monthly_service_ratios provided, rescale to forced total hours
+            if strategy_type == "Service Ratio-Based" and monthly_service_ratios is not None:
+                ratio = monthly_service_ratios.get(month, 1.0)
+                # Approximate days per month for forced total hours
+                days_per_month = {"January": 31, "February": 28, "March": 31, "April": 30, "May": 31, "June": 30,
+                                  "July": 31, "August": 31, "September": 30, "October": 31, "November": 30, "December": 31}
+                forced_total = int(round(days_per_month.get(month, 30) * 24 * ratio))
+                current_total = float(pv_hours_data.loc[month, year]) + float(spot_hours_data.loc[month, year]) + float(ppa_hours_data.loc[month, year])
+                if current_total > 0 and forced_total >= 0:
+                    scale = forced_total / current_total
+                    pv_hours_data.loc[month, year] = float(pv_hours_data.loc[month, year]) * scale
+                    spot_hours_data.loc[month, year] = float(spot_hours_data.loc[month, year]) * scale
+                    ppa_hours_data.loc[month, year] = float(ppa_hours_data.loc[month, year]) * scale
 
     if len(df_plot.columns) == 1:
         # Single year - create stacked bars with PV/Spot/PPA
