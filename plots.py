@@ -286,28 +286,30 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
         plot_columns = ['PV', 'Spot'] + (['PPA'] if integrate_ppa else [])
         plot_colors = ['blue', 'green'] + (['red'] if integrate_ppa else [])
     
-    df_plot_data[plot_columns].plot(
-        kind='bar', stacked=True, ax=ax3, color=plot_colors
-    )
+    # Build percentage dataframe for plotting (y-axis as %)
+    percentages_df = df_plot_data[plot_columns].copy()
+    row_totals = percentages_df.sum(axis=1).replace(0, 1)  # avoid division by zero
+    percentages_df = (percentages_df.T / row_totals).T * 100.0
+
+    percentages_df.plot(kind='bar', stacked=True, ax=ax3, color=plot_colors)
     
     # Add cumulative energy totals on top of bars
     for i, month in enumerate(df_plot_data.index):
-        # Calculate total energy for this month
+        # Total energy for label text; y-axis is percentage so place near top
         if include_battery and battery_capacity_mwh > 0:
-            total_energy = (df_plot_data.loc[month, 'PV'] + 
-                          df_plot_data.loc[month, 'Spot Direct'] + 
-                          df_plot_data.loc[month, 'Spot Battery'] + 
-                          (df_plot_data.loc[month, 'PPA'] if integrate_ppa else 0))
+            total_energy = (df_plot_data.loc[month, 'PV'] +
+                            df_plot_data.loc[month, 'Spot Direct'] +
+                            df_plot_data.loc[month, 'Spot Battery'] +
+                            (df_plot_data.loc[month, 'PPA'] if integrate_ppa else 0))
         else:
-            total_energy = (df_plot_data.loc[month, 'PV'] + 
-                          df_plot_data.loc[month, 'Spot'] + 
-                          (df_plot_data.loc[month, 'PPA'] if integrate_ppa else 0))
-        
-        # Add total energy label on top of bar
+            total_energy = (df_plot_data.loc[month, 'PV'] +
+                            df_plot_data.loc[month, 'Spot'] +
+                            (df_plot_data.loc[month, 'PPA'] if integrate_ppa else 0))
+
         if total_energy > 0:
-            ax3.text(i, total_energy + (total_energy * 0.02), f'{total_energy:.1f} MWh', 
-                    ha='center', va='bottom', fontsize=9, fontweight='bold', 
-                    color='black')
+            ax3.text(i, 102, f'{total_energy:.1f}',
+                     ha='center', va='bottom', fontsize=9, fontweight='bold',
+                     color='black')
     
     # Add percentage labels inside bars with white text
     for i, month in enumerate(df_plot_data.index):
@@ -316,69 +318,64 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
             spot_direct_val = df_plot_data.loc[month, 'Spot Direct']
             spot_battery_val = df_plot_data.loc[month, 'Spot Battery']
             ppa_val = df_plot_data.loc[month, 'PPA'] if integrate_ppa else 0
-            
+
             total_plotted = pv_val + spot_direct_val + spot_battery_val + ppa_val
-            
+
             if total_plotted > 0:
-                # Calculate percentages
+                # Percentages for positioning; labels show energy MWh
                 pv_pct = (pv_val / total_plotted) * 100
                 spot_direct_pct = (spot_direct_val / total_plotted) * 100
                 spot_battery_pct = (spot_battery_val / total_plotted) * 100
                 ppa_pct = (ppa_val / total_plotted) * 100 if integrate_ppa else 0
-                
-                # Position for text (middle of each bar segment)
-                pv_mid = pv_val / 2
-                spot_direct_mid = pv_val + (spot_direct_val / 2)
-                spot_battery_mid = pv_val + spot_direct_val + (spot_battery_val / 2)
-                ppa_mid = pv_val + spot_direct_val + spot_battery_val + (ppa_val / 2)
-                
-                # Add percentage text if segment is large enough
+
+                pv_mid = pv_pct / 2
+                spot_direct_mid = pv_pct + (spot_direct_pct / 2)
+                spot_battery_mid = pv_pct + spot_direct_pct + (spot_battery_pct / 2)
+                ppa_mid = pv_pct + spot_direct_pct + spot_battery_pct + (ppa_pct / 2)
+
                 if pv_pct > 3:
-                    ax3.text(i, pv_mid, f'{pv_pct:.1f}%', 
-                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
-                
+                    ax3.text(i, pv_mid, f'{pv_val:.1f}',
+                             ha='center', va='center', color='black', fontweight='bold', fontsize=9)
+
                 if spot_direct_pct > 3:
-                    ax3.text(i, spot_direct_mid, f'{spot_direct_pct:.1f}%', 
-                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
-                
+                    ax3.text(i, spot_direct_mid, f'{spot_direct_val:.1f}',
+                             ha='center', va='center', color='black', fontweight='bold', fontsize=9)
+
                 if spot_battery_pct > 3:
-                    ax3.text(i, spot_battery_mid, f'{spot_battery_pct:.1f}%', 
-                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
-                
+                    ax3.text(i, spot_battery_mid, f'{spot_battery_val:.1f}',
+                             ha='center', va='center', color='black', fontweight='bold', fontsize=9)
+
                 if integrate_ppa and ppa_pct > 3:
-                    ax3.text(i, ppa_mid, f'{ppa_pct:.1f}%', 
-                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                    ax3.text(i, ppa_mid, f'{ppa_val:.1f}',
+                             ha='center', va='center', color='black', fontweight='bold', fontsize=9)
         else:
             # Original logic without battery
             pv_val = df_plot_data.loc[month, 'PV']
             spot_val = df_plot_data.loc[month, 'Spot']
             ppa_val = df_plot_data.loc[month, 'PPA'] if integrate_ppa else 0
-            
+
             total_plotted = pv_val + spot_val + ppa_val
-            
+
             if total_plotted > 0:
-                # Calculate percentages based on plotted total
                 pv_pct = (pv_val / total_plotted) * 100
                 spot_pct = (spot_val / total_plotted) * 100
                 ppa_pct = (ppa_val / total_plotted) * 100 if integrate_ppa else 0
-                
-                # Position for text (middle of each bar segment)
-                pv_mid = pv_val / 2
-                spot_mid = pv_val + (spot_val / 2)
-                ppa_mid = pv_val + spot_val + (ppa_val / 2)
-                
-                # Add percentage text if segment is large enough
+
+                pv_mid = pv_pct / 2
+                spot_mid = pv_pct + (spot_pct / 2)
+                ppa_mid = pv_pct + spot_pct + (ppa_pct / 2)
+
                 if pv_pct > 3:
-                    ax3.text(i, pv_mid, f'{pv_pct:.1f}%', 
-                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
-                
+                    ax3.text(i, pv_mid, f'{pv_val:.1f}',
+                             ha='center', va='center', color='black', fontweight='bold', fontsize=9)
+
                 if spot_pct > 3:
-                    ax3.text(i, spot_mid, f'{spot_pct:.1f}%', 
-                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
-                
+                    ax3.text(i, spot_mid, f'{spot_val:.1f}',
+                             ha='center', va='center', color='black', fontweight='bold', fontsize=9)
+
                 if integrate_ppa and ppa_pct > 3:
-                    ax3.text(i, ppa_mid, f'{ppa_pct:.1f}%', 
-                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                    ax3.text(i, ppa_mid, f'{ppa_val:.1f}',
+                             ha='center', va='center', color='black', fontweight='bold', fontsize=9)
     
     # Set chart title based on battery inclusion and average service ratio
     avg_sr = 0
@@ -392,7 +389,8 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
     
     ax3.set_title(chart_title)
     ax3.set_xlabel('Month')
-    ax3.set_ylabel('Energy (MWh)')
+    ax3.set_ylabel('Coverage (%)')
+    ax3.set_ylim(0, 110)
     ax3.tick_params(axis='x', rotation=45)
     
     plt.tight_layout()
