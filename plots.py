@@ -150,19 +150,35 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_ene
                 spot_hours_data.loc[month, year] = df_plot.loc[month, year]
                 ppa_hours_data.loc[month, year] = 0
 
-            # If Service Ratio-Based and monthly_service_ratios provided, rescale to forced total hours
+            # If Service Ratio-Based and monthly_service_ratios provided, enforce forced total hours:
+            # - Keep PV hours anchored to pv_energy_mwh / electrolyser_power
+            # - Scale Spot/PPA proportionally to fill the remaining forced hours
             if strategy_type == "Service Ratio-Based" and monthly_service_ratios is not None:
                 ratio = monthly_service_ratios.get(month, 1.0)
-                # Approximate days per month for forced total hours
                 days_per_month = {"January": 31, "February": 28, "March": 31, "April": 30, "May": 31, "June": 30,
                                   "July": 31, "August": 31, "September": 30, "October": 31, "November": 30, "December": 31}
                 forced_total = int(round(days_per_month.get(month, 30) * 24 * ratio))
-                current_total = float(pv_hours_data.loc[month, year]) + float(spot_hours_data.loc[month, year]) + float(ppa_hours_data.loc[month, year])
-                if current_total > 0 and forced_total >= 0:
-                    scale = forced_total / current_total
-                    pv_hours_data.loc[month, year] = float(pv_hours_data.loc[month, year]) * scale
-                    spot_hours_data.loc[month, year] = float(spot_hours_data.loc[month, year]) * scale
-                    ppa_hours_data.loc[month, year] = float(ppa_hours_data.loc[month, year]) * scale
+
+                pv_val = float(pv_hours_data.loc[month, year])
+                spot_val = float(spot_hours_data.loc[month, year])
+                ppa_val = float(ppa_hours_data.loc[month, year])
+                grid_total = spot_val + ppa_val
+
+                # If PV alone exceeds forced hours, cap PV and zero-out grid
+                if pv_val >= forced_total and forced_total >= 0:
+                    pv_hours_data.loc[month, year] = forced_total
+                    spot_hours_data.loc[month, year] = 0.0
+                    ppa_hours_data.loc[month, year] = 0.0
+                else:
+                    remaining = max(forced_total - pv_val, 0)
+                    if grid_total > 0:
+                        scale = remaining / grid_total
+                        spot_hours_data.loc[month, year] = spot_val * scale
+                        ppa_hours_data.loc[month, year] = ppa_val * scale
+                    else:
+                        # No grid hours available; keep PV as-is and leave remainder unfilled
+                        spot_hours_data.loc[month, year] = 0.0
+                        ppa_hours_data.loc[month, year] = 0.0
 
     if len(df_plot.columns) == 1:
         # Single year - create stacked bars with PV/Spot/PPA
