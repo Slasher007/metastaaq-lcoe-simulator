@@ -212,7 +212,8 @@ def main():
                         else:
                             st.write("**📈 Available Hours Chart:**")
                         
-                        fig1 = create_operating_hours_chart(df_result, extended_info, strategy_type)
+                        fig1 = create_operating_hours_chart(df_result, extended_info, strategy_type, 
+                                                            pv_energy_data['pv_energy_mwh'], electrolyser_power)
                         st.pyplot(fig1)
                         
                         # Display PV images

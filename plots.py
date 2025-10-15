@@ -122,18 +122,26 @@ def create_service_ratios_chart(monthly_service_ratios):
     return fig_service
 
 
-def create_operating_hours_chart(df_result, extended_info, strategy_type):
-    """Create operating hours chart with spot/PPA breakdown"""
+def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_energy_mwh=None, electrolyser_power=None):
+    """Create operating hours chart with PV/Spot/PPA breakdown"""
     fig1, ax1 = plt.subplots(figsize=(12, 6))
     df_plot = df_result.T
     monthly_avg = df_plot.mean(axis=1)
     
-    # Create separate dataframes for spot and PPA hours
+    # Create separate dataframes for PV, spot and PPA hours
+    pv_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
     spot_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
     ppa_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
     
     for year in df_plot.columns:
         for month in df_plot.index:
+            # Calculate PV hours from energy if provided
+            if pv_energy_mwh and electrolyser_power and month in pv_energy_mwh:
+                pv_hours = pv_energy_mwh[month] / electrolyser_power if electrolyser_power > 0 else 0
+                pv_hours_data.loc[month, year] = pv_hours
+            else:
+                pv_hours_data.loc[month, year] = 0
+            
             if str(year) in extended_info and month in extended_info[str(year)]:
                 info = extended_info[str(year)][month]
                 spot_hours_data.loc[month, year] = info.get('spot_hours', 0)
@@ -143,51 +151,63 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type):
                 ppa_hours_data.loc[month, year] = 0
 
     if len(df_plot.columns) == 1:
-        # Single year - create stacked bars
+        # Single year - create stacked bars with PV/Spot/PPA
         year = df_plot.columns[0]
         x_pos = np.arange(len(df_plot.index))
         width = 0.6
         
+        pv_values = pv_hours_data[year].values
         spot_values = spot_hours_data[year].values
         ppa_values = ppa_hours_data[year].values
         
-        ax1.bar(x_pos, spot_values, width, label=f'{year} (Spot)', color=PLOT_COLORS['spot'], alpha=0.8)
-        ax1.bar(x_pos, ppa_values, width, bottom=spot_values, label=f'{year} (PPA)', color=PLOT_COLORS['ppa'], alpha=0.5)
+        # Stack: PV at bottom, Spot in middle, PPA on top
+        ax1.bar(x_pos, pv_values, width, label=f'{year} (PV)', color=PLOT_COLORS.get('pv', 'gold'), alpha=0.8)
+        ax1.bar(x_pos, spot_values, width, bottom=pv_values, label=f'{year} (Spot)', color=PLOT_COLORS['spot'], alpha=0.8)
+        ax1.bar(x_pos, ppa_values, width, bottom=pv_values + spot_values, label=f'{year} (PPA)', color=PLOT_COLORS['ppa'], alpha=0.5)
         
         # Add value labels
         for j in range(len(x_pos)):
+            pv_val = pv_values[j]
             spot_val = spot_values[j]
             ppa_val = ppa_values[j]
-            total = spot_val + ppa_val
+            total = pv_val + spot_val + ppa_val
             if total > 0:
                 ax1.text(x_pos[j], total + 5, f'{int(total)}h', ha='center', va='bottom', fontsize=9, fontweight='bold')
+                if pv_val > 20:
+                    ax1.text(x_pos[j], pv_val/2, f'PV:{int(pv_val)}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
                 if spot_val > 20:
-                    ax1.text(x_pos[j], spot_val/2, f'S:{int(spot_val)}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
+                    ax1.text(x_pos[j], pv_val + spot_val/2, f'S:{int(spot_val)}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
                 if ppa_val > 20:
-                    ax1.text(x_pos[j], spot_val + ppa_val/2, f'P:{int(ppa_val)}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
+                    ax1.text(x_pos[j], pv_val + spot_val + ppa_val/2, f'P:{int(ppa_val)}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
     else:
         # Multi-year - show a single stacked bar per month using average values
         x_pos = np.arange(len(df_plot.index))
         width = 0.6
         
-        # Compute average spot and PPA hours across selected years per month
+        # Compute average PV, spot and PPA hours across selected years per month
+        pv_avg_values = pv_hours_data.mean(axis=1).values
         spot_avg_values = spot_hours_data.mean(axis=1).values
         ppa_avg_values = ppa_hours_data.mean(axis=1).values
         
-        ax1.bar(x_pos, spot_avg_values, width, label='Spot (avg)', color=PLOT_COLORS['spot'], alpha=0.8)
-        ax1.bar(x_pos, ppa_avg_values, width, bottom=spot_avg_values, label='PPA (avg)', color=PLOT_COLORS['ppa'], alpha=0.5)
+        # Stack: PV at bottom, Spot in middle, PPA on top
+        ax1.bar(x_pos, pv_avg_values, width, label='PV (avg)', color=PLOT_COLORS.get('pv', 'gold'), alpha=0.8)
+        ax1.bar(x_pos, spot_avg_values, width, bottom=pv_avg_values, label='Spot (avg)', color=PLOT_COLORS['spot'], alpha=0.8)
+        ax1.bar(x_pos, ppa_avg_values, width, bottom=pv_avg_values + spot_avg_values, label='PPA (avg)', color=PLOT_COLORS['ppa'], alpha=0.5)
         
         # Add value labels (same as single-year view)
         for j in range(len(x_pos)):
+            pv_val = float(pv_avg_values[j]) if not np.isnan(pv_avg_values[j]) else 0.0
             spot_val = float(spot_avg_values[j]) if not np.isnan(spot_avg_values[j]) else 0.0
             ppa_val = float(ppa_avg_values[j]) if not np.isnan(ppa_avg_values[j]) else 0.0
-            total = spot_val + ppa_val
+            total = pv_val + spot_val + ppa_val
             if total > 0:
                 ax1.text(x_pos[j], total + 5, f'{int(round(total))}h', ha='center', va='bottom', fontsize=9, fontweight='bold')
+                if pv_val > 20:
+                    ax1.text(x_pos[j], pv_val/2, f'PV:{int(round(pv_val))}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
                 if spot_val > 20:
-                    ax1.text(x_pos[j], spot_val/2, f'S:{int(round(spot_val))}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
+                    ax1.text(x_pos[j], pv_val + spot_val/2, f'S:{int(round(spot_val))}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
                 if ppa_val > 20:
-                    ax1.text(x_pos[j], spot_val + ppa_val/2, f'P:{int(round(ppa_val))}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
+                    ax1.text(x_pos[j], pv_val + spot_val + ppa_val/2, f'P:{int(round(ppa_val))}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
     
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(df_plot.index, rotation=45, ha='right')
@@ -200,20 +220,6 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type):
     ax1.plot(x_pos, monthly_avg, color='red', linestyle='--', marker='o', linewidth=2, markersize=6, label='Average')
     
     handles, labels = ax1.get_legend_handles_labels()
-    
-    if len(df_plot.columns) > 1:
-        # For multi-year average view, legend already includes Spot (avg) and PPA (avg)
-        pass
-    else:
-        # Add generic patches if needed
-        from matplotlib.patches import Rectangle
-        if spot_hours_data.sum().sum() > 0:
-            handles.append(Rectangle((0,0),1,1, color='blue', alpha=0.8))
-            labels.append('Spot Hours')
-        if ppa_hours_data.sum().sum() > 0:
-            handles.append(Rectangle((0,0),1,1, color='blue', alpha=0.5))
-            labels.append('PPA Hours')
-    
     ax1.legend(handles, labels, loc='upper right')
     plt.tight_layout()
     
