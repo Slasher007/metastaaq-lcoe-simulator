@@ -164,19 +164,32 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_ene
                 ppa_val = float(ppa_hours_data.loc[month, year])
                 grid_total = spot_val + ppa_val
 
-                # If PV alone exceeds forced hours, cap PV and zero-out grid
-                if pv_val >= forced_total and forced_total >= 0:
-                    pv_hours_data.loc[month, year] = forced_total
+                # Integer allocation to avoid off-by-one totals in labels
+                if forced_total < 0:
+                    forced_total = 0
+                pv_int = int(round(pv_val))
+                if pv_int >= forced_total:
+                    pv_hours_data.loc[month, year] = float(forced_total)
                     spot_hours_data.loc[month, year] = 0.0
                     ppa_hours_data.loc[month, year] = 0.0
                 else:
-                    remaining = max(forced_total - pv_val, 0)
+                    remaining = forced_total - pv_int
                     if grid_total > 0:
-                        scale = remaining / grid_total
-                        spot_hours_data.loc[month, year] = spot_val * scale
-                        ppa_hours_data.loc[month, year] = ppa_val * scale
+                        spot_prop = spot_val / grid_total
+                        # Allocate integer hours proportionally
+                        spot_int = int(round(remaining * spot_prop))
+                        # Ensure bounds
+                        if spot_int < 0:
+                            spot_int = 0
+                        if spot_int > remaining:
+                            spot_int = remaining
+                        ppa_int = remaining - spot_int
+                        pv_hours_data.loc[month, year] = float(pv_int)
+                        spot_hours_data.loc[month, year] = float(spot_int)
+                        ppa_hours_data.loc[month, year] = float(ppa_int)
                     else:
-                        # No grid hours available; keep PV as-is and leave remainder unfilled
+                        # No grid hours available; assign PV and leave remainder unfilled
+                        pv_hours_data.loc[month, year] = float(pv_int)
                         spot_hours_data.loc[month, year] = 0.0
                         ppa_hours_data.loc[month, year] = 0.0
 
