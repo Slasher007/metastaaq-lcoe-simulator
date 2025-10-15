@@ -33,7 +33,7 @@ def display_sidebar_logo():
 
 def display_pv_images():
     """Display PV installation images"""
-    st.write("**☀️ Monthly PV Production (Meaux Location):**")
+    st.markdown("### ☀️ Monthly PV Production (Meaux Location)")
     try:
         # Create 2x2 grid layout for the images
         col1, col2 = st.columns(2)

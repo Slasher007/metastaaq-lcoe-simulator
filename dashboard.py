@@ -120,6 +120,9 @@ def main():
     fig_service = create_service_ratios_chart(monthly_service_ratios)
     st.pyplot(fig_service)
     
+    # Move PV images section here (after Current Monthly Service Ratios)
+    display_pv_images()
+    
     # Run simulation
     run_simulation = params_changed or manual_refresh or 'simulation_run' not in st.session_state
     
@@ -250,8 +253,7 @@ def main():
                         )
                         st.pyplot(fig1)
                         
-                        # Display PV images
-                        display_pv_images()
+                        # PV images already displayed above; skip duplicate here
                         
                         # Calculate actual spot price
                         actual_spot_price = data_content['Prix'].mean()
