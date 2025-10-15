@@ -114,7 +114,8 @@ def create_service_ratios_chart(monthly_service_ratios):
     ax_service.set_xticks(range(len(monthly_service_ratios)))
     ax_service.set_xticklabels([month[:3] for month in monthly_service_ratios.keys()], rotation=45)
     ax_service.set_ylabel('Service Ratio')
-    ax_service.set_title('Monthly Service Ratios (Green: ≥90%, Orange: 50-90%, Red: <50%)')
+    avg_sr = sum(monthly_service_ratios.values()) / len(monthly_service_ratios) if monthly_service_ratios else 0
+    ax_service.set_title(f'Monthly Service Ratios (Avg: {avg_sr:.1%})\n(Green: ≥90%, Orange: 50-90%, Red: <50%)')
     ax_service.set_ylim(0, 1.1)
     ax_service.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -255,7 +256,11 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_ene
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(df_plot.index, rotation=45, ha='right')
     ax1.set_ylabel('Hours')
-    ax1.set_title(f'Operating Hours Chart ({strategy_type})')
+    avg_sr = 0
+    if monthly_service_ratios:
+        avg_sr = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
+    title_suffix = f" - Avg Service Ratio: {avg_sr:.1%}" if monthly_service_ratios else ""
+    ax1.set_title(f'Operating Hours Chart ({strategy_type}){title_suffix}')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     
@@ -269,7 +274,7 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_ene
     return fig1
 
 
-def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity_mwh, integrate_ppa):
+def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity_mwh, integrate_ppa, monthly_service_ratios=None):
     """Create energy coverage stacked bar chart"""
     fig2, ax3 = plt.subplots(figsize=(12, 6))
     
@@ -375,11 +380,15 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
                     ax3.text(i, ppa_mid, f'{ppa_pct:.1f}%', 
                             ha='center', va='center', color='white', fontweight='bold', fontsize=9)
     
-    # Set chart title based on battery inclusion
+    # Set chart title based on battery inclusion and average service ratio
+    avg_sr = 0
+    if monthly_service_ratios:
+        avg_sr = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
+    avg_suffix = f' (Avg SR: {avg_sr:.1%})' if monthly_service_ratios else ''
     if include_battery and battery_capacity_mwh > 0:
-        chart_title = f'Monthly Energy Coverage (incl. {battery_capacity_mwh:.1f} MWh Daily Battery Storage)\nStacked: PV + Spot Energy + PPA Energy with Cumulative Totals'
+        chart_title = f'Monthly Energy Coverage{avg_suffix} (incl. {battery_capacity_mwh:.1f} MWh Daily Battery Storage)\nStacked: PV + Spot Energy + PPA Energy with Cumulative Totals'
     else:
-        chart_title = 'Monthly Energy Coverage\nStacked: PV + Spot Energy + PPA Energy with Cumulative Totals'
+        chart_title = f'Monthly Energy Coverage{avg_suffix}\nStacked: PV + Spot Energy + PPA Energy with Cumulative Totals'
     
     ax3.set_title(chart_title)
     ax3.set_xlabel('Month')
@@ -390,7 +399,7 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
     return fig2
 
 
-def create_energy_distribution_pie_chart(df_plot_data, include_battery, battery_capacity_mwh, integrate_ppa):
+def create_energy_distribution_pie_chart(df_plot_data, include_battery, battery_capacity_mwh, integrate_ppa, monthly_service_ratios=None):
     """Create pie chart for energy distribution"""
     # Calculate total energy for each source
     total_pv_energy = sum(df_plot_data['PV'])
@@ -460,11 +469,15 @@ def create_energy_distribution_pie_chart(df_plot_data, include_battery, battery_
                          edgecolor=filtered_colors[i], 
                          alpha=0.9))
     
-    # Set pie chart title based on battery inclusion
+    # Set pie chart title including average service ratio
+    avg_sr = 0
+    if monthly_service_ratios:
+        avg_sr = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
+    avg_suffix = f' (Avg SR: {avg_sr:.1%})' if monthly_service_ratios else ''
     if include_battery and battery_capacity_mwh > 0:
-        pie_title = f'Energy Distribution (with {battery_capacity_mwh:.1f} MWh Daily Battery Storage)'
+        pie_title = f'Energy Distribution{avg_suffix} (with {battery_capacity_mwh:.1f} MWh Daily Battery Storage)'
     else:
-        pie_title = 'Energy Distribution'
+        pie_title = f'Energy Distribution{avg_suffix}'
     
     ax4.set_title(pie_title, fontweight='bold', fontsize=12)
     plt.tight_layout()

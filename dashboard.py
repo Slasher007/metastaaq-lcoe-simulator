@@ -119,6 +119,7 @@ def main():
     st.markdown("#### 📅 Current Monthly Service Ratios")
     fig_service = create_service_ratios_chart(monthly_service_ratios)
     st.pyplot(fig_service)
+    st.write(f"**Current average service ratio:** {avg_service_ratio:.1%}")
     
     # Move PV images section here (after Current Monthly Service Ratios)
     display_pv_images()
@@ -288,14 +289,26 @@ def main():
                         
                         # Create energy coverage chart
                         integrate_ppa = ppa_price >= 60  # Only integrate PPA if price >= 60€/MWh
-                        fig2 = create_energy_coverage_chart(df_plot_data, pv_params['include_battery'], battery_capacity_mwh, integrate_ppa)
+                        fig2 = create_energy_coverage_chart(
+                            df_plot_data,
+                            pv_params['include_battery'],
+                            battery_capacity_mwh,
+                            integrate_ppa,
+                            monthly_service_ratios
+                        )
                         st.pyplot(fig2)
                         
                         # Create pie chart
                         pie_section_title = f"**🥧 Energy Coverage Distribution (with {pv_params['storage_hours']}h Daily Battery):**" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "**🥧 Energy Coverage Distribution:**"
                         st.write(pie_section_title)
                         
-                        fig3 = create_energy_distribution_pie_chart(df_plot_data, pv_params['include_battery'], battery_capacity_mwh, integrate_ppa)
+                        fig3 = create_energy_distribution_pie_chart(
+                            df_plot_data,
+                            pv_params['include_battery'],
+                            battery_capacity_mwh,
+                            integrate_ppa,
+                            monthly_service_ratios
+                        )
                         if fig3:
                             st.pyplot(fig3)
                         
