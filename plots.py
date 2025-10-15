@@ -166,33 +166,28 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type):
                 if ppa_val > 20:
                     ax1.text(x_pos[j], spot_val + ppa_val/2, f'P:{int(ppa_val)}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
     else:
-        # Multi-year - create grouped bars
+        # Multi-year - show a single stacked bar per month using average values
         x_pos = np.arange(len(df_plot.index))
-        width = 0.8 / len(df_plot.columns)
+        width = 0.6
         
-        colors = plt.cm.tab10(np.linspace(0, 1, len(df_plot.columns)))
+        # Compute average spot and PPA hours across selected years per month
+        spot_avg_values = spot_hours_data.mean(axis=1).values
+        ppa_avg_values = ppa_hours_data.mean(axis=1).values
         
-        for i, year in enumerate(df_plot.columns):
-            x_offset = x_pos + width * (i - len(df_plot.columns)/2 + 0.5)
-            
-            spot_values = spot_hours_data[year].values
-            spot_label = f'{year} (Spot)' if i == 0 else ""
-            ax1.bar(x_offset, spot_values, width, label=spot_label, color=colors[i], alpha=0.8)
-            
-            ppa_values = ppa_hours_data[year].values
-            ppa_label = f'{year} (PPA)' if i == 0 else ""
-            ax1.bar(x_offset, ppa_values, width, bottom=spot_values, label=ppa_label, color=colors[i], alpha=0.5)
-            
-            for j in range(len(x_offset)):
-                spot_val = spot_values[j]
-                ppa_val = ppa_values[j]
-                total = spot_val + ppa_val
-                if total > 0:
-                    ax1.text(x_offset[j], total + 5, f'{int(total)}h', ha='center', va='bottom', fontsize=9, fontweight='bold')
-                    if spot_val > 20:
-                        ax1.text(x_offset[j], spot_val/2, f'S:{int(spot_val)}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
-                    if ppa_val > 20:
-                        ax1.text(x_offset[j], spot_val + ppa_val/2, f'P:{int(ppa_val)}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
+        ax1.bar(x_pos, spot_avg_values, width, label='Spot (avg)', color=PLOT_COLORS['spot'], alpha=0.8)
+        ax1.bar(x_pos, ppa_avg_values, width, bottom=spot_avg_values, label='PPA (avg)', color=PLOT_COLORS['ppa'], alpha=0.5)
+        
+        # Add value labels (same as single-year view)
+        for j in range(len(x_pos)):
+            spot_val = float(spot_avg_values[j]) if not np.isnan(spot_avg_values[j]) else 0.0
+            ppa_val = float(ppa_avg_values[j]) if not np.isnan(ppa_avg_values[j]) else 0.0
+            total = spot_val + ppa_val
+            if total > 0:
+                ax1.text(x_pos[j], total + 5, f'{int(round(total))}h', ha='center', va='bottom', fontsize=9, fontweight='bold')
+                if spot_val > 20:
+                    ax1.text(x_pos[j], spot_val/2, f'S:{int(round(spot_val))}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
+                if ppa_val > 20:
+                    ax1.text(x_pos[j], spot_val + ppa_val/2, f'P:{int(round(ppa_val))}', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
     
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(df_plot.index, rotation=45, ha='right')
@@ -201,17 +196,13 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type):
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     
-    # Add average line
+    # Add average line (without value labels on top)
     ax1.plot(x_pos, monthly_avg, color='red', linestyle='--', marker='o', linewidth=2, markersize=6, label='Average')
-    
-    # Add value labels for average line
-    for i, value in enumerate(monthly_avg):
-        ax1.annotate(f'{int(value)}h', (i, value), textcoords="offset points", xytext=(0,10), ha='center', fontweight='bold', color='red')
     
     handles, labels = ax1.get_legend_handles_labels()
     
     if len(df_plot.columns) > 1:
-        # For multi-year, legend is already set with average labels
+        # For multi-year average view, legend already includes Spot (avg) and PPA (avg)
         pass
     else:
         # Add generic patches if needed
