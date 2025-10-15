@@ -371,6 +371,20 @@ def main():
                         # Create breakdown dataframe
                         breakdown_df = pd.DataFrame(monthly_breakdown)
                         breakdown_df = pd.concat([breakdown_df, pd.DataFrame([yearly_average])], ignore_index=True)
+                        # Reorder columns: keep 'Month' first, move totals and avg cost to the far right
+                        move_right = [
+                            'Total Energy (MWh)',
+                            'Total Cost (€)',
+                            'Avg Cost (€/MWh)'
+                        ]
+                        current_cols = list(breakdown_df.columns)
+                        # Ensure 'Month' stays first if present
+                        head_cols = ['Month'] if 'Month' in current_cols else []
+                        # Middle columns exclude head and move_right
+                        mid_cols = [c for c in current_cols if c not in head_cols + move_right]
+                        # Right columns in specified order, only if present
+                        right_cols = [c for c in move_right if c in current_cols]
+                        breakdown_df = breakdown_df[head_cols + mid_cols + right_cols]
                         
                         # Style the dataframe
                         def highlight_yearly_row(row):
