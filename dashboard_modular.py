@@ -119,10 +119,6 @@ def main():
     st.markdown("#### 📅 Current Monthly Service Ratios")
     fig_service = create_service_ratios_chart(monthly_service_ratios)
     st.pyplot(fig_service)
-    st.write(f"**Current average service ratio:** {avg_service_ratio:.1%}")
-    
-    # Move PV images section here (after Current Monthly Service Ratios)
-    display_pv_images()
     
     # Run simulation
     run_simulation = params_changed or manual_refresh or 'simulation_run' not in st.session_state
@@ -164,34 +160,6 @@ def main():
                                 strategy_key, return_extended_info=True
                             )
                         
-                        # Force monthly operating hours to service ratio × days × 24 when using Service Ratio-Based strategy
-                        if strategy_type == "Service Ratio-Based":
-                            try:
-                                days_per_month = {
-                                    "January": 31, "February": 28, "March": 31, "April": 30,
-                                    "May": 31, "June": 30, "July": 31, "August": 31,
-                                    "September": 30, "October": 31, "November": 30, "December": 31
-                                }
-                                for year_str, months_dict in result.items():
-                                    for month_name, _hours in months_dict.items():
-                                        ratio = monthly_service_ratios.get(month_name, 1.0)
-                                        total_hours_available = days_per_month.get(month_name, 30) * 24
-                                        forced_hours = int(round(total_hours_available * ratio))
-
-                                        # Update result hours to forced value
-                                        result[year_str][month_name] = forced_hours
-
-                                        # Update service ratio metadata (keep spot/ppa hours as computed; chart will rescale)
-                                        info = extended_info.get(year_str, {}).get(month_name, {})
-                                        if info is not None:
-                                            denom = total_hours_available if total_hours_available > 0 else 1
-                                            info['service_ratio'] = (forced_hours / denom)
-                                            if year_str in extended_info and month_name in extended_info[year_str]:
-                                                extended_info[year_str][month_name] = info
-                            except Exception as _e:
-                                # Non-fatal: continue with existing values
-                                pass
-
                         df_result = display_table(result)
                         
                         # Calculate differences
@@ -244,17 +212,12 @@ def main():
                         else:
                             st.write("**📈 Available Hours Chart:**")
                         
-                        fig1 = create_operating_hours_chart(
-                            df_result,
-                            extended_info,
-                            strategy_type,
-                            pv_energy_data['pv_energy_mwh'],
-                            electrolyser_power,
-                            monthly_service_ratios
-                        )
+                        fig1 = create_operating_hours_chart(df_result, extended_info, strategy_type, 
+                                                            pv_energy_data['pv_energy_mwh'], electrolyser_power)
                         st.pyplot(fig1)
                         
-                        # PV images already displayed above; skip duplicate here
+                        # Display PV images
+                        display_pv_images()
                         
                         # Calculate actual spot price
                         actual_spot_price = data_content['Prix'].mean()
@@ -274,51 +237,11 @@ def main():
                         coverage_title = f"**🔋 Monthly Energy Coverage (with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:**" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "**🔋 Monthly Energy Coverage - Spot/PPA Breakdown:**"
                         st.write(coverage_title)
                         
-                        # Prepare data for plotting based on forced hours and anchored PV
-                        days_per_month = {
-                            "January": 31, "February": 28, "March": 31, "April": 30,
-                            "May": 31, "June": 30, "July": 31, "August": 31,
-                            "September": 30, "October": 31, "November": 30, "December": 31
-                        }
-                        pv_list = []
-                        spot_list = []
-                        ppa_list = []
-                        for month in monthly_service_ratios.keys():
-                            ratio = monthly_service_ratios.get(month, 1.0)
-                            forced_hours = int(round(days_per_month.get(month, 30) * 24 * ratio))
-                            required_mwh = forced_hours * electrolyser_power
-
-                            pv_avail_mwh = pv_energy_data['pv_energy_mwh'].get(month, 0)
-                            pv_mwh = min(pv_avail_mwh, required_mwh)
-                            remaining_mwh = max(0, required_mwh - pv_mwh)
-
-                            # Determine Spot/PPA shares from extended_info (sum across years)
-                            total_spot_hours = 0
-                            total_ppa_hours = 0
-                            for year_str in extended_info:
-                                if month in extended_info[year_str]:
-                                    info = extended_info[year_str][month]
-                                    total_spot_hours += int(info.get('spot_hours', 0) or 0)
-                                    total_ppa_hours += int(info.get('ppa_hours', 0) or 0)
-                            grid_hours = total_spot_hours + total_ppa_hours
-                            if grid_hours > 0:
-                                spot_ratio = total_spot_hours / grid_hours
-                                ppa_ratio = total_ppa_hours / grid_hours
-                            else:
-                                spot_ratio = 1.0
-                                ppa_ratio = 0.0
-
-                            spot_mwh = remaining_mwh * spot_ratio
-                            ppa_mwh = remaining_mwh * ppa_ratio
-
-                            pv_list.append(pv_mwh)
-                            spot_list.append(spot_mwh)
-                            ppa_list.append(ppa_mwh)
-
+                        # Prepare data for plotting
                         df_plot_data = pd.DataFrame({
-                            'PV': pv_list,
-                            'Spot': spot_list,
-                            'PPA': ppa_list
+                            'PV': [pv_energy_data['pv_energy_mwh'][month] for month in monthly_service_ratios.keys()],
+                            'Spot': [energy_breakdown['spot_energy_mwh'][month] for month in monthly_service_ratios.keys()],
+                            'PPA': [energy_breakdown['ppa_energy_mwh'][month] for month in monthly_service_ratios.keys()]
                         }, index=list(monthly_service_ratios.keys()))
                         
                         if pv_params['include_battery'] and battery_capacity_mwh > 0:
@@ -329,26 +252,14 @@ def main():
                         
                         # Create energy coverage chart
                         integrate_ppa = ppa_price >= 60  # Only integrate PPA if price >= 60€/MWh
-                        fig2 = create_energy_coverage_chart(
-                            df_plot_data,
-                            pv_params['include_battery'],
-                            battery_capacity_mwh,
-                            integrate_ppa,
-                            monthly_service_ratios
-                        )
+                        fig2 = create_energy_coverage_chart(df_plot_data, pv_params['include_battery'], battery_capacity_mwh, integrate_ppa)
                         st.pyplot(fig2)
                         
                         # Create pie chart
                         pie_section_title = f"**🥧 Energy Coverage Distribution (with {pv_params['storage_hours']}h Daily Battery):**" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "**🥧 Energy Coverage Distribution:**"
                         st.write(pie_section_title)
                         
-                        fig3 = create_energy_distribution_pie_chart(
-                            df_plot_data,
-                            pv_params['include_battery'],
-                            battery_capacity_mwh,
-                            integrate_ppa,
-                            monthly_service_ratios
-                        )
+                        fig3 = create_energy_distribution_pie_chart(df_plot_data, pv_params['include_battery'], battery_capacity_mwh, integrate_ppa)
                         if fig3:
                             st.pyplot(fig3)
                         
@@ -371,20 +282,6 @@ def main():
                         # Create breakdown dataframe
                         breakdown_df = pd.DataFrame(monthly_breakdown)
                         breakdown_df = pd.concat([breakdown_df, pd.DataFrame([yearly_average])], ignore_index=True)
-                        # Reorder columns: keep 'Month' first, move totals and avg cost to the far right
-                        move_right = [
-                            'Total Energy (MWh)',
-                            'Total Cost (€)',
-                            'Avg Cost (€/MWh)'
-                        ]
-                        current_cols = list(breakdown_df.columns)
-                        # Ensure 'Month' stays first if present
-                        head_cols = ['Month'] if 'Month' in current_cols else []
-                        # Middle columns exclude head and move_right
-                        mid_cols = [c for c in current_cols if c not in head_cols + move_right]
-                        # Right columns in specified order, only if present
-                        right_cols = [c for c in move_right if c in current_cols]
-                        breakdown_df = breakdown_df[head_cols + mid_cols + right_cols]
                         
                         # Style the dataframe
                         def highlight_yearly_row(row):
