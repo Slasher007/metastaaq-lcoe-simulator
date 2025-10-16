@@ -202,7 +202,7 @@ def main():
                         if strategy_type == "Service Ratio-Based":
                             st.write("**📊 Operating Hours per Month (Service Ratio Strategy):**")
                         else:
-                            st.write("**📊 Available Hours per Month:**")
+                            st.write("**📊 Operating Hours per Month (Target Price Strategy):**")
                         st.dataframe(df_result, width='stretch')
                         
                         # Calculate PV energy production
@@ -242,7 +242,7 @@ def main():
                         if strategy_type == "Service Ratio-Based":
                             st.write("**📈 Operating Hours Chart (Service Ratio Strategy):**")
                         else:
-                            st.write("**📈 Available Hours Chart:**")
+                            st.write("**📈 Operating Hours Chart (Target Price Strategy):**")
                         
                         fig1 = create_operating_hours_chart(
                             df_result,
@@ -271,10 +271,13 @@ def main():
                                             pv_price, actual_spot_price, ppa_price)
                         
                         # Create energy coverage chart
-                        coverage_title = f"**🔋 Monthly Energy Coverage (with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:**" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "**🔋 Monthly Energy Coverage - Spot/PPA Breakdown:**"
+                        if strategy_type == "Target Price-Based":
+                            coverage_title = f"**🔋 Monthly Energy Coverage (Target Price Strategy) - Based on Actual Operating Hours:**" if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"**🔋 Monthly Energy Coverage (Target Price Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Based on Actual Operating Hours:**"
+                        else:
+                            coverage_title = f"**🔋 Monthly Energy Coverage (Service Ratio Strategy) - Spot/PPA Breakdown:**" if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"**🔋 Monthly Energy Coverage (Service Ratio Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:**"
                         st.write(coverage_title)
                         
-                        # Prepare data for plotting based on forced hours and anchored PV
+                        # Prepare data for plotting based on strategy type
                         days_per_month = {
                             "January": 31, "February": 28, "March": 31, "April": 30,
                             "May": 31, "June": 30, "July": 31, "August": 31,
@@ -284,32 +287,49 @@ def main():
                         spot_list = []
                         ppa_list = []
                         for month in monthly_service_ratios.keys():
-                            ratio = monthly_service_ratios.get(month, 1.0)
-                            forced_hours = int(round(days_per_month.get(month, 30) * 24 * ratio))
-                            required_mwh = forced_hours * electrolyser_power
-
-                            pv_avail_mwh = pv_energy_data['pv_energy_mwh'].get(month, 0)
-                            pv_mwh = min(pv_avail_mwh, required_mwh)
-                            remaining_mwh = max(0, required_mwh - pv_mwh)
-
-                            # Determine Spot/PPA shares from extended_info (sum across years)
-                            total_spot_hours = 0
-                            total_ppa_hours = 0
-                            for year_str in extended_info:
-                                if month in extended_info[year_str]:
-                                    info = extended_info[year_str][month]
-                                    total_spot_hours += int(info.get('spot_hours', 0) or 0)
-                                    total_ppa_hours += int(info.get('ppa_hours', 0) or 0)
-                            grid_hours = total_spot_hours + total_ppa_hours
-                            if grid_hours > 0:
-                                spot_ratio = total_spot_hours / grid_hours
-                                ppa_ratio = total_ppa_hours / grid_hours
+                            if strategy_type == "Target Price-Based":
+                                # Target Price-Based strategy: use actual operating hours from strategy calculation
+                                # Get actual operating hours from df_result (average across years)
+                                actual_hours = df_result[month].mean() if month in df_result.columns else 0
+                                if pd.isna(actual_hours):
+                                    actual_hours = 0
+                                required_mwh = actual_hours * electrolyser_power
+                                
+                                pv_avail_mwh = pv_energy_data['pv_energy_mwh'].get(month, 0)
+                                pv_mwh = min(pv_avail_mwh, required_mwh)
+                                remaining_mwh = max(0, required_mwh - pv_mwh)
+                                
+                                # Target Price-Based strategy uses only spot hours (no PPA mixing)
+                                spot_mwh = remaining_mwh
+                                ppa_mwh = 0
                             else:
-                                spot_ratio = 1.0
-                                ppa_ratio = 0.0
+                                # Service Ratio-Based strategy: use forced hours based on service ratios
+                                ratio = monthly_service_ratios.get(month, 1.0)
+                                forced_hours = int(round(days_per_month.get(month, 30) * 24 * ratio))
+                                required_mwh = forced_hours * electrolyser_power
 
-                            spot_mwh = remaining_mwh * spot_ratio
-                            ppa_mwh = remaining_mwh * ppa_ratio
+                                pv_avail_mwh = pv_energy_data['pv_energy_mwh'].get(month, 0)
+                                pv_mwh = min(pv_avail_mwh, required_mwh)
+                                remaining_mwh = max(0, required_mwh - pv_mwh)
+
+                                # Service Ratio-Based strategy: determine Spot/PPA shares from extended_info
+                                total_spot_hours = 0
+                                total_ppa_hours = 0
+                                for year_str in extended_info:
+                                    if month in extended_info[year_str]:
+                                        info = extended_info[year_str][month]
+                                        total_spot_hours += int(info.get('spot_hours', 0) or 0)
+                                        total_ppa_hours += int(info.get('ppa_hours', 0) or 0)
+                                grid_hours = total_spot_hours + total_ppa_hours
+                                if grid_hours > 0:
+                                    spot_ratio = total_spot_hours / grid_hours
+                                    ppa_ratio = total_ppa_hours / grid_hours
+                                else:
+                                    spot_ratio = 1.0
+                                    ppa_ratio = 0.0
+
+                                spot_mwh = remaining_mwh * spot_ratio
+                                ppa_mwh = remaining_mwh * ppa_ratio
 
                             pv_list.append(pv_mwh)
                             spot_list.append(spot_mwh)
@@ -328,7 +348,11 @@ def main():
                             df_plot_data['Spot'] = df_plot_data['Spot Direct'] + df_plot_data['Spot Battery']
                         
                         # Create energy coverage chart
-                        integrate_ppa = ppa_price >= 60  # Only integrate PPA if price >= 60€/MWh
+                        # PPA integration logic based on strategy type
+                        if strategy_type == "Target Price-Based":
+                            integrate_ppa = False  # Target Price-Based strategy doesn't use PPA
+                        else:
+                            integrate_ppa = ppa_price >= 60  # Service Ratio-Based: integrate PPA if price >= 60€/MWh
                         fig2 = create_energy_coverage_chart(
                             df_plot_data,
                             pv_params['include_battery'],

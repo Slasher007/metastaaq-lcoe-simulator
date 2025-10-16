@@ -113,12 +113,13 @@ def calculate_target_price_strategy(df, target_spot_price=15, return_extended_in
     """
     Target Price-Based Strategy:
     1. User defines a target spot price threshold
-    2. Electrolyzer operates only during hours where spot price <= target
-    3. If multiple years selected, use month average for consistency
+    2. Electrolyzer operates by cumulating hours while average price <= target
+    3. Sort prices in ascending order and add hours until cumulative average exceeds target
+    4. This ensures the average cost of all operating hours stays at or below target price
     
     Parameters:
         df (pd.DataFrame): DataFrame containing electricity price data
-        target_spot_price (float): Target spot price threshold (€/MWh)
+        target_spot_price (float): Target spot price threshold (€/MWh) - cumulative average limit
         return_extended_info (bool): If True, returns additional info
     
     Returns:
@@ -141,29 +142,40 @@ def calculate_target_price_strategy(df, target_spot_price=15, return_extended_in
     result = {}
     extended_info = {}
     
-    # Check if multiple years are selected
-    years = df['year'].unique()
-    use_monthly_average = len(years) > 1
-    
     for (year, month), group in df.groupby(['year', 'month']):
         prices = group['price'].values
+        total_hours_in_month = len(prices)
         
-        if use_monthly_average:
-            # For multiple years, calculate monthly average threshold
-            monthly_avg_price = np.mean(prices)
-            # Adjust target based on monthly average
-            adjusted_target = min(target_spot_price, monthly_avg_price * 1.2)
+        # Sort prices in ascending order to get cheapest hours first
+        sorted_prices = sorted(prices)
+        
+        # Cumulate hours while average price <= target_spot_price
+        total_cost = 0.0
+        max_hours = 0
+        
+        for i, price in enumerate(sorted_prices, 1):
+            total_cost += price
+            current_avg_cost = total_cost / i
+            
+            # Continue as long as cumulative average <= target price
+            if current_avg_cost <= target_spot_price:
+                max_hours = i
+            else:
+                # Stop when cumulative average exceeds target price
+                break
+        
+        # Calculate final statistics
+        if max_hours > 0:
+            # Recalculate final average cost from the selected hours
+            selected_prices = sorted_prices[:max_hours]
+            final_avg_cost = sum(selected_prices) / len(selected_prices)
+            # Calculate actual hours used (spot hours only, no PPA mixing)
+            spot_hours = max_hours
+            ppa_hours = 0
         else:
-            # For single year, use direct target
-            adjusted_target = target_spot_price
-        
-        # Count hours where spot price <= target
-        qualifying_hours = np.sum(prices <= adjusted_target)
-        total_hours = len(prices)
-        
-        # Calculate statistics
-        qualifying_prices = prices[prices <= adjusted_target]
-        average_qualifying_price = np.mean(qualifying_prices) if len(qualifying_prices) > 0 else 0
+            final_avg_cost = 0
+            spot_hours = 0
+            ppa_hours = 0
         
         # Store results
         year_str = str(year)
@@ -172,14 +184,14 @@ def calculate_target_price_strategy(df, target_spot_price=15, return_extended_in
             result[year_str] = {}
             extended_info[year_str] = {}
         
-        result[year_str][month_name] = qualifying_hours
+        result[year_str][month_name] = max_hours if max_hours > 0 else None
         extended_info[year_str][month_name] = {
-            'target_spot_price': adjusted_target,
-            'qualifying_hours': qualifying_hours,
-            'total_hours': total_hours,
-            'average_qualifying_price': average_qualifying_price,
-            'monthly_average_used': use_monthly_average,
-            'service_ratio': qualifying_hours / total_hours if total_hours > 0 else 0
+            'target_spot_price': target_spot_price,
+            'spot_hours': spot_hours,
+            'ppa_hours': ppa_hours,
+            'total_hours': total_hours_in_month,
+            'final_avg_cost': final_avg_cost,
+            'service_ratio': max_hours / total_hours_in_month if total_hours_in_month > 0 else 0
         }
     
     if return_extended_info:

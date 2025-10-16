@@ -43,7 +43,7 @@ DEFAULT_PARAMS = {
     "service_ratio": 0.98,
     "pv_price": 50.0,
     "ppa_price": 80.0,
-    "target_price": 60.0,
+    "target_price": 30.0,
     "pv_project_years": 25,
     "pv_surface_hectares": 1.0,
     "power_density_mwp_per_ha": 1.5,

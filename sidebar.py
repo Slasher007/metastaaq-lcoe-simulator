@@ -115,20 +115,21 @@ def create_price_parameters(strategy_type):
     with st.sidebar.expander("💰 Price", expanded=True):
         if strategy_type == "Service Ratio-Based":
             st.info("ℹ️ Service Ratio strategy cumulates spot hours while keeping average cost below PPA price.")
+        else:
+            st.info("ℹ️ Target Price strategy cumulates spot hours while keeping cumulative average below target price.")
         
-        # Target prices (can be multiple for multi-year analysis)
+        # Target prices (single price for Target Price-Based strategy)
         target_prices = []
         if strategy_type == "Target Price-Based":
-            st.markdown("**Target Prices (€/MWh):**")
-            for i in range(3):  # Allow up to 3 different target prices
-                target_prices.append(st.slider(
-                    f"Target Price {i+1}",
-                    min_value=PARAM_RANGES["target_price"]["min"],
-                    max_value=PARAM_RANGES["target_price"]["max"],
-                    value=DEFAULT_PARAMS["target_price"],
-                    step=PARAM_RANGES["target_price"]["step"],
-                    key=f"target_price_{i}"
-                ))
+            st.markdown("**Target Price (€/MWh):**")
+            target_prices.append(st.slider(
+                "Target Spot Price",
+                min_value=PARAM_RANGES["target_price"]["min"],
+                max_value=PARAM_RANGES["target_price"]["max"],
+                value=DEFAULT_PARAMS["target_price"],
+                step=PARAM_RANGES["target_price"]["step"],
+                help="Electrolyzer cumulates hours while cumulative average ≤ this target price"
+            ))
         else:
             target_prices = [DEFAULT_PARAMS["target_price"]]
 

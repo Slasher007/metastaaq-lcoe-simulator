@@ -74,11 +74,10 @@ def display_strategy_info(strategy_type, target_price, ppa_price, pv_price):
         st.write(f"• **Optimization**: Maximize operating hours below PPA price threshold")
         st.write(f"• **No Target Price**: Hours determined by PPA price constraint only")
     else:  # Target Price-Based
-        st.write(f"• **Strategy**: Operate only when spot price ≤ target price")
-        if len(target_price) > 1:
-            st.write(f"• **Multi-year Mode**: Using monthly average adjustments for consistency")
-        else:
-            st.write(f"• **Single-year Mode**: Using direct target price threshold")
+        st.write(f"• **Strategy**: Cumulate spot hours while average price ≤ target price")
+        st.write(f"• **Target Price**: {target_price:.0f} €/MWh cumulative average limit")
+        st.write(f"• **Logic**: Sort hours by price, add cheapest first until cumulative average exceeds target")
+        st.write(f"• **Mode**: Single target price threshold for all analysis periods")
 
 
 def display_metrics_section(target_price, actual_spot_price, price_diff, lcoe_result):

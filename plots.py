@@ -148,6 +148,7 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_ene
                 spot_hours_data.loc[month, year] = info.get('spot_hours', 0)
                 ppa_hours_data.loc[month, year] = info.get('ppa_hours', 0)
             else:
+                # Fallback: use total hours for spot, no PPA
                 spot_hours_data.loc[month, year] = df_plot.loc[month, year]
                 ppa_hours_data.loc[month, year] = 0
 
