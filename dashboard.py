@@ -422,12 +422,14 @@ def main():
                         pie_section_title = f"**🥧 Energy Coverage Distribution (with {pv_params['storage_hours']}h Daily Battery):**" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "**🥧 Energy Coverage Distribution:**"
                         st.write(pie_section_title)
                         
+                        # Use computed service ratios for title when Target Price-Based
+                        pie_service_ratios = recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios
                         fig3 = create_energy_distribution_pie_chart(
                             df_plot_data,
                             pv_params['include_battery'],
                             battery_capacity_mwh,
                             integrate_ppa,
-                            monthly_service_ratios
+                            pie_service_ratios
                         )
                         if fig3:
                             st.pyplot(fig3)
