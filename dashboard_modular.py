@@ -82,8 +82,12 @@ def main():
         monthly_service_ratios, derived_params['ch4_flowrate'], derived_params['ch4_density']
     )
     
-    # Calculate average service ratio
-    avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
+    # Calculate average service ratio (use computed ratios for Target Price when available)
+    computed_ratios_state = st.session_state.get('computed_service_ratios') if strategy_type == "Target Price-Based" else None
+    if computed_ratios_state and len(computed_ratios_state) == len(monthly_service_ratios):
+        avg_service_ratio = sum(computed_ratios_state.values()) / len(computed_ratios_state)
+    else:
+        avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
     
     # Display calculated parameters in sidebar
     display_calculated_parameters(
