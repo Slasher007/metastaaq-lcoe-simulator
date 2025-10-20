@@ -221,8 +221,27 @@ def main():
                         else:
                             st.write("**📈 Available Hours Chart:**")
                         
-                        fig1 = create_operating_hours_chart(df_result, extended_info, strategy_type, 
-                                                            pv_energy_data['pv_energy_mwh'], electrolyser_power)
+                        # Compute service ratios from actual hours for Target Price strategy (for titles)
+                        recomputed_service = None
+                        if strategy_type == "Target Price-Based":
+                            days_per_month = {
+                                "January": 31, "February": 28, "March": 31, "April": 30,
+                                "May": 31, "June": 30, "July": 31, "August": 31,
+                                "September": 30, "October": 31, "November": 30, "December": 31
+                            }
+                            recomputed_service = {}
+                            for month in monthly_service_ratios.keys():
+                                actual_hours = df_result[month].mean() if month in df_result.columns else 0
+                                if pd.isna(actual_hours):
+                                    actual_hours = 0
+                                total_hours_available = days_per_month.get(month, 30) * 24
+                                recomputed_service[month] = (actual_hours / total_hours_available) if total_hours_available > 0 else 0
+                            st.session_state['computed_service_ratios'] = recomputed_service
+
+                        fig1 = create_operating_hours_chart(
+                            df_result, extended_info, strategy_type,
+                            pv_energy_data['pv_energy_mwh'], electrolyser_power,
+                            recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios)
                         st.pyplot(fig1)
                         
                         # Display PV images
@@ -274,7 +293,22 @@ def main():
                         
                         # Create energy coverage chart
                         integrate_ppa = ppa_price >= 60  # Only integrate PPA if price >= 60€/MWh
-                        fig2 = create_energy_coverage_chart(df_plot_data, pv_params['include_battery'], battery_capacity_mwh, integrate_ppa)
+                        # For Target Price-Based, set 24h-per-day baseline (electrolyser_power × days × 24)
+                        days_per_month = {
+                            "January": 31, "February": 28, "March": 31, "April": 30,
+                            "May": 31, "June": 30, "July": 31, "August": 31,
+                            "September": 30, "October": 31, "November": 30, "December": 31
+                        }
+                        max_monthly_energy = None
+                        if strategy_type == "Target Price-Based":
+                            max_monthly_energy = {m: electrolyser_power * 24 * days_per_month[m] for m in days_per_month}
+                        fig2 = create_energy_coverage_chart(
+                            df_plot_data,
+                            pv_params['include_battery'],
+                            battery_capacity_mwh,
+                            integrate_ppa,
+                            monthly_service_ratios=(recomputed_service if strategy_type == "Target Price-Based" else None),
+                            max_monthly_energy_mwh_by_month=max_monthly_energy)
                         st.pyplot(fig2)
                         
                         # Create pie chart

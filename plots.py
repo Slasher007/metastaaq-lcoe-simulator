@@ -275,8 +275,11 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_ene
     return fig1
 
 
-def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity_mwh, integrate_ppa, monthly_service_ratios=None):
-    """Create energy coverage stacked bar chart"""
+def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity_mwh, integrate_ppa, monthly_service_ratios=None, max_monthly_energy_mwh_by_month=None):
+    """Create energy coverage stacked bar chart
+    If max_monthly_energy_mwh_by_month is provided, percentages are computed relative
+    to the full-month 24h energy baseline for each month; otherwise relative to row totals.
+    """
     fig2, ax3 = plt.subplots(figsize=(12, 6))
     
     # Choose columns and colors based on battery inclusion
@@ -289,14 +292,24 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
     
     # Build percentage dataframe for plotting (y-axis as %)
     percentages_df = df_plot_data[plot_columns].copy()
-    row_totals = percentages_df.sum(axis=1).replace(0, 1)  # avoid division by zero
-    percentages_df = (percentages_df.T / row_totals).T * 100.0
+    if max_monthly_energy_mwh_by_month is not None:
+        # Compute percentages against provided monthly maxima (e.g., 24h baseline)
+        denom_series = pd.Series({m: max_monthly_energy_mwh_by_month.get(m, 0) for m in percentages_df.index})
+        # Avoid zero denominators by falling back to row totals
+        fallback_totals = percentages_df.sum(axis=1)
+        safe_denom = denom_series.where(denom_series > 0, fallback_totals).replace(0, 1)
+        percentages_df = (percentages_df.T / safe_denom).T * 100.0
+        # Cap values at 100% to keep stacks within bounds
+        percentages_df = percentages_df.clip(upper=100)
+    else:
+        row_totals = percentages_df.sum(axis=1).replace(0, 1)  # avoid division by zero
+        percentages_df = (percentages_df.T / row_totals).T * 100.0
 
     percentages_df.plot(kind='bar', stacked=True, ax=ax3, color=plot_colors)
     
-    # Add cumulative energy totals on top of bars
+    # Add cumulative totals/coverage on top of bars
     for i, month in enumerate(df_plot_data.index):
-        # Total energy for label text; y-axis is percentage so place near top
+        # Compute total energy for the month (MWh)
         if include_battery and battery_capacity_mwh > 0:
             total_energy = (df_plot_data.loc[month, 'PV'] +
                             df_plot_data.loc[month, 'Spot Direct'] +
@@ -308,7 +321,13 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
                             (df_plot_data.loc[month, 'PPA'] if integrate_ppa else 0))
 
         if total_energy > 0:
-            ax3.text(i, 102, f'{total_energy:.1f}',
+            if max_monthly_energy_mwh_by_month is not None:
+                denom = max_monthly_energy_mwh_by_month.get(month, 0)
+                coverage_pct = (total_energy / denom * 100.0) if denom and denom > 0 else 0.0
+                label_text = f'{coverage_pct:.0f}%\n({total_energy:.1f})'
+            else:
+                label_text = f'{total_energy:.1f}'
+            ax3.text(i, 102, label_text,
                      ha='center', va='bottom', fontsize=9, fontweight='bold',
                      color='black')
     
@@ -323,11 +342,19 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
             total_plotted = pv_val + spot_direct_val + spot_battery_val + ppa_val
 
             if total_plotted > 0:
-                # Percentages for positioning; labels show energy MWh
-                pv_pct = (pv_val / total_plotted) * 100
-                spot_direct_pct = (spot_direct_val / total_plotted) * 100
-                spot_battery_pct = (spot_battery_val / total_plotted) * 100
-                ppa_pct = (ppa_val / total_plotted) * 100 if integrate_ppa else 0
+                # Percentages for positioning
+                if max_monthly_energy_mwh_by_month is not None:
+                    denom = max_monthly_energy_mwh_by_month.get(month, 0)
+                    denom = denom if denom and denom > 0 else total_plotted
+                    pv_pct = (pv_val / denom) * 100
+                    spot_direct_pct = (spot_direct_val / denom) * 100
+                    spot_battery_pct = (spot_battery_val / denom) * 100
+                    ppa_pct = (ppa_val / denom) * 100 if integrate_ppa else 0
+                else:
+                    pv_pct = (pv_val / total_plotted) * 100
+                    spot_direct_pct = (spot_direct_val / total_plotted) * 100
+                    spot_battery_pct = (spot_battery_val / total_plotted) * 100
+                    ppa_pct = (ppa_val / total_plotted) * 100 if integrate_ppa else 0
 
                 pv_mid = pv_pct / 2
                 spot_direct_mid = pv_pct + (spot_direct_pct / 2)
@@ -335,19 +362,23 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
                 ppa_mid = pv_pct + spot_direct_pct + spot_battery_pct + (ppa_pct / 2)
 
                 if pv_pct > 3:
-                    ax3.text(i, pv_mid, f'{pv_val:.1f}',
+                    pv_label = f'{pv_pct:.1f}%' if max_monthly_energy_mwh_by_month is not None else f'{pv_val:.1f}'
+                    ax3.text(i, pv_mid, pv_label,
                              ha='center', va='center', color='black', fontweight='bold', fontsize=9)
 
                 if spot_direct_pct > 3:
-                    ax3.text(i, spot_direct_mid, f'{spot_direct_val:.1f}',
+                    sd_label = f'{spot_direct_pct:.1f}%' if max_monthly_energy_mwh_by_month is not None else f'{spot_direct_val:.1f}'
+                    ax3.text(i, spot_direct_mid, sd_label,
                              ha='center', va='center', color='black', fontweight='bold', fontsize=9)
 
                 if spot_battery_pct > 3:
-                    ax3.text(i, spot_battery_mid, f'{spot_battery_val:.1f}',
+                    sb_label = f'{spot_battery_pct:.1f}%' if max_monthly_energy_mwh_by_month is not None else f'{spot_battery_val:.1f}'
+                    ax3.text(i, spot_battery_mid, sb_label,
                              ha='center', va='center', color='black', fontweight='bold', fontsize=9)
 
                 if integrate_ppa and ppa_pct > 3:
-                    ax3.text(i, ppa_mid, f'{ppa_val:.1f}',
+                    ppa_label = f'{ppa_pct:.1f}%' if max_monthly_energy_mwh_by_month is not None else f'{ppa_val:.1f}'
+                    ax3.text(i, ppa_mid, ppa_label,
                              ha='center', va='center', color='black', fontweight='bold', fontsize=9)
         else:
             # Original logic without battery
@@ -358,24 +389,34 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
             total_plotted = pv_val + spot_val + ppa_val
 
             if total_plotted > 0:
-                pv_pct = (pv_val / total_plotted) * 100
-                spot_pct = (spot_val / total_plotted) * 100
-                ppa_pct = (ppa_val / total_plotted) * 100 if integrate_ppa else 0
+                if max_monthly_energy_mwh_by_month is not None:
+                    denom = max_monthly_energy_mwh_by_month.get(month, 0)
+                    denom = denom if denom and denom > 0 else total_plotted
+                    pv_pct = (pv_val / denom) * 100
+                    spot_pct = (spot_val / denom) * 100
+                    ppa_pct = (ppa_val / denom) * 100 if integrate_ppa else 0
+                else:
+                    pv_pct = (pv_val / total_plotted) * 100
+                    spot_pct = (spot_val / total_plotted) * 100
+                    ppa_pct = (ppa_val / total_plotted) * 100 if integrate_ppa else 0
 
                 pv_mid = pv_pct / 2
                 spot_mid = pv_pct + (spot_pct / 2)
                 ppa_mid = pv_pct + spot_pct + (ppa_pct / 2)
 
                 if pv_pct > 3:
-                    ax3.text(i, pv_mid, f'{pv_val:.1f}',
+                    pv_label = f'{pv_pct:.1f}%' if max_monthly_energy_mwh_by_month is not None else f'{pv_val:.1f}'
+                    ax3.text(i, pv_mid, pv_label,
                              ha='center', va='center', color='black', fontweight='bold', fontsize=9)
 
                 if spot_pct > 3:
-                    ax3.text(i, spot_mid, f'{spot_val:.1f}',
+                    spot_label = f'{spot_pct:.1f}%' if max_monthly_energy_mwh_by_month is not None else f'{spot_val:.1f}'
+                    ax3.text(i, spot_mid, spot_label,
                              ha='center', va='center', color='black', fontweight='bold', fontsize=9)
 
                 if integrate_ppa and ppa_pct > 3:
-                    ax3.text(i, ppa_mid, f'{ppa_val:.1f}',
+                    ppa_label = f'{ppa_pct:.1f}%' if max_monthly_energy_mwh_by_month is not None else f'{ppa_val:.1f}'
+                    ax3.text(i, ppa_mid, ppa_label,
                              ha='center', va='center', color='black', fontweight='bold', fontsize=9)
     
     # Set chart title based on battery inclusion and average service ratio
