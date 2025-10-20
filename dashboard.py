@@ -453,7 +453,16 @@ def main():
                         st.dataframe(styled_df, width='stretch')
                         
                         # Calculate PV economics
-                        total_yearly_ch4_kg = sum(monthly_ch4_production.values())
+                        # For Target Price-Based: use recomputed CH4 from computed service ratios
+                        if strategy_type == "Target Price-Based":
+                            computed_ratios = st.session_state.get('computed_service_ratios', {})
+                            recomputed_service = {m: computed_ratios.get(m, 0.0) for m in monthly_service_ratios.keys()}
+                            recomputed_monthly_ch4 = calculate_monthly_ch4_production(
+                                recomputed_service, derived_params['ch4_flowrate'], derived_params['ch4_density']
+                            )
+                            total_yearly_ch4_kg = sum(recomputed_monthly_ch4.values())
+                        else:
+                            total_yearly_ch4_kg = sum(monthly_ch4_production.values())
                         # Avoid double counting when battery columns are present
                         if pv_params['include_battery'] and battery_capacity_mwh > 0:
                             cols_to_sum = ['PV', 'Spot Direct', 'Spot Battery']
