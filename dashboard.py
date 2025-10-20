@@ -266,7 +266,21 @@ def main():
                         # PV images already displayed above; skip duplicate here
                         
                         # Calculate actual spot price
-                        actual_spot_price = data_content['Prix'].mean()
+                        if strategy_type == "Target Price-Based":
+                            # Use weighted average of selected spot hours across months/years
+                            total_selected_hours = 0
+                            total_selected_cost = 0.0
+                            for year_str in extended_info:
+                                for month_name, info in extended_info.get(year_str, {}).items():
+                                    selected_hours = int(info.get('spot_hours', 0) or 0)
+                                    avg_cost_selected = info.get('final_avg_cost', None)
+                                    if avg_cost_selected is None or selected_hours <= 0:
+                                        continue
+                                    total_selected_hours += selected_hours
+                                    total_selected_cost += avg_cost_selected * selected_hours
+                            actual_spot_price = (total_selected_cost / total_selected_hours) if total_selected_hours > 0 else data_content['Prix'].mean()
+                        else:
+                            actual_spot_price = data_content['Prix'].mean()
                         
                         # Calculate price difference
                         price_diff = actual_spot_price - target_price
