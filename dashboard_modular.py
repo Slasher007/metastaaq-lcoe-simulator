@@ -68,8 +68,11 @@ def main():
     
     # Get parameters from sidebar
     electrolyser_power, electrolyser_specific_consumption = create_electrolyzer_parameters()
-    monthly_service_ratios = create_monthly_service_ratios()
     strategy_type = create_operation_strategy_selection()
+    if strategy_type == "Target Price-Based":
+        monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=st.session_state.get('computed_service_ratios'))
+    else:
+        monthly_service_ratios = create_monthly_service_ratios(allow_edit=True)
     target_prices, pv_price, ppa_price = create_price_parameters(strategy_type)
     pv_params = create_pv_installation_parameters()
     
@@ -90,7 +93,8 @@ def main():
     )
     
     # Display monthly CH4 production
-    display_monthly_ch4_production(monthly_ch4_production, monthly_service_ratios)
+    if strategy_type == "Service Ratio-Based":
+        display_monthly_ch4_production(monthly_ch4_production, monthly_service_ratios)
     
     # Parameter change detection
     if 'last_params' not in st.session_state:
@@ -116,9 +120,10 @@ def main():
     fig_box = create_price_distribution_box_plot(data_content)
     st.pyplot(fig_box)
     
-    st.markdown("#### 📅 Current Monthly Service Ratios")
-    fig_service = create_service_ratios_chart(monthly_service_ratios)
-    st.pyplot(fig_service)
+    if strategy_type == "Service Ratio-Based":
+        st.markdown("#### 📅 Current Monthly Service Ratios")
+        fig_service = create_service_ratios_chart(monthly_service_ratios)
+        st.pyplot(fig_service)
     
     # Run simulation
     run_simulation = params_changed or manual_refresh or 'simulation_run' not in st.session_state
@@ -265,10 +270,32 @@ def main():
                         
                         # Display metrics
                         display_metrics_section(target_price, actual_spot_price, price_diff, lcoe)
+
+                        # For Target Price-Based, compute and display service ratios from results
+                        if strategy_type == "Target Price-Based":
+                            days_per_month = {
+                                "January": 31, "February": 28, "March": 31, "April": 30,
+                                "May": 31, "June": 30, "July": 31, "August": 31,
+                                "September": 30, "October": 31, "November": 30, "December": 31
+                            }
+                            computed_ratios = {}
+                            for month in monthly_service_ratios.keys():
+                                actual_hours = df_result[month].mean() if month in df_result.columns else 0
+                                if pd.isna(actual_hours):
+                                    actual_hours = 0
+                                total_hours_available = days_per_month.get(month, 30) * 24
+                                computed_ratios[month] = (actual_hours / total_hours_available) if total_hours_available > 0 else 0
+                            st.session_state['computed_service_ratios'] = computed_ratios
+
+                            recomputed_monthly_ch4 = calculate_monthly_ch4_production(
+                                computed_ratios, derived_params['ch4_flowrate'], derived_params['ch4_density']
+                            )
+                            display_monthly_ch4_production(recomputed_monthly_ch4, computed_ratios)
                         
-                        # Calculate monthly breakdown
+                        # Calculate monthly breakdown (use computed ratios for Target Price-Based)
+                        ratios_for_breakdown = st.session_state.get('computed_service_ratios', monthly_service_ratios) if strategy_type == "Target Price-Based" else monthly_service_ratios
                         monthly_breakdown = calculate_monthly_breakdown(
-                            df_plot_data, monthly_service_ratios, pv_price,
+                            df_plot_data, ratios_for_breakdown, pv_price,
                             actual_spot_price, ppa_price, pv_params['include_battery'],
                             battery_capacity_mwh, integrate_ppa
                         )
@@ -296,11 +323,21 @@ def main():
                         
                         # Calculate PV economics
                         total_yearly_ch4_kg = sum(monthly_ch4_production.values())
-                        total_energy_consumed = sum(df_plot_data.sum(axis=1))
+                        # Avoid double counting when battery columns are present
+                        if pv_params['include_battery'] and battery_capacity_mwh > 0:
+                            cols_to_sum = ['PV', 'Spot Direct', 'Spot Battery']
+                            if integrate_ppa and 'PPA' in df_plot_data.columns:
+                                cols_to_sum.append('PPA')
+                            total_energy_consumed = sum(df_plot_data[cols_to_sum].sum(axis=1))
+                        else:
+                            cols_to_sum = ['PV', 'Spot']
+                            if integrate_ppa and 'PPA' in df_plot_data.columns:
+                                cols_to_sum.append('PPA')
+                            total_energy_consumed = sum(df_plot_data[cols_to_sum].sum(axis=1))
                         
                         pv_economics = calculate_pv_economics(
                             sum(df_plot_data['PV']), total_energy_consumed, total_yearly_ch4_kg,
-                            pv_params['pci_ch4_kwh_per_kg'], capex_opex_data['pv_capex_calculated'],
+                            pv_params['pci_ch4_kwh_per_kg'], capex_opex_data['total_capex_calculated'],
                             capex_opex_data['pv_opex_calculated'], pv_params['pv_project_years'],
                             pv_params['discount_rate']
                         )

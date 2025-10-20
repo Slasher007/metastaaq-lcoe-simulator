@@ -57,43 +57,50 @@ def create_electrolyzer_parameters():
     return electrolyser_power, electrolyser_specific_consumption
 
 
-def create_monthly_service_ratios():
-    """Create monthly service ratio inputs"""
-    # Initialize monthly_service_ratios dictionary
+def create_monthly_service_ratios(allow_edit=True, preset_ratios=None):
+    """Create or display monthly service ratios in the sidebar.
+
+    When allow_edit is False (Target Price strategy), the sliders are hidden and
+    ratios are shown as read-only if available after simulation.
+    """
     monthly_service_ratios = {}
 
-    # Create expandable section for service ratios
     with st.sidebar.expander("📅 Service Ratios", expanded=True):
-        st.markdown("*Set individual availability ratios for each month (0.0 = off, 1.0 = always on)*")
-        
-        # Create two columns for better layout
-        col1, col2 = st.columns(2)
-        
-        # First 6 months in left column
-        with col1:
-            for month in MONTHS[:6]:
-                monthly_service_ratios[month] = st.slider(
-                    f"{month[:3]}",  # Short month name
-                    min_value=PARAM_RANGES["service_ratio"]["min"],
-                    max_value=PARAM_RANGES["service_ratio"]["max"],
-                    value=DEFAULT_PARAMS["service_ratio"],
-                    step=PARAM_RANGES["service_ratio"]["step"],
-                    key=f"service_{month}",
-                    help=f"Service ratio for {month}"
-                )
-        
-        # Last 6 months in right column  
-        with col2:
-            for month in MONTHS[6:]:
-                monthly_service_ratios[month] = st.slider(
-                    f"{month[:3]}",  # Short month name
-                    min_value=PARAM_RANGES["service_ratio"]["min"],
-                    max_value=PARAM_RANGES["service_ratio"]["max"],
-                    value=DEFAULT_PARAMS["service_ratio"],
-                    step=PARAM_RANGES["service_ratio"]["step"],
-                    key=f"service_{month}",
-                    help=f"Service ratio for {month}"
-                )
+        if allow_edit:
+            st.markdown("*Set individual availability ratios for each month (0.0 = off, 1.0 = always on)*")
+            col1, col2 = st.columns(2)
+            with col1:
+                for month in MONTHS[:6]:
+                    monthly_service_ratios[month] = st.slider(
+                        f"{month[:3]}",
+                        min_value=PARAM_RANGES["service_ratio"]["min"],
+                        max_value=PARAM_RANGES["service_ratio"]["max"],
+                        value=DEFAULT_PARAMS["service_ratio"],
+                        step=PARAM_RANGES["service_ratio"]["step"],
+                        key=f"service_{month}",
+                        help=f"Service ratio for {month}"
+                    )
+            with col2:
+                for month in MONTHS[6:]:
+                    monthly_service_ratios[month] = st.slider(
+                        f"{month[:3]}",
+                        min_value=PARAM_RANGES["service_ratio"]["min"],
+                        max_value=PARAM_RANGES["service_ratio"]["max"],
+                        value=DEFAULT_PARAMS["service_ratio"],
+                        step=PARAM_RANGES["service_ratio"]["step"],
+                        key=f"service_{month}",
+                        help=f"Service ratio for {month}"
+                    )
+        else:
+            st.info("Service ratios are automatically computed from Target Price results.")
+            # If preset ratios are provided (post-simulation), display them read-only
+            if preset_ratios:
+                for month in MONTHS:
+                    ratio = preset_ratios.get(month, DEFAULT_PARAMS["service_ratio"])
+                    st.write(f"**{month[:3]}**: {ratio:.0%}")
+            # Return defaults initially; they will be overridden after simulation
+            for month in MONTHS:
+                monthly_service_ratios[month] = DEFAULT_PARAMS["service_ratio"]
 
     return monthly_service_ratios
 
@@ -280,8 +287,15 @@ def create_pv_installation_parameters():
 
         pv_opex = 0
         if use_calculated_opex:
-            pv_opex = (pv_capex_calculated if use_calculated_capex else pv_capex) * opex_percentage / 100
-            st.write(f"**Calculated OPEX**: {pv_opex:,.0f} €/year ({opex_percentage}% of CAPEX)")
+            # Calculate OPEX from total CAPEX (PV + Battery)
+            if use_calculated_capex:
+                total_capex_for_opex = total_capex_calculated
+            else:
+                manual_battery_capex = (battery_capacity_mwh * battery_cost_per_kwh) if include_battery else 0
+                total_capex_for_opex = pv_capex + manual_battery_capex
+
+            pv_opex = total_capex_for_opex * opex_percentage / 100
+            st.write(f"**Calculated OPEX**: {pv_opex:,.0f} €/year ({opex_percentage}% of total CAPEX)")
         else:
             pv_opex = st.number_input(
                 "PV OPEX (€/year)",

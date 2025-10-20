@@ -72,7 +72,8 @@ def calculate_capex_opex(estimated_power_kwp, pv_cost_per_wp, battery_capacity_m
         total_capex_calculated = pv_capex_calculated + battery_capex
     
     if use_calculated_opex:
-        pv_opex_calculated = pv_capex_calculated * opex_percentage / 100
+        # OPEX should be calculated on total CAPEX (PV + Battery) when applicable
+        pv_opex_calculated = total_capex_calculated * opex_percentage / 100
     else:
         pv_opex_calculated = pv_opex
     
