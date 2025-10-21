@@ -42,7 +42,7 @@ from plots import (
 from calculations import (
     calculate_derived_parameters, calculate_monthly_ch4_production, calculate_pv_energy_production,
     calculate_battery_capacity, calculate_capex_opex, calculate_energy_breakdown,
-    calculate_monthly_breakdown, calculate_yearly_totals, calculate_pv_economics
+    calculate_monthly_breakdown, calculate_yearly_totals, calculate_pv_economics, calculate_pv_lcoe
 )
 
 
@@ -538,7 +538,17 @@ def main():
                         with col4:
                             st.metric("**PV-specific Yearly GWh PCI CH₄**", f"{pv_economics['yearly_GWh_PCI_ch4_pv']:.2f} GWh")
                         
-                        # Display PV economics summary
+                        # Compute PV LCOE (€/MWh) using yearly PV production
+                        yearly_pv_mwh = sum(pv_energy_data['pv_energy_mwh'].values())
+                        pv_lcoe_value = calculate_pv_lcoe(
+                            yearly_pv_mwh,
+                            capex_opex_data['total_capex_calculated'],
+                            capex_opex_data['pv_opex_calculated'],
+                            pv_params['pv_project_years'],
+                            pv_params['discount_rate']
+                        )
+
+                        # Display PV economics summary including PV LCOE
                         display_pv_economics_summary(
                             pv_energy_data['estimated_power_mwp'],
                             pv_energy_data['estimated_power_kwp'],
@@ -546,7 +556,8 @@ def main():
                             capex_opex_data['pv_capex_calculated'],
                             capex_opex_data['battery_capex'],
                             capex_opex_data['total_capex_calculated'],
-                            capex_opex_data['pv_opex_calculated']
+                            capex_opex_data['pv_opex_calculated'],
+                            pv_lcoe_eur_per_mwh=pv_lcoe_value
                         )
                         
                         # Store results

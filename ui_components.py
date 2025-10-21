@@ -120,7 +120,8 @@ def display_calculated_parameters(h2_flowrate, ch4_flowrate, avg_service_ratio):
 
 
 def display_pv_economics_summary(estimated_power_mwp, estimated_power_kwp, battery_capacity_mwh, 
-                                pv_capex_calculated, battery_capex, total_capex_calculated, pv_opex):
+                                pv_capex_calculated, battery_capex, total_capex_calculated, pv_opex,
+                                pv_lcoe_eur_per_mwh=None):
     """Display PV economics summary"""
     st.write(f"**Estimated Power**: {estimated_power_mwp:.2f} MWp ({estimated_power_kwp:,.0f} kWp)")
     
@@ -134,6 +135,8 @@ def display_pv_economics_summary(estimated_power_mwp, estimated_power_kwp, batte
     st.write(f"• **Total: {total_capex_calculated:,.0f} €**")
     
     st.write(f"**Calculated OPEX**: {pv_opex:,.0f} €/year")
+    if pv_lcoe_eur_per_mwh is not None:
+        st.write(f"**PV LCOE**: {pv_lcoe_eur_per_mwh:.2f} €/MWh")
 
 
 def create_loading_spinner(message="Running simulation..."):

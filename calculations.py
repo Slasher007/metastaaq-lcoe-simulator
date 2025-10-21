@@ -400,3 +400,19 @@ def calculate_pv_economics(total_pv_energy, total_energy_consumed, total_yearly_
         'euro_per_MWh_PCI_CH4_pv': euro_per_MWh_PCI_CH4_pv,
         'lcoe_ch4_euro_per_kg': lcoe_ch4_euro_per_kg
     }
+
+
+def calculate_pv_lcoe(yearly_pv_mwh, pv_capex, pv_opex, pv_project_years, discount_rate):
+    """Calculate PV LCOE (€/MWh) using discounted cash flow over project lifetime."""
+    discount_rate_decimal = discount_rate / 100
+    # Discounted costs: CAPEX at year 0 + discounted yearly OPEX
+    discounted_costs = pv_capex
+    for year in range(1, pv_project_years + 1):
+        discounted_costs += pv_opex / ((1 + discount_rate_decimal) ** year)
+
+    # Discounted energy: assume constant yearly PV production
+    discounted_energy = 0
+    for year in range(1, pv_project_years + 1):
+        discounted_energy += yearly_pv_mwh / ((1 + discount_rate_decimal) ** year)
+
+    return (discounted_costs / discounted_energy) if discounted_energy > 0 else 0
