@@ -243,8 +243,10 @@ def create_pv_installation_parameters():
 
         pv_capex = 0
         if use_calculated_capex:
-            pv_capex_calculated = estimated_power_kwp * pv_cost_per_wp
-            battery_capex = battery_capacity_mwh * battery_cost_per_kwh if include_battery else 0
+            # estimated_power_kwp is in kWp; convert to Wp for €/Wp input
+            pv_capex_calculated = (estimated_power_kwp * 1000) * pv_cost_per_wp
+            # Convert MWh to kWh for cost per kWh
+            battery_capex = (battery_capacity_mwh * 1000) * battery_cost_per_kwh if include_battery else 0
             total_capex_calculated = pv_capex_calculated + battery_capex
             
             st.write(f"**Calculated CAPEX**:")
@@ -291,7 +293,8 @@ def create_pv_installation_parameters():
             if use_calculated_capex:
                 total_capex_for_opex = total_capex_calculated
             else:
-                manual_battery_capex = (battery_capacity_mwh * battery_cost_per_kwh) if include_battery else 0
+                # Convert MWh to kWh for cost per kWh
+                manual_battery_capex = ((battery_capacity_mwh * 1000) * battery_cost_per_kwh) if include_battery else 0
                 total_capex_for_opex = pv_capex + manual_battery_capex
 
             pv_opex = total_capex_for_opex * opex_percentage / 100

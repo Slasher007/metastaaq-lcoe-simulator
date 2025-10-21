@@ -63,12 +63,15 @@ def calculate_capex_opex(estimated_power_kwp, pv_cost_per_wp, battery_capacity_m
                          use_calculated_opex, pv_capex=0, pv_opex=0):
     """Calculate CAPEX and OPEX for PV installation"""
     if use_calculated_capex:
-        pv_capex_calculated = estimated_power_kwp * pv_cost_per_wp
-        battery_capex = battery_capacity_mwh * battery_cost_per_kwh
+        # estimated_power_kwp is in kWp; convert to Wp for €/Wp input
+        pv_capex_calculated = (estimated_power_kwp * 1000) * pv_cost_per_wp
+        # battery_capacity_mwh is in MWh; convert to kWh for cost per kWh
+        battery_capex = (battery_capacity_mwh * 1000) * battery_cost_per_kwh
         total_capex_calculated = pv_capex_calculated + battery_capex
     else:
         pv_capex_calculated = pv_capex
-        battery_capex = battery_capacity_mwh * battery_cost_per_kwh
+        # battery_capacity_mwh is in MWh; convert to kWh for cost per kWh
+        battery_capex = (battery_capacity_mwh * 1000) * battery_cost_per_kwh
         total_capex_calculated = pv_capex_calculated + battery_capex
     
     if use_calculated_opex:
