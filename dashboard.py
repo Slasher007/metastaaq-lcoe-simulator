@@ -124,22 +124,6 @@ def main():
     fig_box = create_price_distribution_box_plot(data_content)
     st.pyplot(fig_box)
     
-    # Show hourly slots by weekday boxplot for Target Price-Based strategy
-    if strategy_type == "Target Price-Based":
-        st.markdown("#### 🕐 Répartition des Créneaux Horaires par Jour de la Semaine")
-        st.markdown(f"**Stratégie d'Achat Journalière** - Prix Cible: {target_prices[0]}€/MWh")
-        fig_weekday = create_hourly_slots_by_weekday_boxplot(data_content, target_prices[0])
-        st.pyplot(fig_weekday)
-        st.info("""
-        **📊 Interprétation du graphique:**
-        - Ce boxplot montre la distribution des heures de la journée (0-23h) sélectionnées pour chaque jour de la semaine
-        - L'achat est journalier: chaque jour à 13h, les prix du lendemain sont connus
-        - Les heures sont sélectionnées par ordre croissant de prix jusqu'à atteindre le prix moyen cible
-        - La **ligne rouge** indique la médiane (heure centrale des créneaux sélectionnés)
-        - La **ligne verte** indique la moyenne
-        - Les zones colorées représentent les différentes périodes de la journée (nuit, matin, après-midi, soirée)
-        """)
-    
     if strategy_type == "Service Ratio-Based":
         st.markdown("#### 📅 Current Monthly Service Ratios")
         fig_service = create_service_ratios_chart(monthly_service_ratios)
@@ -295,6 +279,27 @@ def main():
                             recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios
                         )
                         st.pyplot(fig1)
+                        
+                        # Show hourly slots by weekday boxplot for Target Price-Based strategy
+                        if strategy_type == "Target Price-Based":
+                            st.markdown("#### 🕐 Répartition des Créneaux Horaires par Jour de la Semaine")
+                            years_str = ", ".join(map(str, sorted(selected_years))) if selected_years else "Toutes"
+                            st.markdown(f"**Stratégie d'Achat Journalière** - Prix Cible: {target_price}€/MWh | Années: {years_str}")
+                            fig_weekday = create_hourly_slots_by_weekday_boxplot(data_content, target_price)
+                            st.pyplot(fig_weekday)
+                            st.info("""
+                            **📊 Interprétation du graphique:**
+                            - Ce boxplot montre les **heures réellement validées** par la stratégie Target Price-Based pour chaque jour de la semaine
+                            - **Mécanisme d'achat journalier**: chaque jour à 13h, les prix du lendemain (00h-24h) sont connus via le marché Day-Ahead
+                            - **Sélection optimale**: les heures sont sélectionnées par ordre croissant de prix jusqu'à ce que le prix moyen cumulé atteigne le prix cible
+                            - **Ligne rouge (médiane)**: heure centrale typiquement sélectionnée
+                            - **Ligne verte (moyenne)**: heure moyenne de fonctionnement
+                            - **Points individuels**: chaque point représente une heure sélectionnée sur un jour spécifique
+                            - **Zones colorées**: périodes de la journée (🌙 Nuit 0-6h, 🌅 Matin 6-12h, ☀️ Après-midi 12-18h, 🌆 Soirée 18-24h)
+                            
+                            💡 **Exemple**: Si beaucoup de points apparaissent entre 2h et 5h le dimanche, cela signifie que ces heures nocturnes 
+                            du dimanche sont fréquemment les moins chères et sont donc sélectionnées pour l'électrolyse.
+                            """)
                         
                         # PV images already displayed above; skip duplicate here
                         

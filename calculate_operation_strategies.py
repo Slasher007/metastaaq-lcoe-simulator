@@ -199,6 +199,62 @@ def calculate_target_price_strategy(df, target_spot_price=15, return_extended_in
     return result
 
 
+def get_selected_hours_details_target_price(df, target_spot_price=15):
+    """
+    Get detailed information about which specific hours are selected by Target Price-Based strategy.
+    Returns the actual hour values (0-23) and day of week for each selected hour.
+    
+    Parameters:
+        df (pd.DataFrame): DataFrame containing electricity price data
+        target_spot_price (float): Target spot price threshold (€/MWh)
+    
+    Returns:
+        list: List of dicts with 'hour', 'day_of_week', 'date', 'price' for each selected hour
+    """
+    df = df.copy()
+    
+    # Ensure Date column is datetime
+    if df['Date'].dtype != 'datetime64[ns]':
+        df['Date'] = pd.to_datetime(df['Date'])
+    
+    # Add day of week
+    df['DayOfWeek'] = df['Date'].dt.day_name()
+    df['DateOnly'] = df['Date'].dt.date
+    
+    selected_hours_details = []
+    
+    # Process each day separately (simulating daily purchase decision)
+    for date, day_group in df.groupby('DateOnly'):
+        if len(day_group) < 24:  # Skip incomplete days
+            continue
+        
+        # Sort by price to select cheapest hours first
+        day_group = day_group.sort_values('Prix').reset_index(drop=True)
+        
+        # Apply Target Price-Based strategy logic
+        total_cost = 0.0
+        selected_hours_for_day = []
+        
+        for idx, row in day_group.iterrows():
+            total_cost += row['Prix']
+            num_selected = len(selected_hours_for_day) + 1
+            current_avg = total_cost / num_selected
+            
+            if current_avg <= target_spot_price:
+                selected_hours_for_day.append({
+                    'hour': row['Heure'],
+                    'day_of_week': row['DayOfWeek'],
+                    'date': row['DateOnly'],
+                    'price': row['Prix']
+                })
+            else:
+                break
+        
+        selected_hours_details.extend(selected_hours_for_day)
+    
+    return selected_hours_details
+
+
 def calculate_hybrid_strategy(df, target_price=15, ppa_price=80, pv_price=0, strategy_type='service_ratio', **kwargs):
     """
     Hybrid function that chooses between Service Ratio-Based and Target Price-Based strategies.

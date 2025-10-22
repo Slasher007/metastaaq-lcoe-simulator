@@ -540,37 +540,24 @@ def create_hourly_slots_by_weekday_boxplot(data_content, target_price):
     Returns:
         matplotlib.figure.Figure: The created figure
     """
-    df = data_content.copy()
+    # Import the function to get selected hours from Target Price-Based strategy
+    from calculate_operation_strategies import get_selected_hours_details_target_price
     
-    # Ensure Date column is datetime
-    if df['Date'].dtype != 'datetime64[ns]':
-        df['Date'] = pd.to_datetime(df['Date'])
+    # Get the hours selected by the actual Target Price-Based strategy
+    selected_hours_details = get_selected_hours_details_target_price(data_content, target_price)
     
-    # Map French day names to English for proper ordering
-    day_mapping = {
-        'Lundi': 'Monday',
-        'Mardi': 'Tuesday',
-        'Mercredi': 'Wednesday',
-        'Jeudi': 'Thursday',
-        'Vendredi': 'Friday',
-        'Samedi': 'Saturday',
-        'Dimanche': 'Sunday',
-        'Monday': 'Monday',
-        'Tuesday': 'Tuesday',
-        'Wednesday': 'Wednesday',
-        'Thursday': 'Thursday',
-        'Friday': 'Friday',
-        'Saturday': 'Saturday',
-        'Sunday': 'Sunday'
+    # Map English day names to French for display and proper ordering
+    day_mapping_en_to_fr = {
+        'Monday': 'Lundi',
+        'Tuesday': 'Mardi',
+        'Wednesday': 'Mercredi',
+        'Thursday': 'Jeudi',
+        'Friday': 'Vendredi',
+        'Saturday': 'Samedi',
+        'Sunday': 'Dimanche'
     }
     
-    # Apply day mapping
-    df['DayOfWeek'] = df['Jours'].map(day_mapping)
-    
-    # Group by date to simulate daily purchase decisions
-    df['DateOnly'] = df['Date'].dt.date
-    
-    # For each day, identify which hours would be selected
+    # Group selected hours by day of week
     selected_hours_by_weekday = {
         'Monday': [],
         'Tuesday': [],
@@ -581,55 +568,35 @@ def create_hourly_slots_by_weekday_boxplot(data_content, target_price):
         'Sunday': []
     }
     
-    for date, day_group in df.groupby('DateOnly'):
-        if len(day_group) < 24:  # Skip incomplete days
-            continue
-        
-        # Sort hours by price (ascending) to simulate spot market selection
-        sorted_hours = day_group.sort_values('Prix')
-        
-        # Select hours while cumulative average price <= target price
-        total_cost = 0.0
-        selected_hours = []
-        
-        for i, row in enumerate(sorted_hours.itertuples(), 1):
-            total_cost += row.Prix
-            current_avg = total_cost / i
-            
-            if current_avg <= target_price:
-                selected_hours.append(row.Heure)
-            else:
-                break
-        
-        # Get the day of week for this date
-        if len(day_group) > 0:
-            weekday = day_group.iloc[0]['DayOfWeek']
-            if weekday in selected_hours_by_weekday:
-                selected_hours_by_weekday[weekday].extend(selected_hours)
+    for hour_detail in selected_hours_details:
+        weekday = hour_detail['day_of_week']
+        if weekday in selected_hours_by_weekday:
+            selected_hours_by_weekday[weekday].append(hour_detail['hour'])
     
     # Create boxplot
     fig, ax = plt.subplots(figsize=(14, 7))
     
     # Prepare data for boxplot
     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    weekday_labels_fr = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
     box_data = []
     box_labels = []
     
-    for i, day in enumerate(weekday_order):
+    for day in weekday_order:
+        day_fr = day_mapping_en_to_fr[day]
         if selected_hours_by_weekday[day]:
             box_data.append(selected_hours_by_weekday[day])
-            box_labels.append(f'{weekday_labels_fr[i]}\n(n={len(selected_hours_by_weekday[day])})')
+            box_labels.append(f'{day_fr}\n(n={len(selected_hours_by_weekday[day])})')
         else:
             box_data.append([])
-            box_labels.append(f'{weekday_labels_fr[i]}\n(n=0)')
+            box_labels.append(f'{day_fr}\n(n=0)')
     
     # Create the boxplot
     bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, 
                     showmeans=True, meanline=True,
-                    boxprops=dict(facecolor='lightblue', alpha=0.7),
-                    medianprops=dict(color='red', linewidth=2),
-                    meanprops=dict(color='green', linewidth=2, linestyle='--'),
+                    showfliers=False,  # Don't show outliers as default markers
+                    boxprops=dict(facecolor='lightblue', alpha=0.5),
+                    medianprops=dict(color='red', linewidth=2.5),
+                    meanprops=dict(color='darkgreen', linewidth=2.5, linestyle='--'),
                     whiskerprops=dict(linewidth=1.5),
                     capprops=dict(linewidth=1.5))
     
@@ -637,7 +604,15 @@ def create_hourly_slots_by_weekday_boxplot(data_content, target_price):
     colors = plt.cm.Set3(range(7))
     for patch, color in zip(bp['boxes'], colors):
         patch.set_facecolor(color)
-        patch.set_alpha(0.7)
+        patch.set_alpha(0.5)
+    
+    # Add individual points (scatter plot) for each day
+    for i, (day_data, color) in enumerate(zip(box_data, colors), 1):
+        if len(day_data) > 0:
+            # Add jitter to x-coordinates to avoid overlapping points
+            x_positions = np.random.normal(i, 0.04, size=len(day_data))
+            ax.scatter(x_positions, day_data, alpha=0.4, s=20, color=color, 
+                      edgecolors='black', linewidths=0.5, zorder=3)
     
     # Customize the plot
     ax.set_title(f'Répartition des Créneaux Horaires Sélectionnés par Jour de la Semaine\n'
@@ -664,7 +639,13 @@ def create_hourly_slots_by_weekday_boxplot(data_content, target_price):
     ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
     
     # Add statistics summary
-    stats_text = f"Analyse sur {len(df['DateOnly'].unique())} jours\n"
+    total_selected_hours = len(selected_hours_details)
+    unique_dates = len(set([detail['date'] for detail in selected_hours_details]))
+    avg_hours_per_day = total_selected_hours / unique_dates if unique_dates > 0 else 0
+    
+    stats_text = f"Total heures sélectionnées: {total_selected_hours}\n"
+    stats_text += f"Jours analysés: {unique_dates}\n"
+    stats_text += f"Moyenne: {avg_hours_per_day:.1f}h/jour\n"
     stats_text += f"Prix cible: {target_price}€/MWh"
     ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
