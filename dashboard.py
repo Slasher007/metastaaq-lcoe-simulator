@@ -37,7 +37,7 @@ from sidebar import (
 from plots import (
     create_monthly_price_analysis_plot, create_price_distribution_box_plot,
     create_service_ratios_chart, create_operating_hours_chart, create_energy_coverage_chart,
-    create_energy_distribution_pie_chart
+    create_energy_distribution_pie_chart, create_hourly_slots_by_weekday_boxplot
 )
 from calculations import (
     calculate_derived_parameters, calculate_monthly_ch4_production, calculate_pv_energy_production,
@@ -123,6 +123,22 @@ def main():
     st.markdown("#### 📦 Price Distribution by Month (Box Plot)")
     fig_box = create_price_distribution_box_plot(data_content)
     st.pyplot(fig_box)
+    
+    # Show hourly slots by weekday boxplot for Target Price-Based strategy
+    if strategy_type == "Target Price-Based":
+        st.markdown("#### 🕐 Répartition des Créneaux Horaires par Jour de la Semaine")
+        st.markdown(f"**Stratégie d'Achat Journalière** - Prix Cible: {target_prices[0]}€/MWh")
+        fig_weekday = create_hourly_slots_by_weekday_boxplot(data_content, target_prices[0])
+        st.pyplot(fig_weekday)
+        st.info("""
+        **📊 Interprétation du graphique:**
+        - Ce boxplot montre la distribution des heures de la journée (0-23h) sélectionnées pour chaque jour de la semaine
+        - L'achat est journalier: chaque jour à 13h, les prix du lendemain sont connus
+        - Les heures sont sélectionnées par ordre croissant de prix jusqu'à atteindre le prix moyen cible
+        - La **ligne rouge** indique la médiane (heure centrale des créneaux sélectionnés)
+        - La **ligne verte** indique la moyenne
+        - Les zones colorées représentent les différentes périodes de la journée (nuit, matin, après-midi, soirée)
+        """)
     
     if strategy_type == "Service Ratio-Based":
         st.markdown("#### 📅 Current Monthly Service Ratios")

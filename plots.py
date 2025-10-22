@@ -523,3 +523,152 @@ def create_energy_distribution_pie_chart(df_plot_data, include_battery, battery_
     plt.tight_layout()
     
     return fig3
+
+
+def create_hourly_slots_by_weekday_boxplot(data_content, target_price):
+    """
+    Create boxplot showing the distribution of selected hourly slots by day of week
+    for the Target Price-Based strategy.
+    
+    This shows which hours of the day (0-23) are typically selected for operation
+    on each day of the week (Monday to Sunday).
+    
+    Parameters:
+        data_content (pd.DataFrame): DataFrame containing electricity price data
+        target_price (float): Target spot price threshold (€/MWh)
+    
+    Returns:
+        matplotlib.figure.Figure: The created figure
+    """
+    df = data_content.copy()
+    
+    # Ensure Date column is datetime
+    if df['Date'].dtype != 'datetime64[ns]':
+        df['Date'] = pd.to_datetime(df['Date'])
+    
+    # Map French day names to English for proper ordering
+    day_mapping = {
+        'Lundi': 'Monday',
+        'Mardi': 'Tuesday',
+        'Mercredi': 'Wednesday',
+        'Jeudi': 'Thursday',
+        'Vendredi': 'Friday',
+        'Samedi': 'Saturday',
+        'Dimanche': 'Sunday',
+        'Monday': 'Monday',
+        'Tuesday': 'Tuesday',
+        'Wednesday': 'Wednesday',
+        'Thursday': 'Thursday',
+        'Friday': 'Friday',
+        'Saturday': 'Saturday',
+        'Sunday': 'Sunday'
+    }
+    
+    # Apply day mapping
+    df['DayOfWeek'] = df['Jours'].map(day_mapping)
+    
+    # Group by date to simulate daily purchase decisions
+    df['DateOnly'] = df['Date'].dt.date
+    
+    # For each day, identify which hours would be selected
+    selected_hours_by_weekday = {
+        'Monday': [],
+        'Tuesday': [],
+        'Wednesday': [],
+        'Thursday': [],
+        'Friday': [],
+        'Saturday': [],
+        'Sunday': []
+    }
+    
+    for date, day_group in df.groupby('DateOnly'):
+        if len(day_group) < 24:  # Skip incomplete days
+            continue
+        
+        # Sort hours by price (ascending) to simulate spot market selection
+        sorted_hours = day_group.sort_values('Prix')
+        
+        # Select hours while cumulative average price <= target price
+        total_cost = 0.0
+        selected_hours = []
+        
+        for i, row in enumerate(sorted_hours.itertuples(), 1):
+            total_cost += row.Prix
+            current_avg = total_cost / i
+            
+            if current_avg <= target_price:
+                selected_hours.append(row.Heure)
+            else:
+                break
+        
+        # Get the day of week for this date
+        if len(day_group) > 0:
+            weekday = day_group.iloc[0]['DayOfWeek']
+            if weekday in selected_hours_by_weekday:
+                selected_hours_by_weekday[weekday].extend(selected_hours)
+    
+    # Create boxplot
+    fig, ax = plt.subplots(figsize=(14, 7))
+    
+    # Prepare data for boxplot
+    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    weekday_labels_fr = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+    box_data = []
+    box_labels = []
+    
+    for i, day in enumerate(weekday_order):
+        if selected_hours_by_weekday[day]:
+            box_data.append(selected_hours_by_weekday[day])
+            box_labels.append(f'{weekday_labels_fr[i]}\n(n={len(selected_hours_by_weekday[day])})')
+        else:
+            box_data.append([])
+            box_labels.append(f'{weekday_labels_fr[i]}\n(n=0)')
+    
+    # Create the boxplot
+    bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, 
+                    showmeans=True, meanline=True,
+                    boxprops=dict(facecolor='lightblue', alpha=0.7),
+                    medianprops=dict(color='red', linewidth=2),
+                    meanprops=dict(color='green', linewidth=2, linestyle='--'),
+                    whiskerprops=dict(linewidth=1.5),
+                    capprops=dict(linewidth=1.5))
+    
+    # Customize colors for each day
+    colors = plt.cm.Set3(range(7))
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.7)
+    
+    # Customize the plot
+    ax.set_title(f'Répartition des Créneaux Horaires Sélectionnés par Jour de la Semaine\n'
+                 f'Stratégie d\'Achat Journalière (Prix Cible: {target_price}€/MWh)',
+                 fontweight='bold', fontsize=14, pad=20)
+    ax.set_xlabel('Jour de la Semaine', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Heure de la Journée (0-23h)', fontsize=12, fontweight='bold')
+    ax.set_ylim(-1, 24)
+    ax.set_yticks(range(0, 24, 2))
+    ax.grid(True, alpha=0.3, axis='y')
+    
+    # Add horizontal reference lines for day periods
+    ax.axhspan(0, 6, alpha=0.1, color='blue', label='Nuit (0-6h)')
+    ax.axhspan(6, 12, alpha=0.1, color='yellow', label='Matin (6-12h)')
+    ax.axhspan(12, 18, alpha=0.1, color='orange', label='Après-midi (12-18h)')
+    ax.axhspan(18, 24, alpha=0.1, color='purple', label='Soirée (18-24h)')
+    
+    # Add legend for median and mean
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], color='red', linewidth=2, label='Médiane'),
+        Line2D([0], [0], color='green', linewidth=2, linestyle='--', label='Moyenne')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
+    
+    # Add statistics summary
+    stats_text = f"Analyse sur {len(df['DateOnly'].unique())} jours\n"
+    stats_text += f"Prix cible: {target_price}€/MWh"
+    ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
+            verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
+            fontsize=10)
+    
+    plt.tight_layout()
+    return fig
