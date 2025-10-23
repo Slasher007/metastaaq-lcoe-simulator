@@ -37,7 +37,7 @@ from sidebar import (
 from plots import (
     create_monthly_price_analysis_plot, create_price_distribution_box_plot,
     create_service_ratios_chart, create_operating_hours_chart, create_energy_coverage_chart,
-    create_energy_distribution_pie_chart
+    create_energy_distribution_pie_chart, create_hourly_slots_by_weekday_boxplot
 )
 from calculations import (
     calculate_derived_parameters, calculate_monthly_ch4_production, calculate_pv_energy_production,
@@ -279,6 +279,27 @@ def main():
                             recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios
                         )
                         st.pyplot(fig1)
+                        
+                        # Show hourly slots by weekday boxplot for Target Price-Based strategy
+                        if strategy_type == "Target Price-Based":
+                            st.markdown("#### 🕐 Répartition des Créneaux Horaires par Jour de la Semaine")
+                            years_str = ", ".join(map(str, sorted(selected_years))) if selected_years else "Toutes"
+                            st.markdown(f"**Stratégie d'Achat Journalière** - Prix Cible: {target_price}€/MWh | Années: {years_str}")
+                            fig_weekday = create_hourly_slots_by_weekday_boxplot(data_content, target_price)
+                            st.pyplot(fig_weekday)
+                            st.info("""
+                            **📊 Interprétation du graphique:**
+                            - Ce boxplot montre les **heures réellement validées** par la stratégie Target Price-Based pour chaque jour de la semaine
+                            - **Mécanisme d'achat journalier**: chaque jour à 13h, les prix du lendemain (00h-24h) sont connus via le marché Day-Ahead
+                            - **Sélection optimale**: les heures sont sélectionnées par ordre croissant de prix jusqu'à ce que le prix moyen cumulé atteigne le prix cible
+                            - **Ligne rouge (médiane)**: heure centrale typiquement sélectionnée
+                            - **Ligne verte (moyenne)**: heure moyenne de fonctionnement
+                            - **Points individuels**: chaque point représente une heure sélectionnée sur un jour spécifique
+                            - **Zones colorées**: périodes de la journée (🌙 Nuit 0-6h, 🌅 Matin 6-12h, ☀️ Après-midi 12-18h, 🌆 Soirée 18-24h)
+                            
+                            💡 **Exemple**: Si beaucoup de points apparaissent entre 2h et 5h le dimanche, cela signifie que ces heures nocturnes 
+                            du dimanche sont fréquemment les moins chères et sont donc sélectionnées pour l'électrolyse.
+                            """)
                         
                         # PV images already displayed above; skip duplicate here
                         
