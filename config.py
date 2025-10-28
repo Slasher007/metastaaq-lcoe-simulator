@@ -46,7 +46,7 @@ DEFAULT_PARAMS = {
     "target_price": 30.0,
     "pv_project_years": 20,
     "pv_surface_hectares": 1.0,
-    "power_density_mwp_per_ha": 1,
+    "power_density_mwp_per_ha": 1.0,
     "storage_hours": 4.0,
     "pv_cost_per_wp": 0.8,
     "battery_cost_per_kwh": 200.0,
