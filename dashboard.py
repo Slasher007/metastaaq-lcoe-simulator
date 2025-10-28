@@ -464,7 +464,7 @@ def main():
                             total_energy = total_renewable + total_non_renewable
                             if total_energy > 0:
                                 pie_data = [total_renewable, total_non_renewable]
-                                pie_labels = ['Renewable (PV + PPA)', 'Non-Renewable (Spot)']
+                                pie_labels = ['Renewable', 'Non-Renewable']
                                 pie_colors = ['green', 'gray']
                                 fig4, ax4 = plt.subplots(figsize=(6, 4))
                                 wedges, texts, autotexts = ax4.pie(
@@ -490,7 +490,8 @@ def main():
                                                        facecolor='white', 
                                                        edgecolor=pie_colors[i], 
                                                        alpha=0.9))
-                                ax4.set_title('Renewable vs Non-Renewable Distribution')
+                                # Remove title to match heights
+                                # ax4.set_title('Renewable vs Non-Renewable Distribution')
                                 plt.tight_layout()
                                 st.pyplot(fig4)
                         
