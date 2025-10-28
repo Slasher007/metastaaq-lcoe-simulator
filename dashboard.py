@@ -439,21 +439,60 @@ def main():
                         )
                         st.pyplot(fig2)
                         
-                        # Create pie chart
+                        # Modify the pie chart section to have two pies side by side
                         pie_section_title = f"**🥧 Energy Coverage Distribution (with {pv_params['storage_hours']}h Daily Battery):**" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "**🥧 Energy Coverage Distribution:**"
                         st.write(pie_section_title)
-                        
-                        # Use computed service ratios for title when Target Price-Based
-                        pie_service_ratios = recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios
-                        fig3 = create_energy_distribution_pie_chart(
-                            df_plot_data,
-                            pv_params['include_battery'],
-                            battery_capacity_mwh,
-                            integrate_ppa,
-                            pie_service_ratios
-                        )
-                        if fig3:
-                            st.pyplot(fig3)
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown("**Detailed Distribution**")
+                            pie_service_ratios = recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios
+                            fig3 = create_energy_distribution_pie_chart(
+                                df_plot_data,
+                                pv_params['include_battery'],
+                                battery_capacity_mwh,
+                                integrate_ppa,
+                                pie_service_ratios
+                            )
+                            if fig3:
+                                st.pyplot(fig3)
+                        with col2:
+                            st.markdown("**Renewable vs Non-Renewable**")
+                            total_pv = sum(df_plot_data['PV'])
+                            total_ppa = sum(df_plot_data.get('PPA', pd.Series([0])))
+                            total_renewable = total_pv + total_ppa
+                            total_non_renewable = sum(df_plot_data['Spot'])
+                            total_energy = total_renewable + total_non_renewable
+                            if total_energy > 0:
+                                pie_data = [total_renewable, total_non_renewable]
+                                pie_labels = ['Renewable (PV + PPA)', 'Non-Renewable (Spot)']
+                                pie_colors = ['green', 'gray']
+                                fig4, ax4 = plt.subplots(figsize=(6, 4))
+                                wedges, texts, autotexts = ax4.pie(
+                                    pie_data,
+                                    labels=pie_labels,
+                                    colors=pie_colors,
+                                    autopct='%1.1f%%',
+                                    startangle=90,
+                                    pctdistance=0.85,
+                                    labeldistance=1.1,
+                                    textprops={'fontsize': 10, 'fontweight': 'bold'}
+                                )
+                                for autotext in autotexts:
+                                    autotext.set_color('white')
+                                    autotext.set_fontweight('bold')
+                                    autotext.set_bbox(dict(boxstyle='round,pad=0.2', facecolor='black', alpha=0.7))
+                                for i, (text, value) in enumerate(zip(texts, pie_data)):
+                                    text.set_fontweight('bold')
+                                    text.set_fontsize(11)
+                                    original_text = text.get_text()
+                                    text.set_text(f'{original_text}\n({value:.1f} MWh)')
+                                    text.set_bbox(dict(boxstyle='round,pad=0.3', 
+                                                       facecolor='white', 
+                                                       edgecolor=pie_colors[i], 
+                                                       alpha=0.9))
+                                ax4.set_title('Renewable vs Non-Renewable Distribution')
+                                plt.tight_layout()
+                                st.pyplot(fig4)
                         
                         # Display metrics
                         display_metrics_section(target_price, actual_spot_price, price_diff, lcoe)
