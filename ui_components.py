@@ -86,7 +86,9 @@ def display_pv_images():
                 'Include Battery',
                 'Storage Hours',
                 'Battery Cost per kWh (€)',
-                'Yearly PV Energy (MWh)'
+                'Yearly PV Energy (MWh)',
+                'Database used',
+                'PV technology'
             ],
             'Value': [
                 f"{pv_params['pv_surface_hectares']:.1f}",
@@ -99,7 +101,9 @@ def display_pv_images():
                 'Yes' if pv_params['include_battery'] else 'No',
                 f"{pv_params['storage_hours']:.1f}" if pv_params['include_battery'] else 'N/A',
                 f"{pv_params['battery_cost_per_kwh']:.0f}" if pv_params['include_battery'] else 'N/A',
-                f"{yearly_pv_mwh:.1f}"
+                f"{yearly_pv_mwh:.1f}",
+                "PVGIS-SARAH3",
+                "Crystalline silicon"
             ]
         }
         param_df = pd.DataFrame(param_data)
