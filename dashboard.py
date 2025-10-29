@@ -75,6 +75,16 @@ def main():
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=True)
     target_prices, pv_price, ppa_price = create_price_parameters(strategy_type)
     pv_params = create_pv_installation_parameters()
+
+    # Calculate PV energy production early for display
+    pv_energy_data = calculate_pv_energy_production(
+        pv_params['pv_surface_hectares'], 
+        pv_params['power_density_mwp_per_ha'],
+        pv_params['lat'],
+        pv_params['lon'],
+        pv_params['loss']
+    )
+    st.session_state.pv_energy_data = pv_energy_data
     
     # Calculate derived parameters
     derived_params = calculate_derived_parameters(electrolyser_power, electrolyser_specific_consumption)

@@ -32,22 +32,42 @@ def display_sidebar_logo():
 
 
 def display_pv_images():
-    """Display PV installation images"""
+    """Display PV monthly energy bar chart"""
     st.markdown("### ☀️ PV Installation (Meaux Location)")
-    try:
-        # Create 2x2 grid layout for the images, but remove monthly
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.image("meaux_maps_location.png", caption="Meaux Location Map", width='stretch')
-            st.image("meaux_simulation_output.png", caption="Simulation Output", width='stretch')
-        
-        with col2:
-            st.image("meaux_pv_config.png", caption="PV Configuration", width='stretch')
-        
-        st.info("📍 **PV Installation with tracking system**: Analysis based on 1 hectare solar panel surface area in Meaux. Data source: PVGIS (Photovoltaic Geographical Information System)")
-    except FileNotFoundError as e:
-        st.warning(f"⚠️ One or more PV images not found: {str(e)}")
+    
+    if 'pv_energy_data' not in st.session_state:
+        st.warning("PV data not available yet.")
+        return
+    
+    pv_energy_mwh = st.session_state.pv_energy_data['pv_energy_mwh']
+    
+    # Create bar chart
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(10, 6))
+    months = list(pv_energy_mwh.keys())
+    values = list(pv_energy_mwh.values())
+    bars = ax.bar(months, values, color='blue')
+    ax.set_xlabel('Month')
+    ax.set_ylabel('Energy (MWh)')
+    ax.set_title('Monthly PV Energy Production')
+    plt.xticks(rotation=45, ha='right')
+
+    # Add value labels
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            height,
+            f'{height:.1f}',
+            ha='center',
+            va='bottom',
+            fontsize=9
+        )
+
+    plt.tight_layout()
+    st.pyplot(fig)
+    
+    st.info("📍 **PV Installation with tracking system**: Analysis based on selected parameters. Data source: PVGIS (Photovoltaic Geographical Information System)")
 
 
 def display_parameter_change_info(params_changed):
