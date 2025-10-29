@@ -76,7 +76,7 @@ CUSTOM_CSS = """
         margin-bottom: 2rem;
     }
     .section-header {
-        font-size: 1.5rem;
+        font-size: 2rem;
         font-weight: bold;
         color: #2e7d32;
         margin-top: 2rem;

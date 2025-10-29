@@ -160,7 +160,7 @@ def main():
                     all_results = []
                     
                     for i, target_price in enumerate(target_prices):
-                        st.write(f"**Analyzing with {strategy_type} Strategy:**")
+                        st.markdown("### 🎯 Analyzing with {} Strategy:".format(strategy_type))
                         display_strategy_info(strategy_type, target_price, ppa_price, pv_price)
                         
                         # Run simulation components using selected strategy
@@ -220,9 +220,9 @@ def main():
                         
                         # Display results
                         if strategy_type == "Service Ratio-Based":
-                            st.write("**📊 Operating Hours per Month (Service Ratio Strategy):**")
+                            st.markdown("### 📊 Operating Hours per Month (Service Ratio Strategy):")
                         else:
-                            st.write("**📊 Operating Hours per Month (Target Price Strategy):**")
+                            st.markdown("### 📊 Operating Hours per Month (Target Price Strategy):")
                         st.dataframe(df_result, width='stretch')
                         
                         # Calculate PV energy production
@@ -280,9 +280,9 @@ def main():
 
                         # Create operating hours chart
                         if strategy_type == "Service Ratio-Based":
-                            st.write("**📈 Operating Hours Chart (Service Ratio Strategy):**")
+                            st.markdown("### 📈 Operating Hours Chart (Service Ratio Strategy):")
                         else:
-                            st.write("**📈 Operating Hours Chart (Target Price Strategy):**")
+                            st.markdown("### 📈 Operating Hours Chart (Target Price Strategy):")
                         
                         fig1 = create_operating_hours_chart(
                             df_result,
@@ -347,10 +347,10 @@ def main():
                         
                         # Create energy coverage chart
                         if strategy_type == "Target Price-Based":
-                            coverage_title = f"**🔋 Monthly Energy Coverage (Target Price Strategy) - Based on Actual Operating Hours:**" if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"**🔋 Monthly Energy Coverage (Target Price Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Based on Actual Operating Hours:**"
+                            coverage_title = f"### 🔋 Monthly Energy Coverage (Target Price Strategy) - Based on Actual Operating Hours:" if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"### 🔋 Monthly Energy Coverage (Target Price Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Based on Actual Operating Hours:"
                         else:
-                            coverage_title = f"**🔋 Monthly Energy Coverage (Service Ratio Strategy) - Spot/PPA Breakdown:**" if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"**🔋 Monthly Energy Coverage (Service Ratio Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:**"
-                        st.write(coverage_title)
+                            coverage_title = f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy) - Spot/PPA Breakdown:" if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:"
+                        st.markdown(coverage_title, unsafe_allow_html=True)
                         
                         # Prepare data for plotting based on strategy type
                         days_per_month = {
@@ -454,8 +454,8 @@ def main():
                         st.pyplot(fig2)
                         
                         # Modify the pie chart section to have two pies side by side
-                        pie_section_title = f"**🥧 Energy Coverage Distribution (with {pv_params['storage_hours']}h Daily Battery):**" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "**🥧 Energy Coverage Distribution:**"
-                        st.write(pie_section_title)
+                        pie_section_title = f"### 🥧 Energy Coverage Distribution (with {pv_params['storage_hours']}h Daily Battery):" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "### 🥧 Energy Coverage Distribution:"
+                        st.markdown(pie_section_title, unsafe_allow_html=True)
                         col1, col2 = st.columns(2)
                         with col1:
                             st.markdown("**Detailed Distribution**")
@@ -566,7 +566,7 @@ def main():
                         
                         styled_df = breakdown_df.style.apply(highlight_yearly_row, axis=1)
                         
-                        st.write("**📊 Monthly Energy Breakdown:**")
+                        st.markdown("### 📊 Monthly Energy Breakdown:")
                         st.dataframe(styled_df, width='stretch')
                         
                         # Calculate PV economics
