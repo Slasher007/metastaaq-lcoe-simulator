@@ -75,7 +75,8 @@ def main():
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=True)
     target_prices, pv_price, ppa_price = create_price_parameters(strategy_type)
     pv_params = create_pv_installation_parameters()
-
+    st.session_state.pv_params = pv_params
+    
     # Calculate PV energy production early for display
     pv_energy_data = calculate_pv_energy_production(
         pv_params['pv_surface_hectares'], 

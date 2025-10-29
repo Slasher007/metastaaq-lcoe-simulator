@@ -32,40 +32,75 @@ def display_sidebar_logo():
 
 
 def display_pv_images():
-    """Display PV monthly energy bar chart"""
+    """Display PV monthly energy bar chart and parameters table"""
     st.markdown("### ☀️ PV Installation (Meaux Location)")
     
-    if 'pv_energy_data' not in st.session_state:
+    if 'pv_energy_data' not in st.session_state or 'pv_params' not in st.session_state:
         st.warning("PV data not available yet.")
         return
     
     pv_energy_mwh = st.session_state.pv_energy_data['pv_energy_mwh']
+    pv_params = st.session_state.pv_params
     
-    # Create bar chart
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(10, 6))
-    months = list(pv_energy_mwh.keys())
-    values = list(pv_energy_mwh.values())
-    bars = ax.bar(months, values, color='blue')
-    ax.set_xlabel('Month')
-    ax.set_ylabel('Energy (MWh)')
-    ax.set_title('Monthly PV Energy Production')
-    plt.xticks(rotation=45, ha='right')
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Create bar chart
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(8, 5))
+        months = list(pv_energy_mwh.keys())
+        values = list(pv_energy_mwh.values())
+        bars = ax.bar(months, values, color='blue')
+        ax.set_xlabel('Month')
+        ax.set_ylabel('Energy (MWh)')
+        ax.set_title('Monthly PV Energy Production')
+        plt.xticks(rotation=45, ha='right')
 
-    # Add value labels
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            height,
-            f'{height:.1f}',
-            ha='center',
-            va='bottom',
-            fontsize=9
-        )
+        # Add value labels
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                height,
+                f'{height:.1f}',
+                ha='center',
+                va='bottom',
+                fontsize=9
+            )
 
-    plt.tight_layout()
-    st.pyplot(fig)
+        plt.tight_layout()
+        st.pyplot(fig)
+    
+    with col2:
+        st.markdown("#### Current PV Parameters")
+        param_data = {
+            'Parameter': [
+                'Surface Area (ha)',
+                'Power Density (MWp/ha)',
+                'Latitude',
+                'Longitude',
+                'System Loss (%)',
+                'Project Lifetime (years)',
+                'Cost per Wp (€)',
+                'Include Battery',
+                'Storage Hours',
+                'Battery Cost per kWh (€)'
+            ],
+            'Value': [
+                f"{pv_params['pv_surface_hectares']:.1f}",
+                f"{pv_params['power_density_mwp_per_ha']:.1f}",
+                f"{pv_params['lat']:.4f}",
+                f"{pv_params['lon']:.4f}",
+                f"{pv_params['loss']:.1f}",
+                f"{pv_params['pv_project_years']}",
+                f"{pv_params['pv_cost_per_wp']:.2f}",
+                'Yes' if pv_params['include_battery'] else 'No',
+                f"{pv_params['storage_hours']:.1f}" if pv_params['include_battery'] else 'N/A',
+                f"{pv_params['battery_cost_per_kwh']:.0f}" if pv_params['include_battery'] else 'N/A'
+            ]
+        }
+        param_df = pd.DataFrame(param_data)
+        st.table(param_df)
     
     st.info("📍 **PV Installation with tracking system**: Analysis based on selected parameters. Data source: PVGIS (Photovoltaic Geographical Information System)")
 
