@@ -434,6 +434,15 @@ def create_energy_coverage_chart(df_plot_data, include_battery, battery_capacity
     ax3.set_ylabel('Coverage (%)')
     ax3.set_ylim(0, 110)
     ax3.tick_params(axis='x', rotation=45)
+
+    if max_monthly_energy_mwh_by_month is None:
+        ax4 = ax3.twinx()
+        totals = df_plot_data[plot_columns].sum(axis=1)
+        if not totals.empty:
+            ax4.plot(range(len(df_plot_data.index)), totals.values, color='black', marker='o', linestyle='-', linewidth=2, markersize=8, label='Total Energy (MWh)')
+            ax4.set_ylabel('Total Energy (MWh)')
+            ax4.set_ylim(0, totals.max() * 1.1)
+            ax4.legend(loc='upper right')
     
     plt.tight_layout()
     return fig2
