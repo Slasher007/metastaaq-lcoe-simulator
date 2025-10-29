@@ -73,6 +73,7 @@ def display_pv_images():
     
     with col2:
         st.markdown("#### Current PV Parameters")
+        yearly_pv_mwh = sum(pv_energy_mwh.values())
         param_data = {
             'Parameter': [
                 'Surface Area (ha)',
@@ -84,7 +85,8 @@ def display_pv_images():
                 'Cost per Wp (€)',
                 'Include Battery',
                 'Storage Hours',
-                'Battery Cost per kWh (€)'
+                'Battery Cost per kWh (€)',
+                'Yearly PV Energy (MWh)'
             ],
             'Value': [
                 f"{pv_params['pv_surface_hectares']:.1f}",
@@ -96,7 +98,8 @@ def display_pv_images():
                 f"{pv_params['pv_cost_per_wp']:.2f}",
                 'Yes' if pv_params['include_battery'] else 'No',
                 f"{pv_params['storage_hours']:.1f}" if pv_params['include_battery'] else 'N/A',
-                f"{pv_params['battery_cost_per_kwh']:.0f}" if pv_params['include_battery'] else 'N/A'
+                f"{pv_params['battery_cost_per_kwh']:.0f}" if pv_params['include_battery'] else 'N/A',
+                f"{yearly_pv_mwh:.1f}"
             ]
         }
         param_df = pd.DataFrame(param_data)
