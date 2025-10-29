@@ -349,7 +349,7 @@ def main():
                         if strategy_type == "Target Price-Based":
                             coverage_title = f"### 🔋 Monthly Energy Coverage (Target Price Strategy) - Based on Actual Operating Hours:" if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"### 🔋 Monthly Energy Coverage (Target Price Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Based on Actual Operating Hours:"
                         else:
-                            coverage_title = f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy) - Spot/PPA Breakdown:" if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:"
+                            coverage_title = f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy) " if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:"
                         st.markdown(coverage_title, unsafe_allow_html=True)
                         
                         # Prepare data for plotting based on strategy type
