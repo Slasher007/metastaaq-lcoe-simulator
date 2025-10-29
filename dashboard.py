@@ -217,7 +217,10 @@ def main():
                         # Calculate PV energy production
                         pv_energy_data = calculate_pv_energy_production(
                             pv_params['pv_surface_hectares'], 
-                            pv_params['power_density_mwp_per_ha']
+                            pv_params['power_density_mwp_per_ha'],
+                            pv_params['lat'],
+                            pv_params['lon'],
+                            pv_params['loss']
                         )
                         
                         # Calculate battery capacity if included

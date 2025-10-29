@@ -191,6 +191,11 @@ def create_pv_installation_parameters():
             help="Power density of PV installation per hectare"
         )
 
+        st.markdown("#### PVGIS Parameters")
+        lat = st.number_input("Latitude", value=48.9667, step=0.0001, format="%.4f")
+        lon = st.number_input("Longitude", value=2.8500, step=0.0001, format="%.4f")
+        loss = st.number_input("System Loss (%)", value=14.0, min_value=0.0, max_value=50.0, step=0.1)
+
         # Calculate estimated power
         estimated_power_mwp = pv_surface_hectares * power_density_mwp_per_ha
         estimated_power_kwp = estimated_power_mwp * 1000
@@ -334,7 +339,10 @@ def create_pv_installation_parameters():
         'discount_rate': discount_rate,
         'use_calculated_opex': use_calculated_opex,
         'pv_opex': pv_opex,
-        'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg
+        'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg,
+        'lat': lat,
+        'lon': lon,
+        'loss': loss
     }
 
 
@@ -361,5 +369,8 @@ def get_current_parameters(selected_years, electrolyser_power, electrolyser_spec
         'use_calculated_opex': pv_params['use_calculated_opex'],
         'pv_capex': pv_params['pv_capex'],
         'pv_opex': pv_params['pv_opex'],
-        'pci_ch4_kwh_per_kg': pv_params['pci_ch4_kwh_per_kg']
+        'pci_ch4_kwh_per_kg': pv_params['pci_ch4_kwh_per_kg'],
+        'lat': pv_params['lat'],
+        'lon': pv_params['lon'],
+        'loss': pv_params['loss']
     }

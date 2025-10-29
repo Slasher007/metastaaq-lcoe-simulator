@@ -4,7 +4,7 @@ UI Components for the MetaSTAAQ Dashboard
 
 import streamlit as st
 import pandas as pd
-from config import CUSTOM_CSS, PV_IMAGES, PV_ENERGY_KWH
+from config import CUSTOM_CSS, PV_IMAGES
 
 
 def setup_page_config():
@@ -33,9 +33,9 @@ def display_sidebar_logo():
 
 def display_pv_images():
     """Display PV installation images"""
-    st.markdown("### ☀️ Monthly PV Production (Meaux Location)")
+    st.markdown("### ☀️ PV Installation (Meaux Location)")
     try:
-        # Create 2x2 grid layout for the images
+        # Create 2x2 grid layout for the images, but remove monthly
         col1, col2 = st.columns(2)
         
         with col1:
@@ -44,7 +44,6 @@ def display_pv_images():
         
         with col2:
             st.image("meaux_pv_config.png", caption="PV Configuration", width='stretch')
-            st.image("monthly_pv_meaux.png", caption="Monthly PV Energy Production", width='stretch')
         
         st.info("📍 **PV Installation with tracking system**: Analysis based on 1 hectare solar panel surface area in Meaux. Data source: PVGIS (Photovoltaic Geographical Information System)")
     except FileNotFoundError as e:

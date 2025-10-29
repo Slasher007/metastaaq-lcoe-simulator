@@ -18,8 +18,7 @@ LOGO_FILE = "STAAQ_HD.jpg"
 PV_IMAGES = {
     "location": "meaux_maps_location.png",
     "simulation": "meaux_simulation_output.png", 
-    "config": "meaux_pv_config.png",
-    "monthly": "monthly_pv_meaux.png"
+    "config": "meaux_pv_config.png"
 }
 
 # Month names
@@ -27,14 +26,6 @@ MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
 ]
-
-# Default PV Energy Production (kWh) - Meaux location
-PV_ENERGY_KWH = {
-    "January": 53458.33, "February": 80213.5, "March": 130815.4,
-    "April": 173641.0, "May": 180419.5, "June": 187157.5,
-    "July": 191786.5, "August": 171279.3, "September": 148726.1,
-    "October": 102391.7, "November": 62860.4, "December": 55020.23
-}
 
 # Default parameter values
 DEFAULT_PARAMS = {

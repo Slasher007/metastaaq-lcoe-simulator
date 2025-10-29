@@ -4,7 +4,10 @@ Calculation functions for the MetaSTAAQ Dashboard
 
 import pandas as pd
 import numpy as np
-from config import PV_ENERGY_KWH
+import requests
+import re
+import json
+import calendar
 
 
 def calculate_derived_parameters(electrolyser_power, electrolyser_specific_consumption):
@@ -37,13 +40,28 @@ def calculate_monthly_ch4_production(monthly_service_ratios, ch4_flowrate, ch4_d
     return monthly_ch4_production
 
 
-def calculate_pv_energy_production(pv_surface_hectares, power_density_mwp_per_ha):
+def calculate_pv_energy_production(pv_surface_hectares, power_density_mwp_per_ha, lat, lon, loss):
     """Calculate PV energy production based on surface area and power density"""
     estimated_power_mwp = pv_surface_hectares * power_density_mwp_per_ha
     estimated_power_kwp = estimated_power_mwp * 1000
     
+    target = "https://re.jrc.ec.europa.eu/api/PVcalc"
+    params = {
+        'lat': lat,
+        'lon': lon,
+        'peakpower': estimated_power_kwp,
+        'loss': loss,
+        'twoaxis': 1,
+        'pvtechchoice': 'crystSi',
+        'raddatabase': 'PVGIS-SARAH3',
+        'fixed': 0
+    }
+    pv_data = PvgisData(target, params)
+    pv_data.format_data()
+    monthly_pv_kwh = pv_data.get_monthly_pv_data()
+    
     # Convert PV energy from kWh to MWh
-    pv_energy_mwh = {month: kwh / 1000 for month, kwh in PV_ENERGY_KWH.items()}
+    pv_energy_mwh = {month: kwh / 1000 for month, kwh in monthly_pv_kwh.items()}
     
     return {
         'estimated_power_mwp': estimated_power_mwp,
@@ -416,3 +434,52 @@ def calculate_pv_lcoe(yearly_pv_mwh, pv_capex, pv_opex, pv_project_years, discou
         discounted_energy += yearly_pv_mwh / ((1 + discount_rate_decimal) ** year)
 
     return (discounted_costs / discounted_energy) if discounted_energy > 0 else 0
+
+
+class PvgisData:
+      def __init__(self, target, params):
+        self.target = target
+        self.params = params
+        self.r = requests.get(self.target,params=self.params)
+        
+      def format_data(self):
+        self.data = self.r.content.decode("utf-8")
+        lines = self.data.splitlines()
+
+        # Find the section that starts with "Month"
+        start_index = next(i for i, line in enumerate(lines) if line.strip().startswith("Month"))
+        data_lines = lines[start_index + 1 : start_index + 13]  # 12 months
+
+        result = []
+
+        for line in data_lines:
+            parts = re.split(r'\s+', line.strip())
+            if len(parts) >= 6:
+                month, E_d, E_m, H_d, H_m, SD_m = parts[:6]
+                result.append({
+                    "month": int(month),
+                    "E_d (kWh/d)": float(E_d),
+                    "E_m (kWh/mo)": float(E_m),
+                    "H(i)_d (kWh/m²/d)": float(H_d),
+                    "H(i)_m (kWh/m²/mo)": float(H_m),
+                    "SD_m (kWh)": float(SD_m)
+                })
+
+        # Convert to JSON string
+        self.json_data = json.dumps(result, indent=4)
+
+      def get_monthly_pv_data(self):
+        # convert the JSON string back to a Python object (list of dicts)
+        data = json.loads(self.json_data)
+
+        self.monthly_pv = {}
+
+        for item in data:
+            month_num = item["month"]
+            # Convert 1 → January, 2 → February, etc.
+            month_name = calendar.month_name[month_num]
+
+            E_m = item["E_m (kWh/mo)"]
+            self.monthly_pv[month_name] = E_m
+
+        return self.monthly_pv
