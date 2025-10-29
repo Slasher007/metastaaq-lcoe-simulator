@@ -33,7 +33,7 @@ def display_sidebar_logo():
 
 def display_pv_images():
     """Display PV monthly energy bar chart and parameters table"""
-    st.markdown("### ☀️ PV Installation (Meaux Location)")
+    st.markdown("### ☀️ PV Installation")
     
     if 'pv_energy_data' not in st.session_state or 'pv_params' not in st.session_state:
         st.warning("PV data not available yet.")
