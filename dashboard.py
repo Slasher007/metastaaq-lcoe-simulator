@@ -177,6 +177,15 @@ def main():
 
     # Manual refresh button (only for Target Price-Based strategy)
     if strategy_type == "Target Price-Based":
+        # Style the button with green background
+        st.markdown("""
+        <style>
+        .stButton > button {
+            background-color: green !important;
+            color: white !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         manual_refresh = st.button("Run Simulation", help="Force refresh the simulation")
     else:
         manual_refresh = False
