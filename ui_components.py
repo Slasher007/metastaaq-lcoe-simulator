@@ -51,7 +51,7 @@ def display_pv_images():
         with map_container:
             lat = pv_params['lat']
             lon = pv_params['lon']
-            m = folium.Map(location=[lat, lon], zoom_start=15, tiles="OpenStreetMap")
+            m = folium.Map(location=[lat, lon], zoom_start=16, tiles="OpenStreetMap")
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=10,
@@ -62,7 +62,7 @@ def display_pv_images():
                 popup="PV Installation Location",
                 tooltip="PV Installation"
             ).add_to(m)
-            st_folium(m, width="100%")
+            st_folium(m, width="100%", height=300)
         
         graph_container = st.container(height=300)
         with graph_container:
