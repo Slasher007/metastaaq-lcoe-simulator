@@ -37,7 +37,7 @@ from sidebar import (
 from plots import (
     create_monthly_price_analysis_plot, create_price_distribution_box_plot,
     create_service_ratios_chart, create_operating_hours_chart, create_energy_coverage_chart,
-    create_energy_distribution_pie_chart, create_consecutive_slots_distributions
+    create_energy_distribution_pie_chart, create_consecutive_slots_distributions, create_consecutive_slots_heatmap
 )
 from calculations import (
     calculate_derived_parameters, calculate_monthly_ch4_production, calculate_pv_energy_production,
@@ -304,6 +304,9 @@ def main():
                             st.pyplot(fig_week)
                             st.markdown("##### By Month")
                             st.pyplot(fig_month)
+                            st.markdown("##### Heatmap Matrix (Avg Length by Month/Weekday)")
+                            fig_heat = create_consecutive_slots_heatmap(data_content, target_price)
+                            st.pyplot(fig_heat)
                         
                         # PV images already displayed above; skip duplicate here
                         

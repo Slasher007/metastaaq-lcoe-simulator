@@ -702,7 +702,7 @@ def create_consecutive_slots_distributions(data_content, target_price):
         data = lengths_by_weekday[day]
         box_data_week.append(data)
         box_labels_week.append(f'{day}\n(n={len(data)})')
-    fig_week, ax_week = plt.subplots(figsize=(14, 7))
+    fig_week, ax_week = plt.subplots(figsize=(10, 4))
     bp_week = ax_week.boxplot(box_data_week, labels=box_labels_week, patch_artist=True, 
                               showmeans=True, meanline=True,
                               showfliers=False,
@@ -749,7 +749,7 @@ def create_consecutive_slots_distributions(data_content, target_price):
         data = lengths_by_month[month]
         box_data_month.append(data)
         box_labels_month.append(f'{month[:3]}\n(n={len(data)})')
-    fig_month, ax_month = plt.subplots(figsize=(14, 7))
+    fig_month, ax_month = plt.subplots(figsize=(10, 4))
     bp_month = ax_month.boxplot(box_data_month, labels=box_labels_month, patch_artist=True, 
                                showmeans=True, meanline=True,
                                showfliers=False,
@@ -779,3 +779,48 @@ def create_consecutive_slots_distributions(data_content, target_price):
                   fontsize=10)
     plt.tight_layout()
     return fig_week, fig_month
+
+
+def create_consecutive_slots_heatmap(data_content, target_price):
+    from calculate_operation_strategies import get_selected_hours_details_target_price
+    selected_hours_details = get_selected_hours_details_target_price(data_content, target_price)
+    lengths_by_month_weekday = defaultdict(lambda: defaultdict(list))
+    date_to_hours = defaultdict(list)
+    for detail in selected_hours_details:
+        date_to_hours[detail['date']].append(detail['hour'])
+    for date, hours in date_to_hours.items():
+        runs = find_consecutive_runs(hours)
+        detail = next(d for d in selected_hours_details if d['date'] == date)
+        weekday = detail['day_of_week']
+        month = pd.to_datetime(date).month_name()
+        for length in runs:
+            lengths_by_month_weekday[month][weekday].append(length)
+    # Prepare matrix: rows=months, columns=weekdays, values=avg length
+    month_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    avg_lengths = np.zeros((len(month_order), len(weekday_order)))
+    for i, month in enumerate(month_order):
+        for j, weekday in enumerate(weekday_order):
+            lengths = lengths_by_month_weekday[month][weekday]
+            avg_lengths[i, j] = np.mean(lengths) if lengths else np.nan
+    fig_heat, ax_heat = plt.subplots(figsize=(12, 5))
+    im = ax_heat.imshow(avg_lengths, cmap='YlOrRd', interpolation='nearest')
+    ax_heat.set_xticks(np.arange(len(weekday_order)))
+    ax_heat.set_xticklabels(weekday_order, rotation=45, ha='right')
+    ax_heat.set_yticks(np.arange(len(month_order)))
+    ax_heat.set_yticklabels(month_order)
+    ax_heat.set_xlabel('Weekday', fontsize=12, fontweight='bold')
+    ax_heat.set_ylabel('Month', fontsize=12, fontweight='bold')
+    ax_heat.set_title(f'Average Consecutive Slot Length by Month and Weekday\nDaily Purchase Strategy (Target Price: {target_price}€/MWh)',
+                      fontweight='bold', fontsize=14, pad=20)
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax_heat)
+    cbar.set_label('Average Slot Length (hours)', rotation=270, labelpad=15)
+    # Add text annotations
+    for i in range(len(month_order)):
+        for j in range(len(weekday_order)):
+            value = avg_lengths[i, j]
+            if not np.isnan(value):
+                ax_heat.text(j, i, f'{value:.1f}', ha='center', va='center', color='black' if value < 3 else 'white')
+    plt.tight_layout()
+    return fig_heat
