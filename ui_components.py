@@ -137,15 +137,9 @@ def display_pv_images():
 
 def display_parameter_change_info(params_changed):
     """Display parameter change information"""
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown("### 📊 Simulation Results")
-        if params_changed:
-            st.info("🔄 Parameters changed - Results updating automatically...")
-
-    with col2:
-        manual_refresh = st.button("🔄 Manual Refresh", help="Force refresh the simulation")
-        return manual_refresh
+    st.markdown("### 📊 Simulation Results")
+    if params_changed:
+        st.info("🔄 Parameters changed - Results updating automatically...")
 
 
 def display_strategy_info(strategy_type, target_price, ppa_price, pv_price):

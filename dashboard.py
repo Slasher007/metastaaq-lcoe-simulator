@@ -37,13 +37,16 @@ from sidebar import (
 from plots import (
     create_monthly_price_analysis_plot, create_price_distribution_box_plot,
     create_service_ratios_chart, create_operating_hours_chart, create_energy_coverage_chart,
-    create_energy_distribution_pie_chart, create_hourly_slots_by_weekday_boxplot
+    create_energy_distribution_pie_chart, create_consecutive_slots_distributions, create_consecutive_slots_heatmap
 )
 from calculations import (
     calculate_derived_parameters, calculate_monthly_ch4_production, calculate_pv_energy_production,
     calculate_battery_capacity, calculate_capex_opex, calculate_energy_breakdown,
     calculate_monthly_breakdown, calculate_yearly_totals, calculate_pv_economics, calculate_pv_lcoe
 )
+
+import os
+import time
 
 
 def main():
@@ -119,13 +122,41 @@ def main():
         selected_years, electrolyser_power, electrolyser_specific_consumption,
         monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params
     )
-    
+
+    current_params['strategy_type'] = strategy_type
+
     params_changed = st.session_state.last_params != current_params
     st.session_state.last_params = current_params.copy()
-    
-    # Display parameter change info and manual refresh button
-    manual_refresh = display_parameter_change_info(params_changed)
-    
+
+    # Display parameter change info
+    display_parameter_change_info(params_changed)
+
+    if 'last_strategy_type' not in st.session_state:
+        st.session_state.last_strategy_type = strategy_type
+
+    strategy_changed_to_target = (st.session_state.last_strategy_type != strategy_type) and strategy_type == "Target Price-Based"
+    st.session_state.last_strategy_type = strategy_type
+
+    auto_refresh = st.sidebar.checkbox("Enable auto-refresh on data changes", value=False, help="Checks for data file changes every 10 seconds and re-runs simulation if changed.")
+
+    data_changed = False
+    if auto_refresh:
+        current_mtime = os.path.getmtime(DEFAULT_DATA_FILE)
+        if 'last_data_mtime' not in st.session_state:
+            st.session_state.last_data_mtime = current_mtime
+        if current_mtime > st.session_state.last_data_mtime:
+            st.session_state.last_data_mtime = current_mtime
+            data_content = load_data_file(DEFAULT_DATA_FILE)
+            if selected_years:
+                data_content = data_content[data_content['Annee'].isin(selected_years)]
+            data_changed = True
+
+        if 'last_check' not in st.session_state:
+            st.session_state.last_check = time.time()
+        if time.time() - st.session_state.last_check > 10:
+            st.session_state.last_check = time.time()
+            st.rerun()
+
     # Create analysis plots
     st.markdown("#### 📈 Average Monthly Price Analysis")
     fig_price = create_monthly_price_analysis_plot(data_content)
@@ -143,9 +174,26 @@ def main():
     
     # Move PV images section here (after Current Monthly Service Ratios)
     display_pv_images()
-    
+
+    # Manual refresh button (only for Target Price-Based strategy)
+    if strategy_type == "Target Price-Based":
+        # Style the button with green background
+        st.markdown("""
+        <style>
+        .green-button button {
+            background-color: green !important;
+            color: white !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        st.markdown('<div class="green-button">', unsafe_allow_html=True)
+        manual_refresh = st.button("Run Simulation", help="Force refresh the simulation")
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        manual_refresh = False
+
     # Run simulation
-    run_simulation = params_changed or manual_refresh or 'simulation_run' not in st.session_state
+    run_simulation = params_changed or data_changed or manual_refresh or 'simulation_run' not in st.session_state or strategy_changed_to_target
     
     if run_simulation:
         if data_content.empty:
@@ -296,24 +344,17 @@ def main():
                         
                         # Show hourly slots by weekday boxplot for Target Price-Based strategy
                         if strategy_type == "Target Price-Based":
-                            st.markdown("#### 🕐 Répartition des Créneaux Horaires par Jour de la Semaine")
-                            years_str = ", ".join(map(str, sorted(selected_years))) if selected_years else "Toutes"
-                            st.markdown(f"**Stratégie d'Achat Journalière** - Prix Cible: {target_price}€/MWh | Années: {years_str}")
-                            fig_weekday = create_hourly_slots_by_weekday_boxplot(data_content, target_price)
-                            st.pyplot(fig_weekday)
-                            st.info("""
-                            **📊 Interprétation du graphique:**
-                            - Ce boxplot montre les **heures réellement validées** par la stratégie Target Price-Based pour chaque jour de la semaine
-                            - **Mécanisme d'achat journalier**: chaque jour à 13h, les prix du lendemain (00h-24h) sont connus via le marché Day-Ahead
-                            - **Sélection optimale**: les heures sont sélectionnées par ordre croissant de prix jusqu'à ce que le prix moyen cumulé atteigne le prix cible
-                            - **Ligne rouge (médiane)**: heure centrale typiquement sélectionnée
-                            - **Ligne verte (moyenne)**: heure moyenne de fonctionnement
-                            - **Points individuels**: chaque point représente une heure sélectionnée sur un jour spécifique
-                            - **Zones colorées**: périodes de la journée (🌙 Nuit 0-6h, 🌅 Matin 6-12h, ☀️ Après-midi 12-18h, 🌆 Soirée 18-24h)
-                            
-                            💡 **Exemple**: Si beaucoup de points apparaissent entre 2h et 5h le dimanche, cela signifie que ces heures nocturnes 
-                            du dimanche sont fréquemment les moins chères et sont donc sélectionnées pour l'électrolyse.
-                            """)
+                            st.markdown("#### 📊 Distribution of Consecutive Slot Lengths")
+                            years_str = ", ".join(map(str, sorted(selected_years))) if selected_years else "All"
+                            st.markdown(f"**Daily Purchase Strategy** - Target Price: {target_price}€/MWh | Years: {years_str}")
+                            fig_week, fig_month = create_consecutive_slots_distributions(data_content, target_price)
+                            st.markdown("##### By Weekday")
+                            st.pyplot(fig_week)
+                            st.markdown("##### By Month")
+                            st.pyplot(fig_month)
+                            st.markdown("##### Heatmap Matrix (Avg Length by Month/Weekday)")
+                            fig_heat = create_consecutive_slots_heatmap(data_content, target_price)
+                            st.pyplot(fig_heat)
                         
                         # PV images already displayed above; skip duplicate here
                         
