@@ -5,6 +5,8 @@ UI Components for the MetaSTAAQ Dashboard
 import streamlit as st
 import pandas as pd
 from config import CUSTOM_CSS, PV_IMAGES
+import folium
+from streamlit_folium import st_folium
 
 
 def setup_page_config():
@@ -45,69 +47,85 @@ def display_pv_images():
     col1, col2 = st.columns(2)
     
     with col1:
-        # Create bar chart
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(figsize=(8, 5))
-        months = list(pv_energy_mwh.keys())
-        values = list(pv_energy_mwh.values())
-        bars = ax.bar(months, values, color='blue')
-        ax.set_xlabel('Month')
-        ax.set_ylabel('Energy (MWh)')
-        ax.set_title('Monthly PV Energy Production')
-        plt.xticks(rotation=45, ha='right')
+        map_container = st.container(height=300)
+        with map_container:
+            lat = pv_params['lat']
+            lon = pv_params['lon']
+            m = folium.Map(location=[lat, lon], zoom_start=15, tiles="OpenStreetMap")
+            folium.Marker(
+                [lat, lon],
+                popup="PV Installation Location",
+                tooltip="PV Installation"
+            ).add_to(m)
+            st_folium(m, width="100%")
+        
+        graph_container = st.container(height=300)
+        with graph_container:
+            # Create bar chart
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=(8, 5))
+            months = list(pv_energy_mwh.keys())
+            values = list(pv_energy_mwh.values())
+            bars = ax.bar(months, values, color='blue')
+            ax.set_xlabel('Month')
+            ax.set_ylabel('Energy (MWh)')
+            ax.set_title('Monthly PV Energy Production')
+            plt.xticks(rotation=45, ha='right')
 
-        # Add value labels
-        for bar in bars:
-            height = bar.get_height()
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                height,
-                f'{height:.1f}',
-                ha='center',
-                va='bottom',
-                fontsize=9
-            )
+            # Add value labels
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    height,
+                    f'{height:.1f}',
+                    ha='center',
+                    va='bottom',
+                    fontsize=9
+                )
 
-        plt.tight_layout()
-        st.pyplot(fig)
+            plt.tight_layout()
+            st.pyplot(fig)
     
     with col2:
-        st.markdown("#### Current PV Parameters")
-        yearly_pv_mwh = sum(pv_energy_mwh.values())
-        param_data = {
-            'Parameter': [
-                'Surface Area (ha)',
-                'Power Density (MWp/ha)',
-                'Latitude',
-                'Longitude',
-                'System Loss (%)',
-                'Project Lifetime (years)',
-                'Cost per Wp (€)',
-                'Include Battery',
-                'Storage Hours',
-                'Battery Cost per kWh (€)',
-                'Yearly PV Energy (MWh)',
-                'Database used',
-                'PV technology'
-            ],
-            'Value': [
-                f"{pv_params['pv_surface_hectares']:.1f}",
-                f"{pv_params['power_density_mwp_per_ha']:.1f}",
-                f"{pv_params['lat']:.4f}",
-                f"{pv_params['lon']:.4f}",
-                f"{pv_params['loss']:.1f}",
-                f"{pv_params['pv_project_years']}",
-                f"{pv_params['pv_cost_per_wp']:.2f}",
-                'Yes' if pv_params['include_battery'] else 'No',
-                f"{pv_params['storage_hours']:.1f}" if pv_params['include_battery'] else 'N/A',
-                f"{pv_params['battery_cost_per_kwh']:.0f}" if pv_params['include_battery'] else 'N/A',
-                f"{yearly_pv_mwh:.1f}",
-                "PVGIS-SARAH3",
-                "Crystalline silicon"
-            ]
-        }
-        param_df = pd.DataFrame(param_data)
-        st.table(param_df)
+        table_container = st.container(height=600)
+        with table_container:
+            st.markdown("#### Current PV Parameters")
+            yearly_pv_mwh = sum(pv_energy_mwh.values())
+            param_data = {
+                'Parameter': [
+                    'Surface Area (ha)',
+                    'Power Density (MWp/ha)',
+                    'Latitude',
+                    'Longitude',
+                    'System Loss (%)',
+                    'Project Lifetime (years)',
+                    'Cost per Wp (€)',
+                    'Include Battery',
+                    'Storage Hours',
+                    'Battery Cost per kWh (€)',
+                    'Yearly PV Energy (MWh)',
+                    'Database used',
+                    'PV technology'
+                ],
+                'Value': [
+                    f"{pv_params['pv_surface_hectares']:.1f}",
+                    f"{pv_params['power_density_mwp_per_ha']:.1f}",
+                    f"{pv_params['lat']:.4f}",
+                    f"{pv_params['lon']:.4f}",
+                    f"{pv_params['loss']:.1f}",
+                    f"{pv_params['pv_project_years']}",
+                    f"{pv_params['pv_cost_per_wp']:.2f}",
+                    'Yes' if pv_params['include_battery'] else 'No',
+                    f"{pv_params['storage_hours']:.1f}" if pv_params['include_battery'] else 'N/A',
+                    f"{pv_params['battery_cost_per_kwh']:.0f}" if pv_params['include_battery'] else 'N/A',
+                    f"{yearly_pv_mwh:.1f}",
+                    "PVGIS-SARAH3",
+                    "Crystalline silicon"
+                ]
+            }
+            param_df = pd.DataFrame(param_data)
+            st.table(param_df)
     
     st.info("📍 **PV Installation with tracking system**: Analysis based on selected parameters. Data source: PVGIS (Photovoltaic Geographical Information System)")
 
