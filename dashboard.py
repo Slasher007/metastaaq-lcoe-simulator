@@ -180,13 +180,15 @@ def main():
         # Style the button with green background
         st.markdown("""
         <style>
-        .stButton > button {
+        .green-button button {
             background-color: green !important;
             color: white !important;
         }
         </style>
         """, unsafe_allow_html=True)
+        st.markdown('<div class="green-button">', unsafe_allow_html=True)
         manual_refresh = st.button("Run Simulation", help="Force refresh the simulation")
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
         manual_refresh = False
 
