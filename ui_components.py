@@ -47,6 +47,8 @@ def display_pv_images():
     col1, col2 = st.columns(2)
     
     with col1:
+        st.markdown("#### 📍 PV Installation Map")
+        st.info("💡 Click on the map to update GPS coordinates")
         map_container = st.container(height=300)
         with map_container:
             lat = pv_params['lat']
@@ -60,9 +62,42 @@ def display_pv_images():
                 fill_color="blue",
                 fill_opacity=0.7,
                 popup="PV Installation Location",
-                tooltip="PV Installation"
+                tooltip="Click to update location"
             ).add_to(m)
-            st_folium(m, width="100%", height=300)
+            
+            # Capture map clicks only (ignore zoom/pan events)
+            map_data = st_folium(
+                m, 
+                width="100%", 
+                height=300, 
+                key="pv_map",
+                returned_objects=["last_clicked"]
+            )
+            
+            # Check if map was clicked and coordinates are different
+            if map_data and map_data.get('last_clicked'):
+                clicked_lat = map_data['last_clicked']['lat']
+                clicked_lon = map_data['last_clicked']['lng']
+                
+                # Only update if coordinates actually changed (not just map navigation)
+                if 'last_map_lat' not in st.session_state or 'last_map_lon' not in st.session_state:
+                    st.session_state.last_map_lat = None
+                    st.session_state.last_map_lon = None
+                
+                # Check if this is a new click (coordinates changed)
+                if (st.session_state.last_map_lat != clicked_lat or 
+                    st.session_state.last_map_lon != clicked_lon):
+                    
+                    # Store clicked coordinates in session state
+                    st.session_state.map_clicked_lat = clicked_lat
+                    st.session_state.map_clicked_lon = clicked_lon
+                    st.session_state.last_map_lat = clicked_lat
+                    st.session_state.last_map_lon = clicked_lon
+                    
+                    # Show success message
+                    st.success(f"📍 Location updated: {clicked_lat:.4f}, {clicked_lon:.4f}")
+                    # Trigger a rerun to update the sidebar inputs
+                    st.rerun()
         
         graph_container = st.container(height=300)
         with graph_container:

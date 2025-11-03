@@ -6,4 +6,6 @@ matplotlib
 seaborn
 numpy
 beautifulsoup4
-streamlit 
+streamlit
+folium
+streamlit-folium

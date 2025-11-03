@@ -192,8 +192,28 @@ def create_pv_installation_parameters():
         )
 
         st.markdown("#### PVGIS Parameters")
-        lat = st.number_input("Latitude", value=48.9667, step=0.0001, format="%.4f")
-        lon = st.number_input("Longitude", value=2.8500, step=0.0001, format="%.4f")
+        
+        # Initialize session state for coordinates if not exists
+        if 'pv_lat' not in st.session_state:
+            st.session_state.pv_lat = 48.9667
+        if 'pv_lon' not in st.session_state:
+            st.session_state.pv_lon = 2.8500
+        
+        # Check if coordinates were updated from map click
+        if 'map_clicked_lat' in st.session_state and 'map_clicked_lon' in st.session_state:
+            st.session_state.pv_lat = st.session_state.map_clicked_lat
+            st.session_state.pv_lon = st.session_state.map_clicked_lon
+            # Clear the temporary clicked values
+            del st.session_state.map_clicked_lat
+            del st.session_state.map_clicked_lon
+        
+        lat = st.number_input("Latitude", value=st.session_state.pv_lat, step=0.0001, format="%.4f", key="lat_input")
+        lon = st.number_input("Longitude", value=st.session_state.pv_lon, step=0.0001, format="%.4f", key="lon_input")
+        
+        # Update session state if user manually changes the inputs
+        st.session_state.pv_lat = lat
+        st.session_state.pv_lon = lon
+        
         loss = st.number_input("System Loss (%)", value=14.0, min_value=0.0, max_value=50.0, step=0.1)
 
         # Calculate estimated power
