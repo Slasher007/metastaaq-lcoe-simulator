@@ -76,7 +76,7 @@ def main():
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=st.session_state.get('computed_service_ratios'))
     else:
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=True)
-    target_prices, pv_price, ppa_price = create_price_parameters(strategy_type)
+    target_prices, pv_price, ppa_price, go_enabled, go_cost_per_mwh = create_price_parameters(strategy_type)
     pv_params = create_pv_installation_parameters()
     st.session_state.pv_params = pv_params
     
@@ -120,7 +120,8 @@ def main():
     
     current_params = get_current_parameters(
         selected_years, electrolyser_power, electrolyser_specific_consumption,
-        monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params
+        monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
+        go_enabled, go_cost_per_mwh
     )
 
     current_params['strategy_type'] = strategy_type
@@ -384,7 +385,7 @@ def main():
                         ppa_energy_dict = energy_breakdown['ppa_energy_mwh']
                         
                         lcoe = calculate_lcoe(pv_energy_dict, spot_energy_dict, ppa_energy_dict, 
-                                            pv_price, actual_spot_price, ppa_price)
+                                            pv_price, actual_spot_price, ppa_price, go_enabled, go_cost_per_mwh)
                         
                         # Create energy coverage chart
                         if strategy_type == "Target Price-Based":
@@ -551,7 +552,7 @@ def main():
                                 st.pyplot(fig4)
                         
                         # Display metrics
-                        display_metrics_section(target_price, actual_spot_price, price_diff, lcoe)
+                        display_metrics_section(target_price, actual_spot_price, price_diff, lcoe, go_enabled, go_cost_per_mwh)
 
                         # For Target Price-Based, display computed service ratios and derived CH4 production
                         if strategy_type == "Target Price-Based":
@@ -572,13 +573,13 @@ def main():
                         monthly_breakdown = calculate_monthly_breakdown(
                             df_plot_data, ratios_for_breakdown, pv_price,
                             actual_spot_price, ppa_price, pv_params['include_battery'],
-                            battery_capacity_mwh, integrate_ppa
+                            battery_capacity_mwh, integrate_ppa, go_enabled, go_cost_per_mwh
                         )
                         
                         # Calculate yearly totals
                         yearly_average = calculate_yearly_totals(
                             df_plot_data, pv_params['include_battery'], battery_capacity_mwh,
-                            integrate_ppa, pv_price, actual_spot_price, ppa_price
+                            integrate_ppa, pv_price, actual_spot_price, ppa_price, go_enabled, go_cost_per_mwh
                         )
                         
                         # Create breakdown dataframe

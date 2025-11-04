@@ -157,8 +157,29 @@ def create_price_parameters(strategy_type):
             step=PARAM_RANGES["ppa_price"]["step"],
             help="Power Purchase Agreement price"
         )
+        
+        # GO (Guarantee of Origin) Certificate for Spot
+        st.markdown("---")
+        st.markdown("**🌱 GO Certificate for Spot**")
+        go_enabled = st.checkbox(
+            "Enable GO for Spot",
+            value=False,
+            help="Add Guarantee of Origin certificate cost to Spot energy"
+        )
+        
+        go_cost_per_mwh = 0.0
+        if go_enabled:
+            go_cost_per_mwh = st.slider(
+                "GO Cost (€/MWh)",
+                min_value=3.0,
+                max_value=10.0,
+                value=10.0,
+                step=0.5,
+                help="Additional cost per MWh for Guarantee of Origin certificate"
+            )
+            st.info(f"💡 GO cost of +{go_cost_per_mwh}€/MWh will be added to each MWh from Spot")
 
-    return target_prices, pv_price, ppa_price
+    return target_prices, pv_price, ppa_price, go_enabled, go_cost_per_mwh
 
 
 def create_pv_installation_parameters():
@@ -367,7 +388,8 @@ def create_pv_installation_parameters():
 
 
 def get_current_parameters(selected_years, electrolyser_power, electrolyser_specific_consumption,
-                          monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params):
+                          monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
+                          go_enabled=False, go_cost_per_mwh=0.0):
     """Get current parameters for change detection"""
     return {
         'years': tuple(sorted(selected_years)) if selected_years else (),
@@ -377,6 +399,8 @@ def get_current_parameters(selected_years, electrolyser_power, electrolyser_spec
         'target_prices': tuple(target_prices),
         'pv_price': pv_price,
         'ppa_price': ppa_price,
+        'go_enabled': go_enabled,
+        'go_cost_per_mwh': go_cost_per_mwh,
         'pv_project_years': pv_params['pv_project_years'],
         'pv_surface_hectares': pv_params['pv_surface_hectares'],
         'power_density_mwp_per_ha': pv_params['power_density_mwp_per_ha'],

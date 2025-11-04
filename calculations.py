@@ -188,9 +188,12 @@ def calculate_energy_breakdown(extended_info, monthly_service_ratios, electrolys
 
 def calculate_monthly_breakdown(df_plot_data, monthly_service_ratios, pv_price, 
                                actual_spot_price, ppa_price, include_battery, 
-                               battery_capacity_mwh, integrate_ppa):
+                               battery_capacity_mwh, integrate_ppa, go_enabled=False, go_cost_per_mwh=0.0):
     """Calculate detailed monthly breakdown for display"""
     monthly_breakdown = []
+    
+    # Calculate effective spot price including GO cost if enabled
+    effective_spot_price = actual_spot_price + (go_cost_per_mwh if go_enabled else 0.0)
     
     for month in df_plot_data.index:
         if include_battery and battery_capacity_mwh > 0:
@@ -207,10 +210,10 @@ def calculate_monthly_breakdown(df_plot_data, monthly_service_ratios, pv_price,
             spot_battery_ratio = (spot_battery_energy / total_energy * 100) if total_energy > 0 else 0
             ppa_ratio = (ppa_energy / total_energy * 100) if (total_energy > 0 and integrate_ppa) else 0
             
-            # Calculate costs
+            # Calculate costs (use effective spot price including GO)
             pv_cost = pv_energy * pv_price
-            spot_direct_cost = spot_direct_energy * actual_spot_price
-            spot_battery_cost = spot_battery_energy * actual_spot_price * 0.8  # 20% discount for battery
+            spot_direct_cost = spot_direct_energy * effective_spot_price
+            spot_battery_cost = spot_battery_energy * effective_spot_price * 0.8  # 20% discount for battery
             ppa_cost = (ppa_energy * ppa_price) if integrate_ppa else 0
             total_cost = pv_cost + spot_direct_cost + spot_battery_cost + ppa_cost
             
@@ -255,9 +258,9 @@ def calculate_monthly_breakdown(df_plot_data, monthly_service_ratios, pv_price,
             spot_ratio = (spot_energy / total_energy * 100) if total_energy > 0 else 0
             ppa_ratio = (ppa_energy / total_energy * 100) if (total_energy > 0 and integrate_ppa) else 0
             
-            # Calculate costs
+            # Calculate costs (use effective spot price including GO)
             pv_cost = pv_energy * pv_price
-            spot_cost = spot_energy * actual_spot_price
+            spot_cost = spot_energy * effective_spot_price
             ppa_cost = (ppa_energy * ppa_price) if integrate_ppa else 0
             total_cost = pv_cost + spot_cost + ppa_cost
             
@@ -291,8 +294,11 @@ def calculate_monthly_breakdown(df_plot_data, monthly_service_ratios, pv_price,
 
 
 def calculate_yearly_totals(df_plot_data, include_battery, battery_capacity_mwh, 
-                           integrate_ppa, pv_price, actual_spot_price, ppa_price):
+                           integrate_ppa, pv_price, actual_spot_price, ppa_price, go_enabled=False, go_cost_per_mwh=0.0):
     """Calculate yearly totals and averages"""
+    # Calculate effective spot price including GO cost if enabled
+    effective_spot_price = actual_spot_price + (go_cost_per_mwh if go_enabled else 0.0)
+    
     if include_battery and battery_capacity_mwh > 0:
         total_pv_energy = sum(df_plot_data['PV'])
         total_spot_direct_energy = sum(df_plot_data['Spot Direct'])
@@ -302,9 +308,9 @@ def calculate_yearly_totals(df_plot_data, include_battery, battery_capacity_mwh,
         total_energy_year = total_pv_energy + total_spot_direct_energy + total_spot_battery_energy + total_ppa_energy
         
         total_pv_cost = total_pv_energy * pv_price
-        total_spot_direct_cost = total_spot_direct_energy * actual_spot_price
+        total_spot_direct_cost = total_spot_direct_energy * effective_spot_price
         avg_battery_discount = 0.8  # 20% discount estimate
-        total_spot_battery_cost = total_spot_battery_energy * actual_spot_price * avg_battery_discount
+        total_spot_battery_cost = total_spot_battery_energy * effective_spot_price * avg_battery_discount
         total_ppa_cost = (total_ppa_energy * ppa_price) if integrate_ppa else 0
         total_cost_year = total_pv_cost + total_spot_direct_cost + total_spot_battery_cost + (total_ppa_cost if integrate_ppa else 0)
         
@@ -344,7 +350,7 @@ def calculate_yearly_totals(df_plot_data, include_battery, battery_capacity_mwh,
         total_energy_year = total_pv_energy + total_spot_energy + total_ppa_energy
         
         total_pv_cost = total_pv_energy * pv_price
-        total_spot_cost = total_spot_energy * actual_spot_price
+        total_spot_cost = total_spot_energy * effective_spot_price
         total_ppa_cost = (total_ppa_energy * ppa_price) if integrate_ppa else 0
         total_cost_year = total_pv_cost + total_spot_cost + (total_ppa_cost if integrate_ppa else 0)
         

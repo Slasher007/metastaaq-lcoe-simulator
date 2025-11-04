@@ -1,7 +1,10 @@
-def calculate_lcoe(pv_energy_mwh, spot_energy_dict, ppa_energy_dict, pv_price, spot_price, ppa_price):
+def calculate_lcoe(pv_energy_mwh, spot_energy_dict, ppa_energy_dict, pv_price, spot_price, ppa_price, go_enabled=False, go_cost_per_mwh=0.0):
     """Calculate the Levelized Cost of Energy based on energy mix and prices"""
     total_cost = 0
     total_energy = 0
+    
+    # Calculate effective spot price including GO cost if enabled
+    effective_spot_price = spot_price + (go_cost_per_mwh if go_enabled else 0.0)
     
     for month in pv_energy_mwh.keys():
         # Get energy amounts for each source
@@ -9,9 +12,9 @@ def calculate_lcoe(pv_energy_mwh, spot_energy_dict, ppa_energy_dict, pv_price, s
         spot_energy = spot_energy_dict.get(month, 0)
         ppa_energy = ppa_energy_dict.get(month, 0)
         
-        # Calculate costs
+        # Calculate costs (use effective spot price including GO)
         pv_cost = pv_energy * pv_price
-        spot_cost = spot_energy * spot_price
+        spot_cost = spot_energy * effective_spot_price
         ppa_cost = ppa_energy * ppa_price
         
         # Add to totals
