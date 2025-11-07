@@ -619,9 +619,9 @@ def main():
                             recomputed_monthly_ch4 = calculate_monthly_ch4_production(
                                 recomputed_service, derived_params['ch4_flowrate'], derived_params['ch4_density']
                             )
-                            total_yearly_ch4_kg = sum(recomputed_monthly_ch4.values())
+                            total_yearly_ch4_tonnes = sum(recomputed_monthly_ch4.values())
                         else:
-                            total_yearly_ch4_kg = sum(monthly_ch4_production.values())
+                            total_yearly_ch4_tonnes = sum(monthly_ch4_production.values())
                         # Avoid double counting when battery columns are present
                         if pv_params['include_battery'] and battery_capacity_mwh > 0:
                             cols_to_sum = ['PV', 'Spot Direct', 'Spot Battery']
@@ -635,7 +635,7 @@ def main():
                             total_energy_consumed = sum(df_plot_data[cols_to_sum].sum(axis=1))
                         
                         pv_economics = calculate_pv_economics(
-                            sum(df_plot_data['PV']), total_energy_consumed, total_yearly_ch4_kg,
+                            sum(df_plot_data['PV']), total_energy_consumed, total_yearly_ch4_tonnes,
                             pv_params['pci_ch4_kwh_per_kg'], capex_opex_data['total_capex_calculated'],
                             capex_opex_data['pv_opex_calculated'], pv_params['pv_project_years'],
                             pv_params['discount_rate']
@@ -647,7 +647,7 @@ def main():
                         
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
-                            st.metric("**Total Yearly CH₄ Production**", f"{total_yearly_ch4_kg:,.0f} kg")
+                            st.metric("**Total Yearly CH₄ Production**", f"{total_yearly_ch4_tonnes:,.1f} Tonnes")
                         with col2:
                             st.metric("**PV Yearly Energy Ratio**", f"{pv_economics['pv_energy_ratio']:.1%}")
                         with col3:

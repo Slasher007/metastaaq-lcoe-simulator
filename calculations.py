@@ -27,7 +27,7 @@ def calculate_derived_parameters(electrolyser_power, electrolyser_specific_consu
 
 
 def calculate_monthly_ch4_production(monthly_service_ratios, ch4_flowrate, ch4_density):
-    """Calculate monthly CH4 production based on service ratios"""
+    """Calculate monthly CH4 production based on service ratios (in Tonnes)"""
     monthly_ch4_production = {}
     
     for month, ratio in monthly_service_ratios.items():
@@ -35,7 +35,8 @@ def calculate_monthly_ch4_production(monthly_service_ratios, ch4_flowrate, ch4_d
         days_in_month = (31 if month in ["January", "March", "May", "July", "August", "October", "December"] 
                         else 30 if month != "February" else 28)
         
-        monthly_ch4_production[month] = ch4_flowrate * 24 * ratio * days_in_month * ch4_density
+        # Production in kg, then converted to Tonnes by dividing by 1000
+        monthly_ch4_production[month] = (ch4_flowrate * 24 * ratio * days_in_month * ch4_density) / 1000
     
     return monthly_ch4_production
 
@@ -382,10 +383,13 @@ def calculate_yearly_totals(df_plot_data, include_battery, battery_capacity_mwh,
     return yearly_average
 
 
-def calculate_pv_economics(total_pv_energy, total_energy_consumed, total_yearly_ch4_kg, 
+def calculate_pv_economics(total_pv_energy, total_energy_consumed, total_yearly_ch4_tonnes, 
                           pci_ch4_kwh_per_kg, pv_capex, pv_opex, pv_project_years, 
                           discount_rate):
     """Calculate PV-specific economics"""
+    # Convert Tonnes to kg for calculations
+    total_yearly_ch4_kg = total_yearly_ch4_tonnes * 1000
+    
     if total_energy_consumed > 0:
         pv_energy_ratio = total_pv_energy / total_energy_consumed
         pv_ch4_production_kg = total_yearly_ch4_kg * pv_energy_ratio
