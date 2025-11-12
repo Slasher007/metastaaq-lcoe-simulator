@@ -48,7 +48,7 @@ DEFAULT_PARAMS = {
 
 # Parameter ranges
 PARAM_RANGES = {
-    "electrolyser_power": {"min": 1.0, "max": 20.0, "step": 0.5},
+    "electrolyser_power": {"min": 0.25, "max": 20.0, "step": 0.25},
     "electrolyser_specific_consumption": {"min": 4.0, "max": 6.0, "step": 0.1},
     "service_ratio": {"min": 0.0, "max": 1.0, "step": 0.01},
     "pv_price": {"min": 0.0, "max": 100.0, "step": 5.0},
