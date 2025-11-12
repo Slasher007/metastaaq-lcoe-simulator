@@ -47,7 +47,6 @@ def display_pv_images():
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 📍 PV Installation Map")
         st.info("💡 Click on the map to update GPS coordinates")
         map_container = st.container(height=300)
         with map_container:
