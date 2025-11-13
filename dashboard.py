@@ -27,7 +27,7 @@ from ui_components import (
     display_parameter_change_info, display_strategy_info, display_metrics_section,
     display_monthly_ch4_production, display_calculated_parameters, display_pv_economics_summary,
     create_loading_spinner, display_error_message, display_warning_message, 
-    display_info_message, display_success_message
+    display_info_message, display_success_message, display_lcoh_results
 )
 from sidebar import (
     setup_sidebar_header, load_data_file, create_year_selection, create_electrolyzer_parameters,
@@ -44,6 +44,7 @@ from calculations import (
     calculate_battery_capacity, calculate_capex_opex, calculate_energy_breakdown,
     calculate_monthly_breakdown, calculate_yearly_totals, calculate_pv_economics, calculate_pv_lcoe
 )
+from calculate_lcoh import calculate_lcoh
 
 import os
 import time
@@ -70,7 +71,7 @@ def main():
         data_content = data_content[data_content['Annee'].isin(selected_years)]
     
     # Strategy selection before service ratios
-    electrolyser_power, electrolyser_specific_consumption = create_electrolyzer_parameters()
+    electrolyser_power, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters()
     strategy_type = create_operation_strategy_selection()
     if strategy_type == "Target Price-Based":
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=st.session_state.get('computed_service_ratios'))
@@ -121,7 +122,7 @@ def main():
     current_params = get_current_parameters(
         selected_years, electrolyser_power, electrolyser_specific_consumption,
         monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
-        go_enabled, go_cost_per_mwh
+        go_enabled, go_cost_per_mwh, electrolyzer_econ
     )
 
     current_params['strategy_type'] = strategy_type
@@ -676,6 +677,25 @@ def main():
                             capex_opex_data['pv_opex_calculated'],
                             pv_lcoe_eur_per_mwh=pv_lcoe_value
                         )
+                        
+                        # Calculate and display LCOH
+                        ratios_for_lcoh = recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios
+                        lcoh_results = calculate_lcoh(
+                            electrolyser_power,
+                            electrolyser_specific_consumption,
+                            ratios_for_lcoh,
+                            electrolyzer_econ,
+                            pv_energy_dict,
+                            spot_energy_dict,
+                            ppa_energy_dict,
+                            pv_price,
+                            actual_spot_price,
+                            ppa_price,
+                            go_enabled,
+                            go_cost_per_mwh
+                        )
+                        
+                        display_lcoh_results(lcoh_results)
                         
                         # Store results
                         all_results.append({

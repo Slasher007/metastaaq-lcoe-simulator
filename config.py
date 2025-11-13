@@ -43,7 +43,18 @@ DEFAULT_PARAMS = {
     "battery_cost_per_kwh": 200.0,
     "opex_percentage": 2.0,
     "discount_rate": 6.0,
-    "pci_ch4_kwh_per_kg": 13.9
+    "pci_ch4_kwh_per_kg": 13.9,
+    # Electrolyzer Economics (for LCOH calculation)
+    "electrolyzer_capex_total": 7320000.0,
+    "electrolyzer_lifetime": 20,
+    "electrolyzer_discount_rate": 5.0,
+    "electrolyzer_opex_annual": 1317744.0,
+    "electrolyzer_maintenance_annual": 51600.0,
+    "water_price_per_m3": 5.0,
+    "water_consumption_annual_m3": 8180.0,
+    "other_costs_annual": 5921.0,
+    "stack_replacement_years": 9,
+    "stack_replacement_cost": 2000000.0
 }
 
 # Parameter ranges
@@ -55,14 +66,25 @@ PARAM_RANGES = {
     "ppa_price": {"min": 40.0, "max": 120.0, "step": 5.0},
     "target_price": {"min": 20.0, "max": 100.0, "step": 5.0},
     "pv_project_years": {"min": 15, "max": 30, "step": 1},
-    "pv_surface_hectares": {"min": 0.1, "max": 10.0, "step": 0.1},
+    "pv_surface_hectares": {"min": 0.1, "max": 20.0, "step": 0.1},
     "power_density_mwp_per_ha": {"min": 0.5, "max": 3.0, "step": 0.1},
     "storage_hours": {"min": 0.0, "max": 12.0, "step": 0.5},
     "pv_cost_per_wp": {"min": 0.3, "max": 2.0, "step": 0.05},
     "battery_cost_per_kwh": {"min": 100.0, "max": 500.0, "step": 10.0},
     "opex_percentage": {"min": 0.5, "max": 5.0, "step": 0.1},
     "discount_rate": {"min": 2.0, "max": 12.0, "step": 0.5},
-    "pci_ch4_kwh_per_kg": {"min": 10.0, "max": 20.0, "step": 0.1}
+    "pci_ch4_kwh_per_kg": {"min": 10.0, "max": 20.0, "step": 0.1},
+    # Electrolyzer Economics ranges
+    "electrolyzer_capex_total": {"min": 1000000.0, "max": 50000000.0, "step": 100000.0},
+    "electrolyzer_lifetime": {"min": 5, "max": 30, "step": 1},
+    "electrolyzer_discount_rate": {"min": 1.0, "max": 15.0, "step": 0.5},
+    "electrolyzer_opex_annual": {"min": 0.0, "max": 10000000.0, "step": 10000.0},
+    "electrolyzer_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0},
+    "water_price_per_m3": {"min": 0.0, "max": 20.0, "step": 0.1},
+    "water_consumption_annual_m3": {"min": 0.0, "max": 50000.0, "step": 100.0},
+    "other_costs_annual": {"min": 0.0, "max": 100000.0, "step": 1000.0},
+    "stack_replacement_years": {"min": 3, "max": 15, "step": 1},
+    "stack_replacement_cost": {"min": 0.0, "max": 10000000.0, "step": 50000.0}
 }
 
 # CSS Styles

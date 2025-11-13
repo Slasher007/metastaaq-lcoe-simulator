@@ -4,6 +4,7 @@ UI Components for the MetaSTAAQ Dashboard
 
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 from config import CUSTOM_CSS, PV_IMAGES
 import folium
 from streamlit_folium import st_folium
@@ -254,6 +255,190 @@ def display_pv_economics_summary(estimated_power_mwp, estimated_power_kwp, batte
     st.write(f"**Calculated OPEX**: {pv_opex:,.0f} €/year")
     if pv_lcoe_eur_per_mwh is not None:
         st.write(f"**PV LCOE**: {pv_lcoe_eur_per_mwh:.2f} €/MWh")
+
+
+def display_lcoh_results(lcoh_results):
+    """Display LCOH calculation results"""
+    st.markdown("---")
+    st.markdown("### 💧 LCOH (Levelized Cost of Hydrogen) Analysis")
+    
+    # Main metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("**LCOH**", f"{lcoh_results['lcoh_eur_per_kg']:.2f} €/kg H₂")
+    with col2:
+        st.metric("**LCOH**", f"{lcoh_results['lcoh_eur_per_mwh']:.1f} €/MWh H₂")
+    with col3:
+        st.metric("**H₂ Production**", f"{lcoh_results['h2_production_tonnes']:.1f} Tonnes/year")
+    with col4:
+        st.metric("**Total Annual Cost**", f"{lcoh_results['total_annual_cost']:,.0f} €")
+    
+    # Detailed breakdown
+    with st.expander("📊 LCOH Cost Breakdown (€/kg H₂)", expanded=True):
+        breakdown = lcoh_results['breakdown']
+        
+        # Create breakdown dataframe
+        breakdown_data = {
+            'Component': [
+                'CapEx (annualized)',
+                'OPEX',
+                'Maintenance',
+                'Water',
+                'Stack Replacement',
+                'Other Costs',
+                'Electricity (all sources)',
+                '**TOTAL LCOH**'
+            ],
+            'Cost (€/kg H₂)': [
+                f"{breakdown['capex']:.3f}",
+                f"{breakdown['opex']:.3f}",
+                f"{breakdown['maintenance']:.3f}",
+                f"{breakdown['water']:.3f}",
+                f"{breakdown['stack']:.3f}",
+                f"{breakdown['other']:.3f}",
+                f"{breakdown['electricity']:.3f}",
+                f"**{lcoh_results['lcoh_eur_per_kg']:.3f}**"
+            ],
+            'Annual Cost (€)': [
+                f"{lcoh_results['annualized_costs']['capex_annualized']:,.0f}",
+                f"{lcoh_results['annualized_costs']['opex_annual']:,.0f}",
+                f"{lcoh_results['annualized_costs']['maintenance_annual']:,.0f}",
+                f"{lcoh_results['annualized_costs']['water_annual']:,.0f}",
+                f"{lcoh_results['annualized_costs']['stack_annual']:,.0f}",
+                f"{lcoh_results['annualized_costs']['other_annual']:,.0f}",
+                f"{lcoh_results['electricity_costs']['total_cost']:,.0f}",
+                f"**{lcoh_results['total_annual_cost']:,.0f}**"
+            ],
+            'Percentage': [
+                f"{(breakdown['capex']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
+                f"{(breakdown['opex']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
+                f"{(breakdown['maintenance']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
+                f"{(breakdown['water']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
+                f"{(breakdown['stack']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
+                f"{(breakdown['other']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
+                f"{(breakdown['electricity']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
+                "**100.0%**"
+            ]
+        }
+        
+        df_breakdown = pd.DataFrame(breakdown_data)
+        
+        # Create two columns: table on left, pie chart on right
+        col_table, col_pie = st.columns([2, 1])
+        
+        with col_table:
+            st.table(df_breakdown)
+        
+        with col_pie:
+            # Create pie chart for LCOH breakdown
+            # Prepare data for pie chart (exclude total)
+            pie_labels = [
+                'CapEx',
+                'OPEX',
+                'Maintenance',
+                'Water',
+                'Stack',
+                'Other',
+                'Electricity'
+            ]
+            pie_values = [
+                breakdown['capex'],
+                breakdown['opex'],
+                breakdown['maintenance'],
+                breakdown['water'],
+                breakdown['stack'],
+                breakdown['other'],
+                breakdown['electricity']
+            ]
+            
+            # Create pie chart
+            fig_pie, ax_pie = plt.subplots(figsize=(7, 7))
+            colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
+            
+            wedges, texts, autotexts = ax_pie.pie(
+                pie_values,
+                labels=pie_labels,
+                autopct='%1.1f%%',
+                startangle=90,
+                colors=colors,
+                pctdistance=0.85,
+                explode=[0.05, 0, 0, 0, 0, 0, 0.1]  # Explode CapEx and Electricity slightly
+            )
+            
+            # Enhance text
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(9)
+            
+            for text in texts:
+                text.set_fontsize(10)
+                text.set_fontweight('bold')
+            
+            ax_pie.set_title('LCOH Cost Breakdown\n(€/kg H₂)', fontsize=12, fontweight='bold', pad=20)
+            
+            # Equal aspect ratio ensures that pie is drawn as a circle
+            ax_pie.axis('equal')
+            
+            plt.tight_layout()
+            st.pyplot(fig_pie)
+        
+        # Additional economic details
+        st.markdown("#### 📈 Economic Parameters")
+        econ_col1, econ_col2, econ_col3, econ_col4 = st.columns(4)
+        with econ_col1:
+            st.write(f"**Total CapEx**: {lcoh_results['annualized_costs']['capex_total']:,.0f} €")
+            st.write(f"**Lifetime**: {lcoh_results['annualized_costs']['lifetime']} years | **CRF**: {lcoh_results['annualized_costs']['crf']:.4f}")
+            st.write(f"**CapEx Annualized**: {lcoh_results['annualized_costs']['capex_annualized']:,.0f} €/year")
+        with econ_col2:
+            if 'stack_replacement_cost_total' in lcoh_results['annualized_costs']:
+                st.write(f"**Stack Replacement Cost**: {lcoh_results['annualized_costs']['stack_replacement_cost_total']:,.0f} €")
+            if 'water_details' in lcoh_results['annualized_costs']:
+                water_details = lcoh_results['annualized_costs']['water_details']
+                st.write(f"**Water**: {water_details['price_per_m3']:.2f} €/m³ × {water_details['consumption_m3']:,.0f} m³/year")
+            else:
+                st.write(f"**Water Cost**: {lcoh_results['annualized_costs']['water_annual']:,.0f} €/year")
+        with econ_col3:
+            st.write(f"**H₂ Production**: {lcoh_results['h2_production_kg']:,.0f} kg/year")
+            st.write(f"**Avg Electricity Cost**: {lcoh_results['electricity_costs']['avg_electricity_cost']:.2f} €/MWh")
+        with econ_col4:
+            st.write(f"**Total Energy Consumed**: {lcoh_results['electricity_costs']['total_energy']:,.1f} MWh/year")
+            st.write(f"**Specific Consumption**: {lcoh_results['electricity_costs']['total_energy']*1000/lcoh_results['h2_production_kg']:.2f} kWh/kg H₂")
+        
+        # Electricity breakdown by source
+        st.markdown("#### ⚡ Electricity Cost Breakdown by Source")
+        elec = lcoh_results['electricity_costs']
+        
+        elec_breakdown_data = {
+            'Source': ['PV', 'Spot Market', 'PPA', '**TOTAL**'],
+            'Energy (MWh)': [
+                f"{elec['pv_energy']:.1f}",
+                f"{elec['spot_energy']:.1f}",
+                f"{elec['ppa_energy']:.1f}",
+                f"**{elec['total_energy']:.1f}**"
+            ],
+            'Cost (€)': [
+                f"{elec['pv_cost']:,.0f}",
+                f"{elec['spot_cost']:,.0f}",
+                f"{elec['ppa_cost']:,.0f}",
+                f"**{elec['total_cost']:,.0f}**"
+            ],
+            'Share (%)': [
+                f"{(elec['pv_energy']/elec['total_energy']*100):.1f}%" if elec['total_energy'] > 0 else "0%",
+                f"{(elec['spot_energy']/elec['total_energy']*100):.1f}%" if elec['total_energy'] > 0 else "0%",
+                f"{(elec['ppa_energy']/elec['total_energy']*100):.1f}%" if elec['total_energy'] > 0 else "0%",
+                "**100.0%**"
+            ],
+            'Cost Share (%)': [
+                f"{(elec['pv_cost']/elec['total_cost']*100):.1f}%" if elec['total_cost'] > 0 else "0%",
+                f"{(elec['spot_cost']/elec['total_cost']*100):.1f}%" if elec['total_cost'] > 0 else "0%",
+                f"{(elec['ppa_cost']/elec['total_cost']*100):.1f}%" if elec['total_cost'] > 0 else "0%",
+                "**100.0%**"
+            ]
+        }
+        
+        df_elec_breakdown = pd.DataFrame(elec_breakdown_data)
+        st.table(df_elec_breakdown)
 
 
 def create_loading_spinner(message="Running simulation..."):
