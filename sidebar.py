@@ -34,8 +34,9 @@ def create_year_selection(data_content):
 
 
 def create_electrolyzer_parameters():
-    """Create electrolyzer parameter inputs"""
+    """Create electrolyzer parameter inputs including economics"""
     with st.sidebar.expander("⚡ Electrolyser", expanded=True):
+        st.markdown("**Technical Parameters**")
         electrolyser_power = st.slider(
             "Electrolyzer Power (MW)",
             min_value=PARAM_RANGES["electrolyser_power"]["min"],
@@ -53,8 +54,145 @@ def create_electrolyzer_parameters():
             step=PARAM_RANGES["electrolyser_specific_consumption"]["step"],
             help="Energy consumption per cubic meter of hydrogen produced"
         )
+        
+        st.markdown("---")
+        st.markdown("**Economic Parameters (for LCOH calculation)**")
+        
+        # CapEx électrolyseur (total)
+        electrolyzer_capex_total = st.number_input(
+            "Total CapEx (€)",
+            min_value=PARAM_RANGES["electrolyzer_capex_total"]["min"],
+            max_value=PARAM_RANGES["electrolyzer_capex_total"]["max"],
+            value=DEFAULT_PARAMS["electrolyzer_capex_total"],
+            step=PARAM_RANGES["electrolyzer_capex_total"]["step"],
+            help="Total capital expenditure for the entire project lifetime"
+        )
+        
+        # Durée de vie électrolyseur
+        electrolyzer_lifetime = st.slider(
+            "Project Lifetime (years)",
+            min_value=PARAM_RANGES["electrolyzer_lifetime"]["min"],
+            max_value=PARAM_RANGES["electrolyzer_lifetime"]["max"],
+            value=DEFAULT_PARAMS["electrolyzer_lifetime"],
+            step=PARAM_RANGES["electrolyzer_lifetime"]["step"],
+            help="Expected lifetime of the electrolyzer project"
+        )
+        
+        # Taux d'actualisation électrolyseur
+        electrolyzer_discount_rate = st.slider(
+            "Discount Rate (%)",
+            min_value=PARAM_RANGES["electrolyzer_discount_rate"]["min"],
+            max_value=PARAM_RANGES["electrolyzer_discount_rate"]["max"],
+            value=DEFAULT_PARAMS["electrolyzer_discount_rate"],
+            step=PARAM_RANGES["electrolyzer_discount_rate"]["step"],
+            help="Discount rate for LCOH calculation"
+        )
+        
+        # Calcul du CRF et affichage du CapEx annualisé
+        from calculate_lcoh import calculate_crf
+        crf = calculate_crf(electrolyzer_discount_rate, electrolyzer_lifetime)
+        electrolyzer_capex_annual = electrolyzer_capex_total * crf
+        st.write(f"**CapEx Annualized**: {electrolyzer_capex_annual:,.0f} €/year (CRF: {crf:.4f})")
+        
+        # OPEX électrolyseur
+        electrolyzer_opex_annual = st.number_input(
+            "OPEX (€/year)",
+            min_value=PARAM_RANGES["electrolyzer_opex_annual"]["min"],
+            max_value=PARAM_RANGES["electrolyzer_opex_annual"]["max"],
+            value=DEFAULT_PARAMS["electrolyzer_opex_annual"],
+            step=PARAM_RANGES["electrolyzer_opex_annual"]["step"],
+            help="Annual operational expenditure"
+        )
+        
+        # Maintenance électrolyseur
+        electrolyzer_maintenance_annual = st.number_input(
+            "Maintenance (€/year)",
+            min_value=PARAM_RANGES["electrolyzer_maintenance_annual"]["min"],
+            max_value=PARAM_RANGES["electrolyzer_maintenance_annual"]["max"],
+            value=DEFAULT_PARAMS["electrolyzer_maintenance_annual"],
+            step=PARAM_RANGES["electrolyzer_maintenance_annual"]["step"],
+            help="Annual maintenance cost"
+        )
+        
+        st.markdown("**Water Cost**")
+        
+        # Prix de l'eau
+        water_price_per_m3 = st.number_input(
+            "Water Price (€/m³)",
+            min_value=PARAM_RANGES["water_price_per_m3"]["min"],
+            max_value=PARAM_RANGES["water_price_per_m3"]["max"],
+            value=DEFAULT_PARAMS["water_price_per_m3"],
+            step=PARAM_RANGES["water_price_per_m3"]["step"],
+            help="Unit price of water per cubic meter"
+        )
+        
+        # Consommation d'eau annuelle
+        water_consumption_annual_m3 = st.number_input(
+            "Water Consumption (m³/year)",
+            min_value=PARAM_RANGES["water_consumption_annual_m3"]["min"],
+            max_value=PARAM_RANGES["water_consumption_annual_m3"]["max"],
+            value=DEFAULT_PARAMS["water_consumption_annual_m3"],
+            step=PARAM_RANGES["water_consumption_annual_m3"]["step"],
+            help="Annual water consumption in cubic meters"
+        )
+        
+        # Calcul du coût total de l'eau
+        water_cost_annual = water_price_per_m3 * water_consumption_annual_m3
+        st.write(f"**Total Water Cost**: {water_cost_annual:,.2f} €/year")
+        
+        # Autres coûts (financiers, etc.)
+        other_costs_annual = st.number_input(
+            "Other Costs (€/year)",
+            min_value=PARAM_RANGES["other_costs_annual"]["min"],
+            max_value=PARAM_RANGES["other_costs_annual"]["max"],
+            value=DEFAULT_PARAMS["other_costs_annual"],
+            step=PARAM_RANGES["other_costs_annual"]["step"],
+            help="Other annual costs (financing, taxes, etc.)"
+        )
+        
+        st.markdown("**Stack Replacement**")
+        
+        # Coût de remplacement de stack
+        stack_replacement_cost = st.number_input(
+            "Stack Replacement Cost (€)",
+            min_value=PARAM_RANGES["stack_replacement_cost"]["min"],
+            max_value=PARAM_RANGES["stack_replacement_cost"]["max"],
+            value=DEFAULT_PARAMS["stack_replacement_cost"],
+            step=PARAM_RANGES["stack_replacement_cost"]["step"],
+            help="Total cost for stack replacement"
+        )
+        
+        # Intervalle de remplacement de stack
+        stack_replacement_years = st.slider(
+            "Stack Replacement Interval (years)",
+            min_value=PARAM_RANGES["stack_replacement_years"]["min"],
+            max_value=PARAM_RANGES["stack_replacement_years"]["max"],
+            value=DEFAULT_PARAMS["stack_replacement_years"],
+            step=PARAM_RANGES["stack_replacement_years"]["step"],
+            help="Years between stack replacements"
+        )
+        
+        # Calcul du coût annualisé du remplacement de stack (approximation simple)
+        if stack_replacement_years > 0:
+            stack_annual_simple = stack_replacement_cost / stack_replacement_years
+            st.write(f"**Stack Replacement (annual approx.)**: {stack_annual_simple:,.0f} €/year")
     
-    return electrolyser_power, electrolyser_specific_consumption
+    electrolyzer_econ = {
+        'electrolyzer_capex_total': electrolyzer_capex_total,
+        'electrolyzer_capex_annual': electrolyzer_capex_annual,
+        'electrolyzer_lifetime': electrolyzer_lifetime,
+        'electrolyzer_discount_rate': electrolyzer_discount_rate,
+        'electrolyzer_opex_annual': electrolyzer_opex_annual,
+        'electrolyzer_maintenance_annual': electrolyzer_maintenance_annual,
+        'water_price_per_m3': water_price_per_m3,
+        'water_consumption_annual_m3': water_consumption_annual_m3,
+        'water_cost_annual': water_cost_annual,
+        'other_costs_annual': other_costs_annual,
+        'stack_replacement_cost': stack_replacement_cost,
+        'stack_replacement_years': stack_replacement_years
+    }
+    
+    return electrolyser_power, electrolyser_specific_consumption, electrolyzer_econ
 
 
 def create_monthly_service_ratios(allow_edit=True, preset_ratios=None):
@@ -180,6 +318,8 @@ def create_price_parameters(strategy_type):
             st.info(f"💡 GO cost of +{go_cost_per_mwh}€/MWh will be added to each MWh from Spot")
 
     return target_prices, pv_price, ppa_price, go_enabled, go_cost_per_mwh
+
+
 
 
 def create_pv_installation_parameters():
@@ -389,9 +529,9 @@ def create_pv_installation_parameters():
 
 def get_current_parameters(selected_years, electrolyser_power, electrolyser_specific_consumption,
                           monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
-                          go_enabled=False, go_cost_per_mwh=0.0):
+                          go_enabled=False, go_cost_per_mwh=0.0, electrolyzer_econ=None):
     """Get current parameters for change detection"""
-    return {
+    params = {
         'years': tuple(sorted(selected_years)) if selected_years else (),
         'power': electrolyser_power,
         'consumption': electrolyser_specific_consumption,
@@ -418,3 +558,22 @@ def get_current_parameters(selected_years, electrolyser_power, electrolyser_spec
         'lon': pv_params['lon'],
         'loss': pv_params['loss']
     }
+    
+    # Add electrolyzer economics if provided
+    if electrolyzer_econ:
+        params.update({
+            'electrolyzer_capex_total': electrolyzer_econ['electrolyzer_capex_total'],
+            'electrolyzer_capex_annual': electrolyzer_econ['electrolyzer_capex_annual'],
+            'electrolyzer_lifetime': electrolyzer_econ['electrolyzer_lifetime'],
+            'electrolyzer_discount_rate': electrolyzer_econ['electrolyzer_discount_rate'],
+            'electrolyzer_opex_annual': electrolyzer_econ['electrolyzer_opex_annual'],
+            'electrolyzer_maintenance_annual': electrolyzer_econ['electrolyzer_maintenance_annual'],
+            'water_price_per_m3': electrolyzer_econ['water_price_per_m3'],
+            'water_consumption_annual_m3': electrolyzer_econ['water_consumption_annual_m3'],
+            'water_cost_annual': electrolyzer_econ['water_cost_annual'],
+            'other_costs_annual': electrolyzer_econ['other_costs_annual'],
+            'stack_replacement_cost': electrolyzer_econ['stack_replacement_cost'],
+            'stack_replacement_years': electrolyzer_econ['stack_replacement_years']
+        })
+    
+    return params
