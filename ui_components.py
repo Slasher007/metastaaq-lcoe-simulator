@@ -195,17 +195,7 @@ def display_strategy_info(strategy_type, target_price, ppa_price, pv_price):
 
 def display_metrics_section(target_price, actual_spot_price, price_diff, lcoe_result, go_enabled=False, go_cost_per_mwh=0.0):
     """Display metrics section"""
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric("**Target Average Spot Price**", f"{target_price:.0f} €/MWh")
-    
-    with col2:
-        st.metric("**Actual Average Spot Price**", f"{actual_spot_price:.2f} €/MWh")
-    
-    with col3:
-        st.metric("**Spot Price Difference**", f"{price_diff:.2f} €/MWh", 
-                 delta=f"{price_diff:.2f} €/MWh" if price_diff != 0 else None)
+    st.metric("**Actual Average Spot Price**", f"{actual_spot_price:.2f} €/MWh")
     
     # Show GO information if enabled
     if go_enabled:
