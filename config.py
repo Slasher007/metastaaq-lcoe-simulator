@@ -52,7 +52,7 @@ DEFAULT_PARAMS = {
     "electrolyzer_maintenance_annual": 51600.0,
     "water_price_per_m3": 5.0,
     "water_consumption_annual_m3": 8180.0,
-    "other_costs_annual": 5921.0,
+    "other_costs_annual": 0,
     "stack_replacement_years": 9,
     "stack_replacement_cost": 2000000.0
 }
