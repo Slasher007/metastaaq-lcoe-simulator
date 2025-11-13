@@ -4,6 +4,7 @@ UI Components for the MetaSTAAQ Dashboard
 
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 from config import CUSTOM_CSS, PV_IMAGES
 import folium
 from streamlit_folium import st_folium
@@ -321,7 +322,66 @@ def display_lcoh_results(lcoh_results):
         }
         
         df_breakdown = pd.DataFrame(breakdown_data)
-        st.table(df_breakdown)
+        
+        # Create two columns: table on left, pie chart on right
+        col_table, col_pie = st.columns([2, 1])
+        
+        with col_table:
+            st.table(df_breakdown)
+        
+        with col_pie:
+            # Create pie chart for LCOH breakdown
+            # Prepare data for pie chart (exclude total)
+            pie_labels = [
+                'CapEx',
+                'OPEX',
+                'Maintenance',
+                'Water',
+                'Stack',
+                'Other',
+                'Electricity'
+            ]
+            pie_values = [
+                breakdown['capex'],
+                breakdown['opex'],
+                breakdown['maintenance'],
+                breakdown['water'],
+                breakdown['stack'],
+                breakdown['other'],
+                breakdown['electricity']
+            ]
+            
+            # Create pie chart
+            fig_pie, ax_pie = plt.subplots(figsize=(7, 7))
+            colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
+            
+            wedges, texts, autotexts = ax_pie.pie(
+                pie_values,
+                labels=pie_labels,
+                autopct='%1.1f%%',
+                startangle=90,
+                colors=colors,
+                pctdistance=0.85,
+                explode=[0.05, 0, 0, 0, 0, 0, 0.1]  # Explode CapEx and Electricity slightly
+            )
+            
+            # Enhance text
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(9)
+            
+            for text in texts:
+                text.set_fontsize(10)
+                text.set_fontweight('bold')
+            
+            ax_pie.set_title('LCOH Cost Breakdown\n(€/kg H₂)', fontsize=12, fontweight='bold', pad=20)
+            
+            # Equal aspect ratio ensures that pie is drawn as a circle
+            ax_pie.axis('equal')
+            
+            plt.tight_layout()
+            st.pyplot(fig_pie)
         
         # Additional economic details
         st.markdown("#### 📈 Economic Parameters")

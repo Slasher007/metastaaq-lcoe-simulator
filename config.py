@@ -66,7 +66,7 @@ PARAM_RANGES = {
     "ppa_price": {"min": 40.0, "max": 120.0, "step": 5.0},
     "target_price": {"min": 20.0, "max": 100.0, "step": 5.0},
     "pv_project_years": {"min": 15, "max": 30, "step": 1},
-    "pv_surface_hectares": {"min": 0.1, "max": 10.0, "step": 0.1},
+    "pv_surface_hectares": {"min": 0.1, "max": 20.0, "step": 0.1},
     "power_density_mwp_per_ha": {"min": 0.5, "max": 3.0, "step": 0.1},
     "storage_hours": {"min": 0.0, "max": 12.0, "step": 0.5},
     "pv_cost_per_wp": {"min": 0.3, "max": 2.0, "step": 0.05},
