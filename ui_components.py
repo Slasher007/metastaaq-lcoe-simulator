@@ -193,17 +193,27 @@ def display_strategy_info(strategy_type, target_price, ppa_price, pv_price):
         st.write(f"• **Mode**: Single target price threshold for all analysis periods")
 
 
-def display_metrics_section(target_price, actual_spot_price, price_diff, lcoe_result, go_enabled=False, go_cost_per_mwh=0.0):
+def display_metrics_section(target_price, actual_spot_price, price_diff, lcoe_result, go_enabled=False, go_cost_per_mwh=0.0, ppa_price=None, pv_price=None):
     """Display metrics section"""
-    st.metric("**Actual Average Spot Price**", f"{actual_spot_price:.2f} €/MWh")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("**Average Spot Price**", f"{actual_spot_price:.2f} €/MWh")
+    
+    with col2:
+        if ppa_price is not None:
+            st.metric("**PPA Cost**", f"{ppa_price:.2f} €/MWh")
+    
+    with col3:
+        if pv_price is not None:
+            st.metric("**PV Cost**", f"{pv_price:.2f} €/MWh")
     
     # Show GO information if enabled
     if go_enabled:
         effective_spot_price = actual_spot_price + go_cost_per_mwh
         st.info(f"🌱 **GO Certificate Enabled**: +{go_cost_per_mwh:.2f} €/MWh added to Spot price → Effective Spot Price: {effective_spot_price:.2f} €/MWh")
     
-    st.metric(f"**LCOE (Levelized Cost of Energy) for {actual_spot_price:.2f}€/MWh actual average spot price:**", 
-             f"{lcoe_result:.2f} €/MWh")
+    st.metric("**Average Electricity Cost**", f"{lcoe_result:.2f} €/MWh")
 
 
 def display_monthly_ch4_production(monthly_production_tonnes, service_ratios):

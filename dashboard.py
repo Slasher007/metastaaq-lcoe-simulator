@@ -553,7 +553,7 @@ def main():
                                 st.pyplot(fig4)
                         
                         # Display metrics
-                        display_metrics_section(target_price, actual_spot_price, price_diff, lcoe, go_enabled, go_cost_per_mwh)
+                        display_metrics_section(target_price, actual_spot_price, price_diff, lcoe, go_enabled, go_cost_per_mwh, ppa_price, pv_price)
 
                         # For Target Price-Based, display computed service ratios and derived CH4 production
                         if strategy_type == "Target Price-Based":
