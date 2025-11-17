@@ -85,7 +85,7 @@ def create_electrolyzer_parameters():
         st.markdown("---")
         st.markdown("#### CapEx (Capital Expenditure)")
         
-        with st.expander("CapEx Components", expanded=True):
+        with st.expander("CapEx Parameters", expanded=False):
             capex_transformer = st.number_input(
                 "Poste de transformation (€)",
                 min_value=PARAM_RANGES["capex_transformer"]["min"],
@@ -131,7 +131,7 @@ def create_electrolyzer_parameters():
                 help="Piping and other infrastructure costs"
             )
             
-            # Stack replacement interval
+            # Stack replacement
             stack_replacement_cost = st.number_input(
                 "Stack Replacement Cost (€)",
                 min_value=PARAM_RANGES["stack_replacement_cost"]["min"],
@@ -150,13 +150,6 @@ def create_electrolyzer_parameters():
                 help="Years between stack replacements"
             )
             
-            # Calcul du coût annualisé du remplacement de stack (approximation simple)
-            if stack_replacement_years > 0:
-                stack_annual_simple = stack_replacement_cost / stack_replacement_years
-                st.metric("Stack Replacement (annual approx.)", f"{stack_annual_simple:,.0f} €/year")
-            
-            st.markdown("---")
-            
             # Others CapEx
             others_capex = st.number_input(
                 "Others CapEx (€)",
@@ -166,34 +159,40 @@ def create_electrolyzer_parameters():
                 step=PARAM_RANGES["others_capex"]["step"],
                 help="Other capital expenditures"
             )
-            
-            st.markdown("---")
-            
-            # Calculate total CapEx
-            electrolyzer_capex_total = (
-                capex_transformer + 
-                capex_electrolyzer + 
-                capex_compressor + 
-                capex_h2_storage + 
-                capex_piping +
-                others_capex
-            )
-            st.success(f"**Total CapEx: {electrolyzer_capex_total:,.0f} €**")
+        
+        # Calculate total CapEx
+        electrolyzer_capex_total = (
+            capex_transformer + 
+            capex_electrolyzer + 
+            capex_compressor + 
+            capex_h2_storage + 
+            capex_piping +
+            stack_replacement_cost +
+            others_capex
+        )
         
         # Calculate and display annualized CapEx
         from calculate_lcoh import calculate_crf
         crf = calculate_crf(electrolyzer_discount_rate, electrolyzer_lifetime)
         electrolyzer_capex_annual = electrolyzer_capex_total * crf
-        st.info(f"**CapEx Annualized**: {electrolyzer_capex_annual:,.0f} €/year (CRF: {crf:.4f})")
+        
+        # Display totals
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Total CapEx", f"{electrolyzer_capex_total:,.0f} €")
+        with col2:
+            st.metric("CapEx Annualized", f"{electrolyzer_capex_annual:,.0f} €/year")
         
         # ============================================
         # OPEX SECTION
         # ============================================
         st.markdown("---")
         st.markdown("#### OpEx (Operational Expenditure)")
-        st.info("OPEX is calculated automatically as: **Electricity Cost + Water Cost**")
         
-        with st.expander("Water Costs (part of OPEX)", expanded=True):
+        with st.expander("OpEx Parameters", expanded=False):
+            st.info("OPEX = Electricity Cost + Water Cost + Others")
+            
+            st.markdown("**Water Costs**")
             water_price_per_m3 = st.number_input(
                 "Water Price (€/m³)",
                 min_value=PARAM_RANGES["water_price_per_m3"]["min"],
@@ -212,21 +211,24 @@ def create_electrolyzer_parameters():
                 help="Annual water consumption in cubic meters"
             )
             
-            # Calcul du coût total de l'eau
-            water_cost_annual = water_price_per_m3 * water_consumption_annual_m3
-            st.metric("Annual Water Cost", f"{water_cost_annual:,.0f} €/year")
+            st.markdown("**Others OpEx**")
+            others_opex_annual = st.number_input(
+                "Others OpEx (€/year)",
+                min_value=PARAM_RANGES["others_opex_annual"]["min"],
+                max_value=PARAM_RANGES["others_opex_annual"]["max"],
+                value=DEFAULT_PARAMS["others_opex_annual"],
+                step=PARAM_RANGES["others_opex_annual"]["step"],
+                help="Other operational expenditures (e.g., consumables, utilities)"
+            )
+            
+            st.caption("Electricity cost will be calculated from energy consumption and prices (PV, Spot, PPA)")
         
-        # Others OpEx
-        others_opex_annual = st.number_input(
-            "Others OpEx (€/year)",
-            min_value=PARAM_RANGES["others_opex_annual"]["min"],
-            max_value=PARAM_RANGES["others_opex_annual"]["max"],
-            value=DEFAULT_PARAMS["others_opex_annual"],
-            step=PARAM_RANGES["others_opex_annual"]["step"],
-            help="Other operational expenditures (e.g., consumables, utilities)"
-        )
+        # Calculate water cost
+        water_cost_annual = water_price_per_m3 * water_consumption_annual_m3
         
-        st.caption("Electricity cost will be calculated from energy consumption and prices (PV, Spot, PPA)")
+        # Display total (electricity will be added during calculation)
+        st.metric("Total OpEx (Water + Others)", f"{water_cost_annual + others_opex_annual:,.0f} €/year", 
+                  help="Electricity cost will be added during LCOH calculation")
         
         # ============================================
         # MAINTENANCE SECTION
@@ -234,9 +236,10 @@ def create_electrolyzer_parameters():
         st.markdown("---")
         st.markdown("#### Maintenance Costs")
         
-        st.info("Maintenance is calculated automatically as a percentage of each CapEx component")
-        
-        with st.expander("Maintenance Ratios (% of CapEx per year)", expanded=False):
+        with st.expander("Maintenance Parameters", expanded=False):
+            st.info("Maintenance is calculated as a percentage of each CapEx component")
+            
+            st.markdown("**Maintenance Ratios (% of CapEx per year)**")
             col1, col2 = st.columns(2)
             with col1:
                 maintenance_ratio_transformer = st.number_input(
@@ -284,6 +287,16 @@ def create_electrolyzer_parameters():
                     step=PARAM_RANGES["maintenance_ratio_piping"]["step"],
                     help="Annual maintenance as % of piping CapEx"
                 )
+            
+            st.markdown("**Others Maintenance**")
+            others_maintenance_annual = st.number_input(
+                "Others Maintenance (€/year)",
+                min_value=PARAM_RANGES["others_maintenance_annual"]["min"],
+                max_value=PARAM_RANGES["others_maintenance_annual"]["max"],
+                value=DEFAULT_PARAMS["others_maintenance_annual"],
+                step=PARAM_RANGES["others_maintenance_annual"]["step"],
+                help="Other maintenance costs"
+            )
         
         # Calculate maintenance costs
         maintenance_transformer = capex_transformer * (maintenance_ratio_transformer / 100)
@@ -292,37 +305,7 @@ def create_electrolyzer_parameters():
         maintenance_h2_storage = capex_h2_storage * (maintenance_ratio_h2_storage / 100)
         maintenance_piping = capex_piping * (maintenance_ratio_piping / 100)
         
-        electrolyzer_maintenance_annual = (
-            maintenance_transformer +
-            maintenance_electrolyzer +
-            maintenance_compressor +
-            maintenance_h2_storage +
-            maintenance_piping
-        )
-        
-        # Display breakdown
-        with st.expander("Maintenance Cost Breakdown", expanded=True):
-            st.write("**Annual Maintenance by Component:**")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Poste transformation", f"{maintenance_transformer:,.0f} €/year")
-                st.metric("Electrolyseur", f"{maintenance_electrolyzer:,.0f} €/year")
-                st.metric("Compresseur", f"{maintenance_compressor:,.0f} €/year")
-            with col2:
-                st.metric("Stockage H2", f"{maintenance_h2_storage:,.0f} €/year")
-                st.metric("Piping, ...", f"{maintenance_piping:,.0f} €/year")
-        
-        # Others Maintenance
-        others_maintenance_annual = st.number_input(
-            "Others Maintenance (€/year)",
-            min_value=PARAM_RANGES["others_maintenance_annual"]["min"],
-            max_value=PARAM_RANGES["others_maintenance_annual"]["max"],
-            value=DEFAULT_PARAMS["others_maintenance_annual"],
-            step=PARAM_RANGES["others_maintenance_annual"]["step"],
-            help="Other maintenance costs"
-        )
-        
-        # Recalculate total with others
+        # Total maintenance
         electrolyzer_maintenance_annual = (
             maintenance_transformer +
             maintenance_electrolyzer +
@@ -332,19 +315,8 @@ def create_electrolyzer_parameters():
             others_maintenance_annual
         )
         
-        with st.expander("Maintenance Cost Breakdown", expanded=True):
-            st.write("**Annual Maintenance by Component:**")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Poste transformation", f"{maintenance_transformer:,.0f} €/year")
-                st.metric("Electrolyseur", f"{maintenance_electrolyzer:,.0f} €/year")
-                st.metric("Compresseur", f"{maintenance_compressor:,.0f} €/year")
-            with col2:
-                st.metric("Stockage H2", f"{maintenance_h2_storage:,.0f} €/year")
-                st.metric("Piping, ...", f"{maintenance_piping:,.0f} €/year")
-                st.metric("Others", f"{others_maintenance_annual:,.0f} €/year")
-            
-            st.success(f"**Total Annual Maintenance: {electrolyzer_maintenance_annual:,.0f} €/year**")
+        # Display total
+        st.metric("Total Maintenance", f"{electrolyzer_maintenance_annual:,.0f} €/year")
     
     # Calculate other_costs_annual for backward compatibility (sum of all others)
     other_costs_annual = others_capex * calculate_crf(electrolyzer_discount_rate, electrolyzer_lifetime) + others_opex_annual + others_maintenance_annual
