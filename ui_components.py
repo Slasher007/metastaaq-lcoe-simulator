@@ -287,6 +287,7 @@ def display_lcoh_results(lcoh_results):
                 st.metric("Piping, ...", f"{capex_comp['piping']:,.0f} €")
             with col3:
                 st.metric("Compresseur", f"{capex_comp['compressor']:,.0f} €")
+                st.metric("Others", f"{capex_comp.get('others', 0):,.0f} €")
             
             total_capex = sum(capex_comp.values())
             st.metric("**Total CapEx**", f"{total_capex:,.0f} €")

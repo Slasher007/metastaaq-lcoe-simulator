@@ -65,9 +65,12 @@ DEFAULT_PARAMS = {
     "electrolyzer_maintenance_annual": 51600.0,
     "water_price_per_m3": 5.0,
     "water_consumption_annual_m3": 8180.0,
-    "other_costs_annual": 0.0,
     "stack_replacement_years": 9,
-    "stack_replacement_cost": 2000000.0
+    "stack_replacement_cost": 2000000.0,
+    # Others costs by category
+    "others_capex": 0.0,
+    "others_opex_annual": 0.0,
+    "others_maintenance_annual": 0.0
 }
 
 # Parameter ranges
@@ -108,9 +111,12 @@ PARAM_RANGES = {
     "electrolyzer_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0},
     "water_price_per_m3": {"min": 0.0, "max": 20.0, "step": 0.1},
     "water_consumption_annual_m3": {"min": 0.0, "max": 50000.0, "step": 100.0},
-    "other_costs_annual": {"min": 0.0, "max": 100000.0, "step": 1000.0},
     "stack_replacement_years": {"min": 3, "max": 15, "step": 1},
-    "stack_replacement_cost": {"min": 0.0, "max": 10000000.0, "step": 50000.0}
+    "stack_replacement_cost": {"min": 0.0, "max": 10000000.0, "step": 50000.0},
+    # Others costs ranges
+    "others_capex": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "others_opex_annual": {"min": 0.0, "max": 1000000.0, "step": 1000.0},
+    "others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0}
 }
 
 # CSS Styles
