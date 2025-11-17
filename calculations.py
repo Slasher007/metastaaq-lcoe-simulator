@@ -337,6 +337,18 @@ def calculate_yearly_totals(df_plot_data, include_battery, battery_capacity_mwh,
             'Avg Cost (€/MWh)': f"{total_cost_year/total_energy_year:.2f}" if total_energy_year > 0 else "0.00"
         }
         
+        # Add raw numeric values for LCOH calculation
+        yearly_average['_raw_values'] = {
+            'total_pv_cost': total_pv_cost,
+            'total_spot_cost': total_spot_direct_cost + total_spot_battery_cost,
+            'total_ppa_cost': total_ppa_cost,
+            'total_cost': total_cost_year,
+            'total_energy': total_energy_year,
+            'total_pv_energy': total_pv_energy,
+            'total_spot_energy': total_spot_direct_energy + total_spot_battery_energy,
+            'total_ppa_energy': total_ppa_energy
+        }
+        
         if integrate_ppa:
             yearly_average.update({
                 'PPA Energy (MWh)': f"{total_ppa_energy:.1f}",
@@ -371,6 +383,18 @@ def calculate_yearly_totals(df_plot_data, include_battery, battery_capacity_mwh,
             'Total Energy (MWh)': f"{total_energy_year:.1f}",
             'Total Cost (€)': f"{total_cost_year:,.0f}",
             'Avg Cost (€/MWh)': f"{total_cost_year/total_energy_year:.2f}" if total_energy_year > 0 else "0.00"
+        }
+        
+        # Add raw numeric values for LCOH calculation
+        yearly_average['_raw_values'] = {
+            'total_pv_cost': total_pv_cost,
+            'total_spot_cost': total_spot_cost,
+            'total_ppa_cost': total_ppa_cost,
+            'total_cost': total_cost_year,
+            'total_energy': total_energy_year,
+            'total_pv_energy': total_pv_energy,
+            'total_spot_energy': total_spot_energy,
+            'total_ppa_energy': total_ppa_energy
         }
         
         if integrate_ppa:

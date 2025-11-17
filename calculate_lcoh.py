@@ -229,12 +229,13 @@ def calculate_lcoh(
     electrolyzer_specific_consumption_kwh_per_nm3,
     monthly_service_ratios,
     electrolyzer_economics,
-    pv_energy_mwh_dict,
-    spot_energy_mwh_dict,
-    ppa_energy_mwh_dict,
-    pv_price,
-    spot_price,
-    ppa_price,
+    electricity_costs_precalculated=None,
+    pv_energy_mwh_dict=None,
+    spot_energy_mwh_dict=None,
+    ppa_energy_mwh_dict=None,
+    pv_price=None,
+    spot_price=None,
+    ppa_price=None,
     go_enabled=False,
     go_cost_per_mwh=0.0
 ):
@@ -248,29 +249,34 @@ def calculate_lcoh(
         electrolyzer_specific_consumption_kwh_per_nm3: kWh/Nm³ H₂
         monthly_service_ratios: dict {month: ratio}
         electrolyzer_economics: dict with electrolyzer economic parameters
-        pv_energy_mwh_dict: Monthly PV energy {month: MWh}
-        spot_energy_mwh_dict: Monthly spot energy {month: MWh}
-        ppa_energy_mwh_dict: Monthly PPA energy {month: MWh}
-        pv_price: PV price (€/MWh)
-        spot_price: Spot price (€/MWh)
-        ppa_price: PPA price (€/MWh)
-        go_enabled: Whether GO certificates are enabled
-        go_cost_per_mwh: GO certificate cost (€/MWh)
+        electricity_costs_precalculated: Pre-calculated electricity costs dict (optional)
+        pv_energy_mwh_dict: Monthly PV energy {month: MWh} (deprecated if using precalculated)
+        spot_energy_mwh_dict: Monthly spot energy {month: MWh} (deprecated if using precalculated)
+        ppa_energy_mwh_dict: Monthly PPA energy {month: MWh} (deprecated if using precalculated)
+        pv_price: PV price (€/MWh) (deprecated if using precalculated)
+        spot_price: Spot price (€/MWh) (deprecated if using precalculated)
+        ppa_price: PPA price (€/MWh) (deprecated if using precalculated)
+        go_enabled: Whether GO certificates are enabled (deprecated if using precalculated)
+        go_cost_per_mwh: GO certificate cost (€/MWh) (deprecated if using precalculated)
     
     Returns:
         dict with LCOH and detailed breakdown
     """
-    # 1. Calculate annual electricity cost first (needed for OPEX)
-    electricity_costs = calculate_annual_electricity_cost(
-        pv_energy_mwh_dict,
-        spot_energy_mwh_dict,
-        ppa_energy_mwh_dict,
-        pv_price,
-        spot_price,
-        ppa_price,
-        go_enabled,
-        go_cost_per_mwh
-    )
+    # 1. Use pre-calculated electricity costs if provided, otherwise calculate
+    if electricity_costs_precalculated is not None:
+        electricity_costs = electricity_costs_precalculated
+    else:
+        # Fallback to calculation (for backward compatibility)
+        electricity_costs = calculate_annual_electricity_cost(
+            pv_energy_mwh_dict,
+            spot_energy_mwh_dict,
+            ppa_energy_mwh_dict,
+            pv_price,
+            spot_price,
+            ppa_price,
+            go_enabled,
+            go_cost_per_mwh
+        )
     
     # 2. Calculate annualized electrolyzer costs (including OPEX = electricity + water + others opex)
     annualized_costs = calculate_electrolyzer_annualized_costs(

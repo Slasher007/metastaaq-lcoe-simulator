@@ -680,19 +680,27 @@ def main():
                         
                         # Calculate and display LCOH
                         ratios_for_lcoh = recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios
+                        
+                        # Use pre-calculated electricity costs from yearly_average
+                        raw_values = yearly_average.get('_raw_values', {})
+                        electricity_costs_for_lcoh = {
+                            'pv_cost': raw_values.get('total_pv_cost', 0),
+                            'spot_cost': raw_values.get('total_spot_cost', 0),
+                            'ppa_cost': raw_values.get('total_ppa_cost', 0),
+                            'total_cost': raw_values.get('total_cost', 0),
+                            'total_energy': raw_values.get('total_energy', 0),
+                            'avg_electricity_cost': raw_values.get('total_cost', 0) / raw_values.get('total_energy', 1) if raw_values.get('total_energy', 0) > 0 else 0,
+                            'pv_energy': raw_values.get('total_pv_energy', 0),
+                            'spot_energy': raw_values.get('total_spot_energy', 0),
+                            'ppa_energy': raw_values.get('total_ppa_energy', 0)
+                        }
+                        
                         lcoh_results = calculate_lcoh(
                             electrolyser_power,
                             electrolyser_specific_consumption,
                             ratios_for_lcoh,
                             electrolyzer_econ,
-                            pv_energy_dict,
-                            spot_energy_dict,
-                            ppa_energy_dict,
-                            pv_price,
-                            actual_spot_price,
-                            ppa_price,
-                            go_enabled,
-                            go_cost_per_mwh
+                            electricity_costs_precalculated=electricity_costs_for_lcoh
                         )
                         
                         display_lcoh_results(lcoh_results)
