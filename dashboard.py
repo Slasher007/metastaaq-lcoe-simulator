@@ -586,6 +586,11 @@ def main():
                         # Create breakdown dataframe
                         breakdown_df = pd.DataFrame(monthly_breakdown)
                         breakdown_df = pd.concat([breakdown_df, pd.DataFrame([yearly_average])], ignore_index=True)
+                        
+                        # Remove internal columns used for calculations
+                        if '_raw_values' in breakdown_df.columns:
+                            breakdown_df = breakdown_df.drop(columns=['_raw_values'])
+                        
                         # Reorder columns: keep 'Month' first, move totals and avg cost to the far right
                         move_right = [
                             'Total Energy (MWh)',
