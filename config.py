@@ -45,7 +45,14 @@ DEFAULT_PARAMS = {
     "discount_rate": 6.0,
     "pci_ch4_kwh_per_kg": 13.9,
     # Electrolyzer Economics (for LCOH calculation)
-    "electrolyzer_capex_total": 7320000.0,
+    # CapEx Components
+    "capex_transformer": 250000.0,
+    "capex_electrolyzer": 5000000.0,
+    "capex_compressor": 0.0,
+    "capex_h2_storage": 50000.0,
+    "capex_piping": 20000.0,
+    "capex_stack_shift": 2000000.0,
+    # Economics parameters
     "electrolyzer_lifetime": 20,
     "electrolyzer_discount_rate": 7.0,
     "electrolyzer_opex_annual": 2168972.0,
@@ -75,7 +82,14 @@ PARAM_RANGES = {
     "discount_rate": {"min": 2.0, "max": 12.0, "step": 0.5},
     "pci_ch4_kwh_per_kg": {"min": 10.0, "max": 20.0, "step": 0.1},
     # Electrolyzer Economics ranges
-    "electrolyzer_capex_total": {"min": 1000000.0, "max": 50000000.0, "step": 100000.0},
+    # CapEx Components ranges
+    "capex_transformer": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "capex_electrolyzer": {"min": 0.0, "max": 20000000.0, "step": 100000.0},
+    "capex_compressor": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "capex_h2_storage": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "capex_piping": {"min": 0.0, "max": 1000000.0, "step": 5000.0},
+    "capex_stack_shift": {"min": 0.0, "max": 10000000.0, "step": 100000.0},
+    # Economics parameters ranges
     "electrolyzer_lifetime": {"min": 5, "max": 30, "step": 1},
     "electrolyzer_discount_rate": {"min": 1.0, "max": 15.0, "step": 0.5},
     "electrolyzer_opex_annual": {"min": 0.0, "max": 10000000.0, "step": 10000.0},

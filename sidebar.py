@@ -58,15 +58,75 @@ def create_electrolyzer_parameters():
         st.markdown("---")
         st.markdown("**Economic Parameters (for LCOH calculation)**")
         
-        # CapEx électrolyseur (total)
-        electrolyzer_capex_total = st.number_input(
-            "Total CapEx (€)",
-            min_value=PARAM_RANGES["electrolyzer_capex_total"]["min"],
-            max_value=PARAM_RANGES["electrolyzer_capex_total"]["max"],
-            value=DEFAULT_PARAMS["electrolyzer_capex_total"],
-            step=PARAM_RANGES["electrolyzer_capex_total"]["step"],
-            help="Total capital expenditure for the entire project lifetime"
+        # CapEx components
+        st.markdown("**CapEx Components**")
+        
+        capex_transformer = st.number_input(
+            "Poste de transformation (€)",
+            min_value=PARAM_RANGES["capex_transformer"]["min"],
+            max_value=PARAM_RANGES["capex_transformer"]["max"],
+            value=DEFAULT_PARAMS["capex_transformer"],
+            step=PARAM_RANGES["capex_transformer"]["step"],
+            help="Transformer station cost"
         )
+        
+        capex_electrolyzer = st.number_input(
+            "Electrolyseur (€)",
+            min_value=PARAM_RANGES["capex_electrolyzer"]["min"],
+            max_value=PARAM_RANGES["capex_electrolyzer"]["max"],
+            value=DEFAULT_PARAMS["capex_electrolyzer"],
+            step=PARAM_RANGES["capex_electrolyzer"]["step"],
+            help="Electrolyzer unit cost"
+        )
+        
+        capex_compressor = st.number_input(
+            "Compresseur (€)",
+            min_value=PARAM_RANGES["capex_compressor"]["min"],
+            max_value=PARAM_RANGES["capex_compressor"]["max"],
+            value=DEFAULT_PARAMS["capex_compressor"],
+            step=PARAM_RANGES["capex_compressor"]["step"],
+            help="Compressor cost"
+        )
+        
+        capex_h2_storage = st.number_input(
+            "Stockage H2 (€)",
+            min_value=PARAM_RANGES["capex_h2_storage"]["min"],
+            max_value=PARAM_RANGES["capex_h2_storage"]["max"],
+            value=DEFAULT_PARAMS["capex_h2_storage"],
+            step=PARAM_RANGES["capex_h2_storage"]["step"],
+            help="H2 storage cost"
+        )
+        
+        capex_piping = st.number_input(
+            "Piping, ... (€)",
+            min_value=PARAM_RANGES["capex_piping"]["min"],
+            max_value=PARAM_RANGES["capex_piping"]["max"],
+            value=DEFAULT_PARAMS["capex_piping"],
+            step=PARAM_RANGES["capex_piping"]["step"],
+            help="Piping and other infrastructure costs"
+        )
+        
+        capex_stack_shift = st.number_input(
+            "Shift stack électrolyseur (€)",
+            min_value=PARAM_RANGES["capex_stack_shift"]["min"],
+            max_value=PARAM_RANGES["capex_stack_shift"]["max"],
+            value=DEFAULT_PARAMS["capex_stack_shift"],
+            step=PARAM_RANGES["capex_stack_shift"]["step"],
+            help="Stack shift cost"
+        )
+        
+        # Calculate total CapEx
+        electrolyzer_capex_total = (
+            capex_transformer + 
+            capex_electrolyzer + 
+            capex_compressor + 
+            capex_h2_storage + 
+            capex_piping + 
+            capex_stack_shift
+        )
+        st.info(f"**Total CapEx: {electrolyzer_capex_total:,.0f} €**")
+        
+        st.markdown("---")
         
         # Durée de vie électrolyseur
         electrolyzer_lifetime = st.slider(
@@ -170,6 +230,14 @@ def create_electrolyzer_parameters():
             st.write(f"**Stack Replacement (annual approx.)**: {stack_annual_simple:,.0f} €/year")
     
     electrolyzer_econ = {
+        'capex_components': {
+            'transformer': capex_transformer,
+            'electrolyzer': capex_electrolyzer,
+            'compressor': capex_compressor,
+            'h2_storage': capex_h2_storage,
+            'piping': capex_piping,
+            'stack_shift': capex_stack_shift
+        },
         'electrolyzer_capex_total': electrolyzer_capex_total,
         'electrolyzer_capex_annual': electrolyzer_capex_annual,
         'electrolyzer_lifetime': electrolyzer_lifetime,
@@ -553,6 +621,12 @@ def get_current_parameters(selected_years, electrolyser_power, electrolyser_spec
     # Add electrolyzer economics if provided
     if electrolyzer_econ:
         params.update({
+            'capex_transformer': electrolyzer_econ['capex_components']['transformer'],
+            'capex_electrolyzer': electrolyzer_econ['capex_components']['electrolyzer'],
+            'capex_compressor': electrolyzer_econ['capex_components']['compressor'],
+            'capex_h2_storage': electrolyzer_econ['capex_components']['h2_storage'],
+            'capex_piping': electrolyzer_econ['capex_components']['piping'],
+            'capex_stack_shift': electrolyzer_econ['capex_components']['stack_shift'],
             'electrolyzer_capex_total': electrolyzer_econ['electrolyzer_capex_total'],
             'electrolyzer_capex_annual': electrolyzer_econ['electrolyzer_capex_annual'],
             'electrolyzer_lifetime': electrolyzer_econ['electrolyzer_lifetime'],

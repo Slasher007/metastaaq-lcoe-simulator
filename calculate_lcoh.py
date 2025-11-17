@@ -104,6 +104,23 @@ def calculate_electrolyzer_annualized_costs(
     return result
 
 
+def add_capex_components_to_result(result, electrolyzer_economics):
+    """
+    Add CapEx components details to the result if available
+    
+    Args:
+        result: The annualized costs result dict
+        electrolyzer_economics: The economics dict with potential capex_components
+    
+    Returns:
+        Updated result dict
+    """
+    if 'capex_components' in electrolyzer_economics:
+        result['capex_components'] = electrolyzer_economics['capex_components']
+    
+    return result
+
+
 def calculate_annual_electricity_cost(
     pv_energy_mwh_dict,
     spot_energy_mwh_dict,
@@ -261,6 +278,9 @@ def calculate_lcoh(
         electrolyzer_economics.get('water_price_per_m3'),
         electrolyzer_economics.get('water_consumption_annual_m3')
     )
+    
+    # Add CapEx components details if available
+    annualized_costs = add_capex_components_to_result(annualized_costs, electrolyzer_economics)
     
     # 3. Calculate annual H2 production
     h2_production_kg = calculate_h2_production_annual(
