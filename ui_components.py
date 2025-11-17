@@ -281,13 +281,12 @@ def display_lcoh_results(lcoh_results):
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Poste transformation", f"{capex_comp['transformer']:,.0f} €")
-                st.metric("Compresseur", f"{capex_comp['compressor']:,.0f} €")
+                st.metric("Stockage H2", f"{capex_comp['h2_storage']:,.0f} €")
             with col2:
                 st.metric("Electrolyseur", f"{capex_comp['electrolyzer']:,.0f} €")
-                st.metric("Stockage H2", f"{capex_comp['h2_storage']:,.0f} €")
-            with col3:
-                st.metric("Shift stack", f"{capex_comp['stack_shift']:,.0f} €")
                 st.metric("Piping, ...", f"{capex_comp['piping']:,.0f} €")
+            with col3:
+                st.metric("Compresseur", f"{capex_comp['compressor']:,.0f} €")
             
             total_capex = sum(capex_comp.values())
             st.metric("**Total CapEx**", f"{total_capex:,.0f} €")

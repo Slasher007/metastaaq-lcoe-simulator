@@ -56,178 +56,186 @@ def create_electrolyzer_parameters():
         )
         
         st.markdown("---")
-        st.markdown("**Economic Parameters (for LCOH calculation)**")
+        st.markdown("### Economic Parameters (LCOH)")
         
-        # CapEx components
-        st.markdown("**CapEx Components**")
+        # Project parameters
+        col1, col2 = st.columns(2)
+        with col1:
+            electrolyzer_lifetime = st.slider(
+                "Project Lifetime (years)",
+                min_value=PARAM_RANGES["electrolyzer_lifetime"]["min"],
+                max_value=PARAM_RANGES["electrolyzer_lifetime"]["max"],
+                value=DEFAULT_PARAMS["electrolyzer_lifetime"],
+                step=PARAM_RANGES["electrolyzer_lifetime"]["step"],
+                help="Expected lifetime of the electrolyzer project"
+            )
+        with col2:
+            electrolyzer_discount_rate = st.slider(
+                "Discount Rate (%)",
+                min_value=PARAM_RANGES["electrolyzer_discount_rate"]["min"],
+                max_value=PARAM_RANGES["electrolyzer_discount_rate"]["max"],
+                value=DEFAULT_PARAMS["electrolyzer_discount_rate"],
+                step=PARAM_RANGES["electrolyzer_discount_rate"]["step"],
+                help="Discount rate for LCOH calculation"
+            )
         
-        capex_transformer = st.number_input(
-            "Poste de transformation (€)",
-            min_value=PARAM_RANGES["capex_transformer"]["min"],
-            max_value=PARAM_RANGES["capex_transformer"]["max"],
-            value=DEFAULT_PARAMS["capex_transformer"],
-            step=PARAM_RANGES["capex_transformer"]["step"],
-            help="Transformer station cost"
-        )
-        
-        capex_electrolyzer = st.number_input(
-            "Electrolyseur (€)",
-            min_value=PARAM_RANGES["capex_electrolyzer"]["min"],
-            max_value=PARAM_RANGES["capex_electrolyzer"]["max"],
-            value=DEFAULT_PARAMS["capex_electrolyzer"],
-            step=PARAM_RANGES["capex_electrolyzer"]["step"],
-            help="Electrolyzer unit cost"
-        )
-        
-        capex_compressor = st.number_input(
-            "Compresseur (€)",
-            min_value=PARAM_RANGES["capex_compressor"]["min"],
-            max_value=PARAM_RANGES["capex_compressor"]["max"],
-            value=DEFAULT_PARAMS["capex_compressor"],
-            step=PARAM_RANGES["capex_compressor"]["step"],
-            help="Compressor cost"
-        )
-        
-        capex_h2_storage = st.number_input(
-            "Stockage H2 (€)",
-            min_value=PARAM_RANGES["capex_h2_storage"]["min"],
-            max_value=PARAM_RANGES["capex_h2_storage"]["max"],
-            value=DEFAULT_PARAMS["capex_h2_storage"],
-            step=PARAM_RANGES["capex_h2_storage"]["step"],
-            help="H2 storage cost"
-        )
-        
-        capex_piping = st.number_input(
-            "Piping, ... (€)",
-            min_value=PARAM_RANGES["capex_piping"]["min"],
-            max_value=PARAM_RANGES["capex_piping"]["max"],
-            value=DEFAULT_PARAMS["capex_piping"],
-            step=PARAM_RANGES["capex_piping"]["step"],
-            help="Piping and other infrastructure costs"
-        )
-        
-        capex_stack_shift = st.number_input(
-            "Shift stack électrolyseur (€)",
-            min_value=PARAM_RANGES["capex_stack_shift"]["min"],
-            max_value=PARAM_RANGES["capex_stack_shift"]["max"],
-            value=DEFAULT_PARAMS["capex_stack_shift"],
-            step=PARAM_RANGES["capex_stack_shift"]["step"],
-            help="Stack shift cost"
-        )
-        
-        # Calculate total CapEx
-        electrolyzer_capex_total = (
-            capex_transformer + 
-            capex_electrolyzer + 
-            capex_compressor + 
-            capex_h2_storage + 
-            capex_piping + 
-            capex_stack_shift
-        )
-        st.info(f"**Total CapEx: {electrolyzer_capex_total:,.0f} €**")
-        
+        # ============================================
+        # CAPEX SECTION
+        # ============================================
         st.markdown("---")
+        st.markdown("#### CapEx (Capital Expenditure)")
         
-        # Durée de vie électrolyseur
-        electrolyzer_lifetime = st.slider(
-            "Project Lifetime (years)",
-            min_value=PARAM_RANGES["electrolyzer_lifetime"]["min"],
-            max_value=PARAM_RANGES["electrolyzer_lifetime"]["max"],
-            value=DEFAULT_PARAMS["electrolyzer_lifetime"],
-            step=PARAM_RANGES["electrolyzer_lifetime"]["step"],
-            help="Expected lifetime of the electrolyzer project"
-        )
+        with st.expander("CapEx Components", expanded=True):
+            capex_transformer = st.number_input(
+                "Poste de transformation (€)",
+                min_value=PARAM_RANGES["capex_transformer"]["min"],
+                max_value=PARAM_RANGES["capex_transformer"]["max"],
+                value=DEFAULT_PARAMS["capex_transformer"],
+                step=PARAM_RANGES["capex_transformer"]["step"],
+                help="Transformer station cost"
+            )
+            
+            capex_electrolyzer = st.number_input(
+                "Electrolyseur (€)",
+                min_value=PARAM_RANGES["capex_electrolyzer"]["min"],
+                max_value=PARAM_RANGES["capex_electrolyzer"]["max"],
+                value=DEFAULT_PARAMS["capex_electrolyzer"],
+                step=PARAM_RANGES["capex_electrolyzer"]["step"],
+                help="Electrolyzer unit cost"
+            )
+            
+            capex_compressor = st.number_input(
+                "Compresseur (€)",
+                min_value=PARAM_RANGES["capex_compressor"]["min"],
+                max_value=PARAM_RANGES["capex_compressor"]["max"],
+                value=DEFAULT_PARAMS["capex_compressor"],
+                step=PARAM_RANGES["capex_compressor"]["step"],
+                help="Compressor cost"
+            )
+            
+            capex_h2_storage = st.number_input(
+                "Stockage H2 (€)",
+                min_value=PARAM_RANGES["capex_h2_storage"]["min"],
+                max_value=PARAM_RANGES["capex_h2_storage"]["max"],
+                value=DEFAULT_PARAMS["capex_h2_storage"],
+                step=PARAM_RANGES["capex_h2_storage"]["step"],
+                help="H2 storage cost"
+            )
+            
+            capex_piping = st.number_input(
+                "Piping, ... (€)",
+                min_value=PARAM_RANGES["capex_piping"]["min"],
+                max_value=PARAM_RANGES["capex_piping"]["max"],
+                value=DEFAULT_PARAMS["capex_piping"],
+                step=PARAM_RANGES["capex_piping"]["step"],
+                help="Piping and other infrastructure costs"
+            )
+            
+            st.markdown("---")
+            
+            # Stack replacement interval
+            stack_replacement_cost = st.number_input(
+                "Stack Replacement Cost (€)",
+                min_value=PARAM_RANGES["stack_replacement_cost"]["min"],
+                max_value=PARAM_RANGES["stack_replacement_cost"]["max"],
+                value=DEFAULT_PARAMS["stack_replacement_cost"],
+                step=PARAM_RANGES["stack_replacement_cost"]["step"],
+                help="Total cost for stack replacement"
+            )
+            
+            stack_replacement_years = st.slider(
+                "Stack Replacement Interval (years)",
+                min_value=PARAM_RANGES["stack_replacement_years"]["min"],
+                max_value=PARAM_RANGES["stack_replacement_years"]["max"],
+                value=DEFAULT_PARAMS["stack_replacement_years"],
+                step=PARAM_RANGES["stack_replacement_years"]["step"],
+                help="Years between stack replacements"
+            )
+            
+            # Calcul du coût annualisé du remplacement de stack (approximation simple)
+            if stack_replacement_years > 0:
+                stack_annual_simple = stack_replacement_cost / stack_replacement_years
+                st.metric("Stack Replacement (annual approx.)", f"{stack_annual_simple:,.0f} €/year")
+            
+            st.markdown("---")
+            
+            # Calculate total CapEx
+            electrolyzer_capex_total = (
+                capex_transformer + 
+                capex_electrolyzer + 
+                capex_compressor + 
+                capex_h2_storage + 
+                capex_piping
+            )
+            st.success(f"**Total CapEx: {electrolyzer_capex_total:,.0f} €**")
         
-        # Taux d'actualisation électrolyseur
-        electrolyzer_discount_rate = st.slider(
-            "Discount Rate (%)",
-            min_value=PARAM_RANGES["electrolyzer_discount_rate"]["min"],
-            max_value=PARAM_RANGES["electrolyzer_discount_rate"]["max"],
-            value=DEFAULT_PARAMS["electrolyzer_discount_rate"],
-            step=PARAM_RANGES["electrolyzer_discount_rate"]["step"],
-            help="Discount rate for LCOH calculation"
-        )
-        
-        # Calcul du CRF et affichage du CapEx annualisé
+        # Calculate and display annualized CapEx
         from calculate_lcoh import calculate_crf
         crf = calculate_crf(electrolyzer_discount_rate, electrolyzer_lifetime)
         electrolyzer_capex_annual = electrolyzer_capex_total * crf
-        st.write(f"**CapEx Annualized**: {electrolyzer_capex_annual:,.0f} €/year (CRF: {crf:.4f})")
+        st.info(f"**CapEx Annualized**: {electrolyzer_capex_annual:,.0f} €/year (CRF: {crf:.4f})")
         
-        st.info("ℹ️ OPEX is calculated automatically as: Electricity Cost + Water Cost")
+        # ============================================
+        # OPEX SECTION
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### OpEx (Operational Expenditure)")
+        st.info("OPEX is calculated automatically as: **Electricity Cost + Water Cost**")
         
-        # Maintenance électrolyseur
+        with st.expander("Water Costs (part of OPEX)", expanded=True):
+            water_price_per_m3 = st.number_input(
+                "Water Price (€/m³)",
+                min_value=PARAM_RANGES["water_price_per_m3"]["min"],
+                max_value=PARAM_RANGES["water_price_per_m3"]["max"],
+                value=DEFAULT_PARAMS["water_price_per_m3"],
+                step=PARAM_RANGES["water_price_per_m3"]["step"],
+                help="Unit price of water per cubic meter"
+            )
+            
+            water_consumption_annual_m3 = st.number_input(
+                "Water Consumption (m³/year)",
+                min_value=PARAM_RANGES["water_consumption_annual_m3"]["min"],
+                max_value=PARAM_RANGES["water_consumption_annual_m3"]["max"],
+                value=DEFAULT_PARAMS["water_consumption_annual_m3"],
+                step=PARAM_RANGES["water_consumption_annual_m3"]["step"],
+                help="Annual water consumption in cubic meters"
+            )
+            
+            # Calcul du coût total de l'eau
+            water_cost_annual = water_price_per_m3 * water_consumption_annual_m3
+            st.metric("Annual Water Cost", f"{water_cost_annual:,.0f} €/year")
+        
+        st.caption("Electricity cost will be calculated from energy consumption and prices (PV, Spot, PPA)")
+        
+        # ============================================
+        # MAINTENANCE SECTION
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### Maintenance Costs")
+        
         electrolyzer_maintenance_annual = st.number_input(
-            "Maintenance (€/year)",
+            "Annual Maintenance (€/year)",
             min_value=PARAM_RANGES["electrolyzer_maintenance_annual"]["min"],
             max_value=PARAM_RANGES["electrolyzer_maintenance_annual"]["max"],
             value=DEFAULT_PARAMS["electrolyzer_maintenance_annual"],
             step=PARAM_RANGES["electrolyzer_maintenance_annual"]["step"],
-            help="Annual maintenance cost"
+            help="Annual maintenance cost (preventive and corrective)"
         )
         
-        st.markdown("**Water Cost**")
+        # ============================================
+        # OTHER COSTS SECTION
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### Other Costs")
         
-        # Prix de l'eau
-        water_price_per_m3 = st.number_input(
-            "Water Price (€/m³)",
-            min_value=PARAM_RANGES["water_price_per_m3"]["min"],
-            max_value=PARAM_RANGES["water_price_per_m3"]["max"],
-            value=DEFAULT_PARAMS["water_price_per_m3"],
-            step=PARAM_RANGES["water_price_per_m3"]["step"],
-            help="Unit price of water per cubic meter"
-        )
-        
-        # Consommation d'eau annuelle
-        water_consumption_annual_m3 = st.number_input(
-            "Water Consumption (m³/year)",
-            min_value=PARAM_RANGES["water_consumption_annual_m3"]["min"],
-            max_value=PARAM_RANGES["water_consumption_annual_m3"]["max"],
-            value=DEFAULT_PARAMS["water_consumption_annual_m3"],
-            step=PARAM_RANGES["water_consumption_annual_m3"]["step"],
-            help="Annual water consumption in cubic meters"
-        )
-        
-        # Calcul du coût total de l'eau
-        water_cost_annual = water_price_per_m3 * water_consumption_annual_m3
-        st.write(f"**Total Water Cost**: {water_cost_annual:,.2f} €/year")
-        
-        # Autres coûts (financiers, etc.)
         other_costs_annual = st.number_input(
-            "Other Costs (€/year)",
+            "Other Annual Costs (€/year)",
             min_value=PARAM_RANGES["other_costs_annual"]["min"],
             max_value=PARAM_RANGES["other_costs_annual"]["max"],
             value=DEFAULT_PARAMS["other_costs_annual"],
             step=PARAM_RANGES["other_costs_annual"]["step"],
-            help="Other annual costs (financing, taxes, etc.)"
+            help="Other annual costs (insurance, taxes, financing, etc.)"
         )
-        
-        st.markdown("**Stack Replacement**")
-        
-        # Coût de remplacement de stack
-        stack_replacement_cost = st.number_input(
-            "Stack Replacement Cost (€)",
-            min_value=PARAM_RANGES["stack_replacement_cost"]["min"],
-            max_value=PARAM_RANGES["stack_replacement_cost"]["max"],
-            value=DEFAULT_PARAMS["stack_replacement_cost"],
-            step=PARAM_RANGES["stack_replacement_cost"]["step"],
-            help="Total cost for stack replacement"
-        )
-        
-        # Intervalle de remplacement de stack
-        stack_replacement_years = st.slider(
-            "Stack Replacement Interval (years)",
-            min_value=PARAM_RANGES["stack_replacement_years"]["min"],
-            max_value=PARAM_RANGES["stack_replacement_years"]["max"],
-            value=DEFAULT_PARAMS["stack_replacement_years"],
-            step=PARAM_RANGES["stack_replacement_years"]["step"],
-            help="Years between stack replacements"
-        )
-        
-        # Calcul du coût annualisé du remplacement de stack (approximation simple)
-        if stack_replacement_years > 0:
-            stack_annual_simple = stack_replacement_cost / stack_replacement_years
-            st.write(f"**Stack Replacement (annual approx.)**: {stack_annual_simple:,.0f} €/year")
     
     electrolyzer_econ = {
         'capex_components': {
@@ -235,8 +243,7 @@ def create_electrolyzer_parameters():
             'electrolyzer': capex_electrolyzer,
             'compressor': capex_compressor,
             'h2_storage': capex_h2_storage,
-            'piping': capex_piping,
-            'stack_shift': capex_stack_shift
+            'piping': capex_piping
         },
         'electrolyzer_capex_total': electrolyzer_capex_total,
         'electrolyzer_capex_annual': electrolyzer_capex_annual,
@@ -626,7 +633,6 @@ def get_current_parameters(selected_years, electrolyser_power, electrolyser_spec
             'capex_compressor': electrolyzer_econ['capex_components']['compressor'],
             'capex_h2_storage': electrolyzer_econ['capex_components']['h2_storage'],
             'capex_piping': electrolyzer_econ['capex_components']['piping'],
-            'capex_stack_shift': electrolyzer_econ['capex_components']['stack_shift'],
             'electrolyzer_capex_total': electrolyzer_econ['electrolyzer_capex_total'],
             'electrolyzer_capex_annual': electrolyzer_econ['electrolyzer_capex_annual'],
             'electrolyzer_lifetime': electrolyzer_econ['electrolyzer_lifetime'],
