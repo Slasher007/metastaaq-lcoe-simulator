@@ -54,7 +54,7 @@ def create_electrolyzer_parameters():
             step=PARAM_RANGES["electrolyser_specific_consumption"]["step"],
             help="Energy consumption per cubic meter of hydrogen produced"
         )
-        
+    
         st.markdown("---")
         st.markdown("### Economic Parameters (LCOH)")
         
@@ -130,8 +130,6 @@ def create_electrolyzer_parameters():
                 step=PARAM_RANGES["capex_piping"]["step"],
                 help="Piping and other infrastructure costs"
             )
-            
-            st.markdown("---")
             
             # Stack replacement interval
             stack_replacement_cost = st.number_input(
@@ -213,14 +211,85 @@ def create_electrolyzer_parameters():
         st.markdown("---")
         st.markdown("#### Maintenance Costs")
         
-        electrolyzer_maintenance_annual = st.number_input(
-            "Annual Maintenance (€/year)",
-            min_value=PARAM_RANGES["electrolyzer_maintenance_annual"]["min"],
-            max_value=PARAM_RANGES["electrolyzer_maintenance_annual"]["max"],
-            value=DEFAULT_PARAMS["electrolyzer_maintenance_annual"],
-            step=PARAM_RANGES["electrolyzer_maintenance_annual"]["step"],
-            help="Annual maintenance cost (preventive and corrective)"
+        st.info("Maintenance is calculated automatically as a percentage of each CapEx component")
+        
+        with st.expander("Maintenance Ratios (% of CapEx per year)", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                maintenance_ratio_transformer = st.number_input(
+                    "Poste transformation (%)",
+                    min_value=PARAM_RANGES["maintenance_ratio_transformer"]["min"],
+                    max_value=PARAM_RANGES["maintenance_ratio_transformer"]["max"],
+                    value=DEFAULT_PARAMS["maintenance_ratio_transformer"],
+                    step=PARAM_RANGES["maintenance_ratio_transformer"]["step"],
+                    help="Annual maintenance as % of transformer CapEx"
+                )
+                
+                maintenance_ratio_electrolyzer = st.number_input(
+                    "Electrolyseur (%)",
+                    min_value=PARAM_RANGES["maintenance_ratio_electrolyzer"]["min"],
+                    max_value=PARAM_RANGES["maintenance_ratio_electrolyzer"]["max"],
+                    value=DEFAULT_PARAMS["maintenance_ratio_electrolyzer"],
+                    step=PARAM_RANGES["maintenance_ratio_electrolyzer"]["step"],
+                    help="Annual maintenance as % of electrolyzer CapEx"
+                )
+                
+                maintenance_ratio_compressor = st.number_input(
+                    "Compresseur (%)",
+                    min_value=PARAM_RANGES["maintenance_ratio_compressor"]["min"],
+                    max_value=PARAM_RANGES["maintenance_ratio_compressor"]["max"],
+                    value=DEFAULT_PARAMS["maintenance_ratio_compressor"],
+                    step=PARAM_RANGES["maintenance_ratio_compressor"]["step"],
+                    help="Annual maintenance as % of compressor CapEx"
+                )
+            
+            with col2:
+                maintenance_ratio_h2_storage = st.number_input(
+                    "Stockage H2 (%)",
+                    min_value=PARAM_RANGES["maintenance_ratio_h2_storage"]["min"],
+                    max_value=PARAM_RANGES["maintenance_ratio_h2_storage"]["max"],
+                    value=DEFAULT_PARAMS["maintenance_ratio_h2_storage"],
+                    step=PARAM_RANGES["maintenance_ratio_h2_storage"]["step"],
+                    help="Annual maintenance as % of H2 storage CapEx"
+                )
+                
+                maintenance_ratio_piping = st.number_input(
+                    "Piping, ... (%)",
+                    min_value=PARAM_RANGES["maintenance_ratio_piping"]["min"],
+                    max_value=PARAM_RANGES["maintenance_ratio_piping"]["max"],
+                    value=DEFAULT_PARAMS["maintenance_ratio_piping"],
+                    step=PARAM_RANGES["maintenance_ratio_piping"]["step"],
+                    help="Annual maintenance as % of piping CapEx"
+                )
+        
+        # Calculate maintenance costs
+        maintenance_transformer = capex_transformer * (maintenance_ratio_transformer / 100)
+        maintenance_electrolyzer = capex_electrolyzer * (maintenance_ratio_electrolyzer / 100)
+        maintenance_compressor = capex_compressor * (maintenance_ratio_compressor / 100)
+        maintenance_h2_storage = capex_h2_storage * (maintenance_ratio_h2_storage / 100)
+        maintenance_piping = capex_piping * (maintenance_ratio_piping / 100)
+        
+        electrolyzer_maintenance_annual = (
+            maintenance_transformer +
+            maintenance_electrolyzer +
+            maintenance_compressor +
+            maintenance_h2_storage +
+            maintenance_piping
         )
+        
+        # Display breakdown
+        with st.expander("Maintenance Cost Breakdown", expanded=True):
+            st.write("**Annual Maintenance by Component:**")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Poste transformation", f"{maintenance_transformer:,.0f} €/year")
+                st.metric("Electrolyseur", f"{maintenance_electrolyzer:,.0f} €/year")
+                st.metric("Compresseur", f"{maintenance_compressor:,.0f} €/year")
+            with col2:
+                st.metric("Stockage H2", f"{maintenance_h2_storage:,.0f} €/year")
+                st.metric("Piping, ...", f"{maintenance_piping:,.0f} €/year")
+            
+            st.success(f"**Total Annual Maintenance: {electrolyzer_maintenance_annual:,.0f} €/year**")
         
         # ============================================
         # OTHER COSTS SECTION
@@ -244,6 +313,20 @@ def create_electrolyzer_parameters():
             'compressor': capex_compressor,
             'h2_storage': capex_h2_storage,
             'piping': capex_piping
+        },
+        'maintenance_ratios': {
+            'transformer': maintenance_ratio_transformer,
+            'electrolyzer': maintenance_ratio_electrolyzer,
+            'compressor': maintenance_ratio_compressor,
+            'h2_storage': maintenance_ratio_h2_storage,
+            'piping': maintenance_ratio_piping
+        },
+        'maintenance_breakdown': {
+            'transformer': maintenance_transformer,
+            'electrolyzer': maintenance_electrolyzer,
+            'compressor': maintenance_compressor,
+            'h2_storage': maintenance_h2_storage,
+            'piping': maintenance_piping
         },
         'electrolyzer_capex_total': electrolyzer_capex_total,
         'electrolyzer_capex_annual': electrolyzer_capex_annual,
@@ -633,6 +716,11 @@ def get_current_parameters(selected_years, electrolyser_power, electrolyser_spec
             'capex_compressor': electrolyzer_econ['capex_components']['compressor'],
             'capex_h2_storage': electrolyzer_econ['capex_components']['h2_storage'],
             'capex_piping': electrolyzer_econ['capex_components']['piping'],
+            'maintenance_ratio_transformer': electrolyzer_econ['maintenance_ratios']['transformer'],
+            'maintenance_ratio_electrolyzer': electrolyzer_econ['maintenance_ratios']['electrolyzer'],
+            'maintenance_ratio_compressor': electrolyzer_econ['maintenance_ratios']['compressor'],
+            'maintenance_ratio_h2_storage': electrolyzer_econ['maintenance_ratios']['h2_storage'],
+            'maintenance_ratio_piping': electrolyzer_econ['maintenance_ratios']['piping'],
             'electrolyzer_capex_total': electrolyzer_econ['electrolyzer_capex_total'],
             'electrolyzer_capex_annual': electrolyzer_econ['electrolyzer_capex_annual'],
             'electrolyzer_lifetime': electrolyzer_econ['electrolyzer_lifetime'],

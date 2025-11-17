@@ -52,6 +52,12 @@ DEFAULT_PARAMS = {
     "capex_h2_storage": 50000.0,
     "capex_piping": 20000.0,
     "capex_stack_shift": 2000000.0,
+    # Maintenance ratios (% of CapEx per year)
+    "maintenance_ratio_transformer": 0.5,
+    "maintenance_ratio_electrolyzer": 1.0,
+    "maintenance_ratio_compressor": 2.0,
+    "maintenance_ratio_h2_storage": 0.5,
+    "maintenance_ratio_piping": 0.5,
     # Economics parameters
     "electrolyzer_lifetime": 20,
     "electrolyzer_discount_rate": 7.0,
@@ -89,6 +95,12 @@ PARAM_RANGES = {
     "capex_h2_storage": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
     "capex_piping": {"min": 0.0, "max": 1000000.0, "step": 5000.0},
     "capex_stack_shift": {"min": 0.0, "max": 10000000.0, "step": 100000.0},
+    # Maintenance ratios ranges
+    "maintenance_ratio_transformer": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "maintenance_ratio_electrolyzer": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "maintenance_ratio_compressor": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "maintenance_ratio_h2_storage": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "maintenance_ratio_piping": {"min": 0.0, "max": 10.0, "step": 0.1},
     # Economics parameters ranges
     "electrolyzer_lifetime": {"min": 5, "max": 30, "step": 1},
     "electrolyzer_discount_rate": {"min": 1.0, "max": 15.0, "step": 0.5},

@@ -118,6 +118,12 @@ def add_capex_components_to_result(result, electrolyzer_economics):
     if 'capex_components' in electrolyzer_economics:
         result['capex_components'] = electrolyzer_economics['capex_components']
     
+    if 'maintenance_ratios' in electrolyzer_economics:
+        result['maintenance_ratios'] = electrolyzer_economics['maintenance_ratios']
+    
+    if 'maintenance_breakdown' in electrolyzer_economics:
+        result['maintenance_breakdown'] = electrolyzer_economics['maintenance_breakdown']
+    
     return result
 
 
