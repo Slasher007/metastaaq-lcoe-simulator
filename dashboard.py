@@ -27,12 +27,12 @@ from ui_components import (
     display_parameter_change_info, display_strategy_info, display_metrics_section,
     display_monthly_ch4_production, display_calculated_parameters, display_pv_economics_summary,
     create_loading_spinner, display_error_message, display_warning_message, 
-    display_info_message, display_success_message, display_lcoh_results
+    display_info_message, display_success_message, display_lcoh_results, display_lcoc_results
 )
 from sidebar import (
     setup_sidebar_header, load_data_file, create_year_selection, create_electrolyzer_parameters,
-    create_monthly_service_ratios, create_operation_strategy_selection, create_price_parameters,
-    create_pv_installation_parameters, get_current_parameters
+    create_methanation_parameters, create_monthly_service_ratios, create_operation_strategy_selection,
+    create_price_parameters, create_pv_installation_parameters, get_current_parameters
 )
 from plots import (
     create_monthly_price_analysis_plot, create_price_distribution_box_plot,
@@ -44,7 +44,7 @@ from calculations import (
     calculate_battery_capacity, calculate_capex_opex, calculate_energy_breakdown,
     calculate_monthly_breakdown, calculate_yearly_totals, calculate_pv_economics, calculate_pv_lcoe
 )
-from calculate_lcoh import calculate_lcoh
+from calculate_lcoh import calculate_lcoh, calculate_lcoc
 
 import os
 import time
@@ -72,6 +72,7 @@ def main():
     
     # Strategy selection before service ratios
     electrolyser_power, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters()
+    methanation_econ = create_methanation_parameters()
     strategy_type = create_operation_strategy_selection()
     if strategy_type == "Target Price-Based":
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=st.session_state.get('computed_service_ratios'))
@@ -712,6 +713,18 @@ def main():
                         avg_service_ratio = sum(ratios_for_lcoh.values()) / len(ratios_for_lcoh) if ratios_for_lcoh else None
                         
                         display_lcoh_results(lcoh_results, avg_service_ratio, go_enabled, go_cost_per_mwh)
+                        
+                        # Calculate and display LCOC (Levelized Cost of CH4)
+                        # Use the average electricity cost from LCOH calculation
+                        avg_electricity_cost = electricity_costs_for_lcoh.get('avg_electricity_cost', 0)
+                        
+                        lcoc_results = calculate_lcoc(
+                            lcoh_results['h2_production_kg'],
+                            methanation_econ,
+                            avg_electricity_cost
+                        )
+                        
+                        display_lcoc_results(lcoc_results, avg_service_ratio)
                         
                         # Store results
                         all_results.append({

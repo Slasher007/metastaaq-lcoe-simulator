@@ -360,6 +360,352 @@ def create_electrolyzer_parameters():
     return electrolyser_power, electrolyser_specific_consumption, electrolyzer_econ
 
 
+def create_methanation_parameters():
+    """Create methanation parameter inputs including economics"""
+    with st.sidebar.expander("🔥 Methanation", expanded=False):
+        st.markdown("**Economic Parameters (LCOCH4)**")
+        
+        # Project parameters
+        methanation_lifetime = st.slider(
+            "Project Lifetime (years)",
+            min_value=PARAM_RANGES["methanation_lifetime"]["min"],
+            max_value=PARAM_RANGES["methanation_lifetime"]["max"],
+            value=DEFAULT_PARAMS["methanation_lifetime"],
+            step=PARAM_RANGES["methanation_lifetime"]["step"],
+            help="Expected lifetime of the methanation project",
+            key="methanation_lifetime"
+        )
+        
+        methanation_discount_rate = st.slider(
+            "Discount Rate (%)",
+            min_value=PARAM_RANGES["methanation_discount_rate"]["min"],
+            max_value=PARAM_RANGES["methanation_discount_rate"]["max"],
+            value=DEFAULT_PARAMS["methanation_discount_rate"],
+            step=PARAM_RANGES["methanation_discount_rate"]["step"],
+            help="Discount rate for LCOCH4 calculation",
+            key="methanation_discount_rate"
+        )
+        
+        # ============================================
+        # CAPEX SECTION
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### CapEx (Capital Expenditure)")
+        
+        with st.expander("CapEx Parameters", expanded=False):
+            capex_methanation_unit = st.number_input(
+                "Unité de méthanation (€)",
+                min_value=PARAM_RANGES["methanation_capex_methanation_unit"]["min"],
+                max_value=PARAM_RANGES["methanation_capex_methanation_unit"]["max"],
+                value=DEFAULT_PARAMS["methanation_capex_methanation_unit"],
+                step=PARAM_RANGES["methanation_capex_methanation_unit"]["step"],
+                help="Methanation unit cost",
+                key="methanation_capex_methanation_unit"
+            )
+            
+            capex_purification_unit = st.number_input(
+                "Unité de purification & analyse (€)",
+                min_value=PARAM_RANGES["methanation_capex_purification_unit"]["min"],
+                max_value=PARAM_RANGES["methanation_capex_purification_unit"]["max"],
+                value=DEFAULT_PARAMS["methanation_capex_purification_unit"],
+                step=PARAM_RANGES["methanation_capex_purification_unit"]["step"],
+                help="Purification and analysis unit cost",
+                key="methanation_capex_purification_unit"
+            )
+            
+            capex_compressor = st.number_input(
+                "Compresseur (€)",
+                min_value=PARAM_RANGES["methanation_capex_compressor"]["min"],
+                max_value=PARAM_RANGES["methanation_capex_compressor"]["max"],
+                value=DEFAULT_PARAMS["methanation_capex_compressor"],
+                step=PARAM_RANGES["methanation_capex_compressor"]["step"],
+                help="Compressor cost",
+                key="methanation_capex_compressor"
+            )
+            
+            capex_ch4_storage = st.number_input(
+                "Stockage CH4 (€)",
+                min_value=PARAM_RANGES["methanation_capex_ch4_storage"]["min"],
+                max_value=PARAM_RANGES["methanation_capex_ch4_storage"]["max"],
+                value=DEFAULT_PARAMS["methanation_capex_ch4_storage"],
+                step=PARAM_RANGES["methanation_capex_ch4_storage"]["step"],
+                help="CH4 storage cost",
+                key="methanation_capex_ch4_storage"
+            )
+            
+            capex_grid_injection = st.number_input(
+                "Injection réseau (€)",
+                min_value=PARAM_RANGES["methanation_capex_grid_injection"]["min"],
+                max_value=PARAM_RANGES["methanation_capex_grid_injection"]["max"],
+                value=DEFAULT_PARAMS["methanation_capex_grid_injection"],
+                step=PARAM_RANGES["methanation_capex_grid_injection"]["step"],
+                help="Grid injection cost",
+                key="methanation_capex_grid_injection"
+            )
+            
+            # Others CapEx
+            others_capex = st.number_input(
+                "Others CapEx (€)",
+                min_value=PARAM_RANGES["methanation_others_capex"]["min"],
+                max_value=PARAM_RANGES["methanation_others_capex"]["max"],
+                value=DEFAULT_PARAMS["methanation_others_capex"],
+                step=PARAM_RANGES["methanation_others_capex"]["step"],
+                help="Other capital expenditures",
+                key="methanation_others_capex"
+            )
+        
+        # Calculate total CapEx
+        methanation_capex_total = (
+            capex_methanation_unit + 
+            capex_purification_unit + 
+            capex_compressor + 
+            capex_ch4_storage + 
+            capex_grid_injection +
+            others_capex
+        )
+        
+        # Calculate and display annualized CapEx
+        from calculate_lcoh import calculate_crf
+        crf = calculate_crf(methanation_discount_rate, methanation_lifetime)
+        methanation_capex_annual = methanation_capex_total * crf
+        
+        # Display totals
+        st.metric("CapEx Annualized", f"{methanation_capex_annual:,.0f} €/year")
+        st.metric("Total CapEx", f"{methanation_capex_total:,.0f} €")
+        
+        # ============================================
+        # OPEX SECTION - Electricity Consumption
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### OpEx (Operational Expenditure)")
+        
+        with st.expander("OpEx Parameters - Electricity Consumption", expanded=False):
+            st.info("Electricity consumption in MWhe/year for each component")
+            
+            st.markdown("**Electricity Consumption (MWhe/year)**")
+            elec_methanation_unit = st.number_input(
+                "Unité de méthanation (MWhe/year)",
+                min_value=PARAM_RANGES["methanation_electricity_methanation_unit"]["min"],
+                max_value=PARAM_RANGES["methanation_electricity_methanation_unit"]["max"],
+                value=DEFAULT_PARAMS["methanation_electricity_methanation_unit"],
+                step=PARAM_RANGES["methanation_electricity_methanation_unit"]["step"],
+                help="Annual electricity consumption for methanation unit",
+                key="methanation_electricity_methanation_unit"
+            )
+            
+            elec_purification_unit = st.number_input(
+                "Unité de purification & analyse (MWhe/year)",
+                min_value=PARAM_RANGES["methanation_electricity_purification_unit"]["min"],
+                max_value=PARAM_RANGES["methanation_electricity_purification_unit"]["max"],
+                value=DEFAULT_PARAMS["methanation_electricity_purification_unit"],
+                step=PARAM_RANGES["methanation_electricity_purification_unit"]["step"],
+                help="Annual electricity consumption for purification unit",
+                key="methanation_electricity_purification_unit"
+            )
+            
+            elec_compressor = st.number_input(
+                "Compresseur (MWhe/year)",
+                min_value=PARAM_RANGES["methanation_electricity_compressor"]["min"],
+                max_value=PARAM_RANGES["methanation_electricity_compressor"]["max"],
+                value=DEFAULT_PARAMS["methanation_electricity_compressor"],
+                step=PARAM_RANGES["methanation_electricity_compressor"]["step"],
+                help="Annual electricity consumption for compressor",
+                key="methanation_electricity_compressor"
+            )
+            
+            elec_ch4_storage = st.number_input(
+                "Stockage CH4 (MWhe/year)",
+                min_value=PARAM_RANGES["methanation_electricity_ch4_storage"]["min"],
+                max_value=PARAM_RANGES["methanation_electricity_ch4_storage"]["max"],
+                value=DEFAULT_PARAMS["methanation_electricity_ch4_storage"],
+                step=PARAM_RANGES["methanation_electricity_ch4_storage"]["step"],
+                help="Annual electricity consumption for CH4 storage",
+                key="methanation_electricity_ch4_storage"
+            )
+            
+            elec_grid_injection = st.number_input(
+                "Injection réseau (MWhe/year)",
+                min_value=PARAM_RANGES["methanation_electricity_grid_injection"]["min"],
+                max_value=PARAM_RANGES["methanation_electricity_grid_injection"]["max"],
+                value=DEFAULT_PARAMS["methanation_electricity_grid_injection"],
+                step=PARAM_RANGES["methanation_electricity_grid_injection"]["step"],
+                help="Annual electricity consumption for grid injection",
+                key="methanation_electricity_grid_injection"
+            )
+            
+            st.markdown("**Others OpEx**")
+            others_opex_annual = st.number_input(
+                "Others OpEx (€/year)",
+                min_value=PARAM_RANGES["methanation_others_opex_annual"]["min"],
+                max_value=PARAM_RANGES["methanation_others_opex_annual"]["max"],
+                value=DEFAULT_PARAMS["methanation_others_opex_annual"],
+                step=PARAM_RANGES["methanation_others_opex_annual"]["step"],
+                help="Other operational expenditures",
+                key="methanation_others_opex_annual"
+            )
+            
+            st.caption("Electricity cost will be calculated from energy consumption and prices (PV, Spot, PPA)")
+        
+        # Calculate total electricity consumption
+        total_electricity_mwh = (
+            elec_methanation_unit + 
+            elec_purification_unit + 
+            elec_compressor + 
+            elec_ch4_storage + 
+            elec_grid_injection
+        )
+        
+        # Display OpEx breakdown info
+        st.info(f"💡 **Total OpEx Calculation**:\n\n"
+                f"• Electricity: {total_electricity_mwh:,.0f} MWhe/year × Electricity Price (€/MWh)\n\n"
+                f"• Others OpEx: {others_opex_annual:,.0f} €/year\n\n"
+                f"• **Total OpEx** = (Electricity Cost) + (Others OpEx)\n\n"
+                f"_Note: Electricity price will be calculated from PV, Spot, and PPA mix_")
+        
+        # ============================================
+        # MAINTENANCE SECTION
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### Maintenance Costs")
+        
+        with st.expander("Maintenance Parameters", expanded=False):
+            st.info("Maintenance is calculated as a percentage of each CapEx component")
+            
+            st.markdown("**Maintenance Ratios (% of CapEx per year)**")
+            col1, col2 = st.columns(2)
+            with col1:
+                maintenance_ratio_methanation_unit = st.number_input(
+                    "Unité de méthanation (%)",
+                    min_value=PARAM_RANGES["methanation_maintenance_ratio_methanation_unit"]["min"],
+                    max_value=PARAM_RANGES["methanation_maintenance_ratio_methanation_unit"]["max"],
+                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_methanation_unit"],
+                    step=PARAM_RANGES["methanation_maintenance_ratio_methanation_unit"]["step"],
+                    help="Annual maintenance as % of methanation unit CapEx",
+                    key="methanation_maintenance_ratio_methanation_unit"
+                )
+                
+                maintenance_ratio_purification_unit = st.number_input(
+                    "Unité de purification & analyse (%)",
+                    min_value=PARAM_RANGES["methanation_maintenance_ratio_purification_unit"]["min"],
+                    max_value=PARAM_RANGES["methanation_maintenance_ratio_purification_unit"]["max"],
+                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_purification_unit"],
+                    step=PARAM_RANGES["methanation_maintenance_ratio_purification_unit"]["step"],
+                    help="Annual maintenance as % of purification unit CapEx",
+                    key="methanation_maintenance_ratio_purification_unit"
+                )
+                
+                maintenance_ratio_compressor = st.number_input(
+                    "Compresseur (%)",
+                    min_value=PARAM_RANGES["methanation_maintenance_ratio_compressor"]["min"],
+                    max_value=PARAM_RANGES["methanation_maintenance_ratio_compressor"]["max"],
+                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_compressor"],
+                    step=PARAM_RANGES["methanation_maintenance_ratio_compressor"]["step"],
+                    help="Annual maintenance as % of compressor CapEx",
+                    key="methanation_maintenance_ratio_compressor"
+                )
+            
+            with col2:
+                maintenance_ratio_ch4_storage = st.number_input(
+                    "Stockage CH4 (%)",
+                    min_value=PARAM_RANGES["methanation_maintenance_ratio_ch4_storage"]["min"],
+                    max_value=PARAM_RANGES["methanation_maintenance_ratio_ch4_storage"]["max"],
+                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_ch4_storage"],
+                    step=PARAM_RANGES["methanation_maintenance_ratio_ch4_storage"]["step"],
+                    help="Annual maintenance as % of CH4 storage CapEx",
+                    key="methanation_maintenance_ratio_ch4_storage"
+                )
+                
+                maintenance_ratio_grid_injection = st.number_input(
+                    "Injection réseau (%)",
+                    min_value=PARAM_RANGES["methanation_maintenance_ratio_grid_injection"]["min"],
+                    max_value=PARAM_RANGES["methanation_maintenance_ratio_grid_injection"]["max"],
+                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_grid_injection"],
+                    step=PARAM_RANGES["methanation_maintenance_ratio_grid_injection"]["step"],
+                    help="Annual maintenance as % of grid injection CapEx",
+                    key="methanation_maintenance_ratio_grid_injection"
+                )
+            
+            st.markdown("**Others Maintenance**")
+            others_maintenance_annual = st.number_input(
+                "Others Maintenance (€/year)",
+                min_value=PARAM_RANGES["methanation_others_maintenance_annual"]["min"],
+                max_value=PARAM_RANGES["methanation_others_maintenance_annual"]["max"],
+                value=DEFAULT_PARAMS["methanation_others_maintenance_annual"],
+                step=PARAM_RANGES["methanation_others_maintenance_annual"]["step"],
+                help="Other maintenance costs",
+                key="methanation_others_maintenance_annual"
+            )
+        
+        # Calculate maintenance costs
+        maintenance_methanation_unit = capex_methanation_unit * (maintenance_ratio_methanation_unit / 100)
+        maintenance_purification_unit = capex_purification_unit * (maintenance_ratio_purification_unit / 100)
+        maintenance_compressor = capex_compressor * (maintenance_ratio_compressor / 100)
+        maintenance_ch4_storage = capex_ch4_storage * (maintenance_ratio_ch4_storage / 100)
+        maintenance_grid_injection = capex_grid_injection * (maintenance_ratio_grid_injection / 100)
+        
+        # Total maintenance
+        methanation_maintenance_annual = (
+            maintenance_methanation_unit +
+            maintenance_purification_unit +
+            maintenance_compressor +
+            maintenance_ch4_storage +
+            maintenance_grid_injection +
+            others_maintenance_annual
+        )
+        
+        # Display total
+        st.metric("Total Maintenance", f"{methanation_maintenance_annual:,.0f} €/year")
+    
+    # Calculate other_costs_annual (Others CapEx annualized + Others Maintenance)
+    # Note: Others OpEx is handled separately in OPEX
+    other_costs_annual = others_capex * calculate_crf(methanation_discount_rate, methanation_lifetime) + others_maintenance_annual
+    
+    methanation_econ = {
+        'capex_components': {
+            'methanation_unit': capex_methanation_unit,
+            'purification_unit': capex_purification_unit,
+            'compressor': capex_compressor,
+            'ch4_storage': capex_ch4_storage,
+            'grid_injection': capex_grid_injection,
+            'others': others_capex
+        },
+        'maintenance_ratios': {
+            'methanation_unit': maintenance_ratio_methanation_unit,
+            'purification_unit': maintenance_ratio_purification_unit,
+            'compressor': maintenance_ratio_compressor,
+            'ch4_storage': maintenance_ratio_ch4_storage,
+            'grid_injection': maintenance_ratio_grid_injection
+        },
+        'maintenance_breakdown': {
+            'methanation_unit': maintenance_methanation_unit,
+            'purification_unit': maintenance_purification_unit,
+            'compressor': maintenance_compressor,
+            'ch4_storage': maintenance_ch4_storage,
+            'grid_injection': maintenance_grid_injection,
+            'others': others_maintenance_annual
+        },
+        'electricity_consumption': {
+            'methanation_unit': elec_methanation_unit,
+            'purification_unit': elec_purification_unit,
+            'compressor': elec_compressor,
+            'ch4_storage': elec_ch4_storage,
+            'grid_injection': elec_grid_injection,
+            'total': total_electricity_mwh
+        },
+        'methanation_capex_total': methanation_capex_total,
+        'methanation_capex_annual': methanation_capex_annual,
+        'methanation_lifetime': methanation_lifetime,
+        'methanation_discount_rate': methanation_discount_rate,
+        'methanation_maintenance_annual': methanation_maintenance_annual,
+        'others_capex': others_capex,
+        'others_opex_annual': others_opex_annual,
+        'others_maintenance_annual': others_maintenance_annual,
+        'other_costs_annual': other_costs_annual
+    }
+    
+    return methanation_econ
+
+
 def create_monthly_service_ratios(allow_edit=True, preset_ratios=None):
     """Create or display monthly service ratios in the sidebar.
 

@@ -346,3 +346,200 @@ def calculate_lcoh(
         }
     }
 
+
+def calculate_ch4_production_annual(h2_production_kg):
+    """
+    Calculate annual CH4 production from H2 production
+    
+    Sabatier reaction: CO2 + 4H2 -> CH4 + 2H2O
+    Stoichiometry: 4 mol H2 -> 1 mol CH4
+    Molecular weights: H2 = 2.016 g/mol, CH4 = 16.04 g/mol
+    Mass ratio: 1 kg CH4 requires 0.502 kg H2 (approximately 0.5)
+    Or: 1 kg H2 produces 1.99 kg CH4 (approximately 2.0)
+    
+    Args:
+        h2_production_kg: Annual H2 production in kg
+    
+    Returns:
+        Annual CH4 production in kg
+    """
+    # Stoichiometric conversion: 4 mol H2 -> 1 mol CH4
+    # Mass conversion: (16.04 g CH4) / (4 × 2.016 g H2) = 1.99 ≈ 2.0
+    ch4_production_kg = h2_production_kg * 1.99
+    
+    return ch4_production_kg
+
+
+def calculate_methanation_annualized_costs(
+    methanation_capex_total,
+    methanation_lifetime,
+    methanation_discount_rate,
+    methanation_maintenance_annual,
+    methanation_electricity_cost_annual,
+    other_costs_annual,
+    others_opex_annual=0.0
+):
+    """
+    Calculate annualized costs for the methanation unit
+    
+    Args:
+        methanation_capex_total: Total capital expenditure (€)
+        methanation_lifetime: Project lifetime (years)
+        methanation_discount_rate: Discount rate in %
+        methanation_maintenance_annual: Annual maintenance cost (€/year)
+        methanation_electricity_cost_annual: Annual electricity cost (€/year)
+        other_costs_annual: Other annual costs (€/year)
+        others_opex_annual: Other operational costs (€/year)
+    
+    Returns:
+        dict with annualized cost breakdown
+    """
+    # Calculate CRF and annualize CapEx
+    crf = calculate_crf(methanation_discount_rate, methanation_lifetime)
+    capex_annualized = methanation_capex_total * crf
+    
+    # Annual costs
+    maintenance_annual = methanation_maintenance_annual
+    
+    # OPEX is calculated as: Electricity + Others OpEx
+    opex_annual = methanation_electricity_cost_annual + others_opex_annual
+    
+    # Total annualized costs
+    total_annualized = capex_annualized + opex_annual + maintenance_annual + other_costs_annual
+    
+    result = {
+        'capex_total': methanation_capex_total,
+        'capex_annualized': capex_annualized,
+        'crf': crf,
+        'lifetime': methanation_lifetime,
+        'opex_annual': opex_annual,
+        'opex_electricity': methanation_electricity_cost_annual,
+        'opex_others': others_opex_annual,
+        'maintenance_annual': maintenance_annual,
+        'other_annual': other_costs_annual,
+        'total_annualized': total_annualized
+    }
+    
+    return result
+
+
+def add_methanation_capex_components_to_result(result, methanation_economics):
+    """
+    Add methanation CapEx components details to the result if available
+    
+    Args:
+        result: The annualized costs result dict
+        methanation_economics: The economics dict with potential capex_components
+    
+    Returns:
+        Updated result dict
+    """
+    if 'capex_components' in methanation_economics:
+        result['capex_components'] = methanation_economics['capex_components']
+    
+    if 'maintenance_ratios' in methanation_economics:
+        result['maintenance_ratios'] = methanation_economics['maintenance_ratios']
+    
+    if 'maintenance_breakdown' in methanation_economics:
+        result['maintenance_breakdown'] = methanation_economics['maintenance_breakdown']
+    
+    return result
+
+
+def calculate_methanation_electricity_cost(
+    electricity_consumption_mwh,
+    avg_electricity_cost_per_mwh
+):
+    """
+    Calculate total annual electricity cost for methanation
+    
+    Args:
+        electricity_consumption_mwh: Total electricity consumption in MWh/year
+        avg_electricity_cost_per_mwh: Average electricity cost (€/MWh)
+    
+    Returns:
+        Total electricity cost in €/year
+    """
+    return electricity_consumption_mwh * avg_electricity_cost_per_mwh
+
+
+def calculate_lcoc(
+    h2_production_kg,
+    methanation_economics,
+    avg_electricity_cost_per_mwh
+):
+    """
+    Calculate LCOC (Levelized Cost of CH4) in €/kg CH₄
+    
+    LCOC = (CapEx_ann + O&M_ann + Electricity_cost_ann + Other_costs) / CH4_production_ann
+    
+    Args:
+        h2_production_kg: Annual H2 production in kg (from electrolyzer)
+        methanation_economics: dict with methanation economic parameters
+        avg_electricity_cost_per_mwh: Average electricity cost (€/MWh) from LCOH calculation
+    
+    Returns:
+        dict with LCOC and detailed breakdown
+    """
+    # 1. Calculate CH4 production from H2
+    ch4_production_kg = calculate_ch4_production_annual(h2_production_kg)
+    
+    # 2. Calculate electricity cost for methanation
+    total_electricity_mwh = methanation_economics.get('electricity_consumption', {}).get('total', 0)
+    methanation_electricity_cost = calculate_methanation_electricity_cost(
+        total_electricity_mwh,
+        avg_electricity_cost_per_mwh
+    )
+    
+    # 3. Calculate annualized methanation costs
+    annualized_costs = calculate_methanation_annualized_costs(
+        methanation_economics.get('methanation_capex_total', 0),
+        methanation_economics.get('methanation_lifetime', 20),
+        methanation_economics.get('methanation_discount_rate', 5.0),
+        methanation_economics.get('methanation_maintenance_annual', 0),
+        methanation_electricity_cost,
+        methanation_economics.get('other_costs_annual', 0),
+        methanation_economics.get('others_opex_annual', 0)
+    )
+    
+    # Add CapEx components details if available
+    annualized_costs = add_methanation_capex_components_to_result(annualized_costs, methanation_economics)
+    
+    # 4. Calculate LCOC
+    total_annual_cost = annualized_costs['total_annualized']
+    
+    lcoc_eur_per_kg = total_annual_cost / ch4_production_kg if ch4_production_kg > 0 else 0
+    
+    # Also calculate in €/MWh CH4 (using LHV of CH4 = 13.9 kWh/kg, configurable)
+    ch4_lhv_kwh_per_kg = 13.9  # Lower Heating Value of CH4
+    lcoc_eur_per_mwh = lcoc_eur_per_kg * (1000 / ch4_lhv_kwh_per_kg)
+    
+    # Breakdown by component (€/kg CH4)
+    capex_component = annualized_costs['capex_annualized'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    electricity_component = annualized_costs['opex_electricity'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    others_opex_component = annualized_costs['opex_others'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    opex_component = electricity_component + others_opex_component
+    maintenance_component = annualized_costs['maintenance_annual'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    other_component = annualized_costs['other_annual'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    
+    return {
+        'lcoc_eur_per_kg': lcoc_eur_per_kg,
+        'lcoc_eur_per_mwh': lcoc_eur_per_mwh,
+        'ch4_production_kg': ch4_production_kg,
+        'ch4_production_tonnes': ch4_production_kg / 1000,
+        'h2_consumption_kg': h2_production_kg,
+        'h2_consumption_tonnes': h2_production_kg / 1000,
+        'total_annual_cost': total_annual_cost,
+        'annualized_costs': annualized_costs,
+        'methanation_electricity_cost': methanation_electricity_cost,
+        'methanation_electricity_mwh': total_electricity_mwh,
+        'avg_electricity_cost_per_mwh': avg_electricity_cost_per_mwh,
+        'breakdown': {
+            'capex': capex_component,
+            'opex': opex_component,
+            'electricity': electricity_component,
+            'others_opex': others_opex_component,
+            'maintenance': maintenance_component,
+            'other': other_component
+        }
+    }

@@ -70,7 +70,33 @@ DEFAULT_PARAMS = {
     # Others costs by category
     "electrolyser_others_capex": 0.0,
     "electrolyser_others_opex_annual": 0.0,
-    "electrolyser_others_maintenance_annual": 0.0
+    "electrolyser_others_maintenance_annual": 0.0,
+    # Methanation Economics (for LCOCH4 calculation)
+    # CapEx Components
+    "methanation_capex_methanation_unit": 4000000.0,
+    "methanation_capex_purification_unit": 0.0,
+    "methanation_capex_compressor": 0.0,
+    "methanation_capex_ch4_storage": 0.0,
+    "methanation_capex_grid_injection": 20000.0,
+    # Maintenance ratios (% of CapEx per year)
+    "methanation_maintenance_ratio_methanation_unit": 1.0,
+    "methanation_maintenance_ratio_purification_unit": 1.0,
+    "methanation_maintenance_ratio_compressor": 2.0,
+    "methanation_maintenance_ratio_ch4_storage": 0.5,
+    "methanation_maintenance_ratio_grid_injection": 0.5,
+    # OpEx - Electricity consumption (MWhe/year)
+    "methanation_electricity_methanation_unit": 219.0,
+    "methanation_electricity_purification_unit": 0.0,
+    "methanation_electricity_compressor": 0.0,
+    "methanation_electricity_ch4_storage": 0.0,
+    "methanation_electricity_grid_injection": 0.0,
+    # Economics parameters
+    "methanation_lifetime": 20,
+    "methanation_discount_rate": 0.0,
+    # Others costs by category
+    "methanation_others_capex": 0.0,
+    "methanation_others_opex_annual": 0.0,
+    "methanation_others_maintenance_annual": 0.0
 }
 
 # Parameter ranges
@@ -116,7 +142,33 @@ PARAM_RANGES = {
     # Others costs ranges
     "electrolyser_others_capex": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
     "electrolyser_others_opex_annual": {"min": 0.0, "max": 1000000.0, "step": 1000.0},
-    "electrolyser_others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0}
+    "electrolyser_others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0},
+    # Methanation Economics ranges
+    # CapEx Components ranges
+    "methanation_capex_methanation_unit": {"min": 0.0, "max": 20000000.0, "step": 100000.0},
+    "methanation_capex_purification_unit": {"min": 0.0, "max": 10000000.0, "step": 100000.0},
+    "methanation_capex_compressor": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "methanation_capex_ch4_storage": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "methanation_capex_grid_injection": {"min": 0.0, "max": 1000000.0, "step": 5000.0},
+    # Maintenance ratios ranges
+    "methanation_maintenance_ratio_methanation_unit": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "methanation_maintenance_ratio_purification_unit": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "methanation_maintenance_ratio_compressor": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "methanation_maintenance_ratio_ch4_storage": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "methanation_maintenance_ratio_grid_injection": {"min": 0.0, "max": 10.0, "step": 0.1},
+    # OpEx - Electricity consumption ranges (MWhe/year)
+    "methanation_electricity_methanation_unit": {"min": 0.0, "max": 10000.0, "step": 10.0},
+    "methanation_electricity_purification_unit": {"min": 0.0, "max": 5000.0, "step": 10.0},
+    "methanation_electricity_compressor": {"min": 0.0, "max": 5000.0, "step": 10.0},
+    "methanation_electricity_ch4_storage": {"min": 0.0, "max": 1000.0, "step": 10.0},
+    "methanation_electricity_grid_injection": {"min": 0.0, "max": 1000.0, "step": 10.0},
+    # Economics parameters ranges
+    "methanation_lifetime": {"min": 5, "max": 30, "step": 1},
+    "methanation_discount_rate": {"min": 0.0, "max": 15.0, "step": 0.5},
+    # Others costs ranges
+    "methanation_others_capex": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "methanation_others_opex_annual": {"min": 0.0, "max": 1000000.0, "step": 1000.0},
+    "methanation_others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0}
 }
 
 # CSS Styles
