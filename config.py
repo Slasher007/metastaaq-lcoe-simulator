@@ -46,31 +46,31 @@ DEFAULT_PARAMS = {
     "pci_ch4_kwh_per_kg": 13.9,
     # Electrolyzer Economics (for LCOH calculation)
     # CapEx Components
-    "capex_transformer": 250000.0,
-    "capex_electrolyzer": 5000000.0,
-    "capex_compressor": 0.0,
-    "capex_h2_storage": 50000.0,
-    "capex_piping": 20000.0,
-    "capex_stack_shift": 2000000.0,
+    "electrolyser_capex_transformer": 250000.0,
+    "electrolyser_capex_electrolyzer": 5000000.0,
+    "electrolyser_capex_compressor": 0.0,
+    "electrolyser_capex_h2_storage": 50000.0,
+    "electrolyser_capex_piping": 20000.0,
+    "electrolyser_capex_stack_shift": 2000000.0,
     # Maintenance ratios (% of CapEx per year)
-    "maintenance_ratio_transformer": 0.5,
-    "maintenance_ratio_electrolyzer": 1.0,
-    "maintenance_ratio_compressor": 2.0,
-    "maintenance_ratio_h2_storage": 0.5,
-    "maintenance_ratio_piping": 0.5,
+    "electrolyser_maintenance_ratio_transformer": 0.5,
+    "electrolyser_maintenance_ratio_electrolyzer": 1.0,
+    "electrolyser_maintenance_ratio_compressor": 2.0,
+    "electrolyser_maintenance_ratio_h2_storage": 0.5,
+    "electrolyser_maintenance_ratio_piping": 0.5,
     # Economics parameters
-    "electrolyzer_lifetime": 20,
-    "electrolyzer_discount_rate": 0.0,
-    "electrolyzer_opex_annual": 2168972.0,
-    "electrolyzer_maintenance_annual": 51600.0,
-    "water_price_per_m3": 5.0,
-    "water_consumption_annual_m3": 8180.0,
-    "stack_replacement_years": 9,
-    "stack_replacement_cost": 2000000.0,
+    "electrolyser_lifetime": 20,
+    "electrolyser_discount_rate": 0.0,
+    "electrolyser_opex_annual": 2168972.0,
+    "electrolyser_maintenance_annual": 51600.0,
+    "electrolyser_water_price_per_m3": 5.0,
+    "electrolyser_water_consumption_annual_m3": 8180.0,
+    "electrolyser_stack_replacement_years": 9,
+    "electrolyser_stack_replacement_cost": 2000000.0,
     # Others costs by category
-    "others_capex": 0.0,
-    "others_opex_annual": 0.0,
-    "others_maintenance_annual": 0.0
+    "electrolyser_others_capex": 0.0,
+    "electrolyser_others_opex_annual": 0.0,
+    "electrolyser_others_maintenance_annual": 0.0
 }
 
 # Parameter ranges
@@ -92,31 +92,31 @@ PARAM_RANGES = {
     "pci_ch4_kwh_per_kg": {"min": 10.0, "max": 20.0, "step": 0.1},
     # Electrolyzer Economics ranges
     # CapEx Components ranges
-    "capex_transformer": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
-    "capex_electrolyzer": {"min": 0.0, "max": 20000000.0, "step": 100000.0},
-    "capex_compressor": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
-    "capex_h2_storage": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
-    "capex_piping": {"min": 0.0, "max": 1000000.0, "step": 5000.0},
-    "capex_stack_shift": {"min": 0.0, "max": 10000000.0, "step": 100000.0},
+    "electrolyser_capex_transformer": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "electrolyser_capex_electrolyzer": {"min": 0.0, "max": 20000000.0, "step": 100000.0},
+    "electrolyser_capex_compressor": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "electrolyser_capex_h2_storage": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "electrolyser_capex_piping": {"min": 0.0, "max": 1000000.0, "step": 5000.0},
+    "electrolyser_capex_stack_shift": {"min": 0.0, "max": 10000000.0, "step": 100000.0},
     # Maintenance ratios ranges
-    "maintenance_ratio_transformer": {"min": 0.0, "max": 10.0, "step": 0.1},
-    "maintenance_ratio_electrolyzer": {"min": 0.0, "max": 10.0, "step": 0.1},
-    "maintenance_ratio_compressor": {"min": 0.0, "max": 10.0, "step": 0.1},
-    "maintenance_ratio_h2_storage": {"min": 0.0, "max": 10.0, "step": 0.1},
-    "maintenance_ratio_piping": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "electrolyser_maintenance_ratio_transformer": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "electrolyser_maintenance_ratio_electrolyzer": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "electrolyser_maintenance_ratio_compressor": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "electrolyser_maintenance_ratio_h2_storage": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "electrolyser_maintenance_ratio_piping": {"min": 0.0, "max": 10.0, "step": 0.1},
     # Economics parameters ranges
-    "electrolyzer_lifetime": {"min": 5, "max": 30, "step": 1},
-    "electrolyzer_discount_rate": {"min": 0.0, "max": 15.0, "step": 0.5},
-    "electrolyzer_opex_annual": {"min": 0.0, "max": 10000000.0, "step": 10000.0},
-    "electrolyzer_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0},
-    "water_price_per_m3": {"min": 0.0, "max": 20.0, "step": 0.1},
-    "water_consumption_annual_m3": {"min": 0.0, "max": 50000.0, "step": 100.0},
-    "stack_replacement_years": {"min": 3, "max": 15, "step": 1},
-    "stack_replacement_cost": {"min": 0.0, "max": 10000000.0, "step": 50000.0},
+    "electrolyser_lifetime": {"min": 5, "max": 30, "step": 1},
+    "electrolyser_discount_rate": {"min": 0.0, "max": 15.0, "step": 0.5},
+    "electrolyser_opex_annual": {"min": 0.0, "max": 10000000.0, "step": 10000.0},
+    "electrolyser_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0},
+    "electrolyser_water_price_per_m3": {"min": 0.0, "max": 20.0, "step": 0.1},
+    "electrolyser_water_consumption_annual_m3": {"min": 0.0, "max": 50000.0, "step": 100.0},
+    "electrolyser_stack_replacement_years": {"min": 3, "max": 15, "step": 1},
+    "electrolyser_stack_replacement_cost": {"min": 0.0, "max": 10000000.0, "step": 50000.0},
     # Others costs ranges
-    "others_capex": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
-    "others_opex_annual": {"min": 0.0, "max": 1000000.0, "step": 1000.0},
-    "others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0}
+    "electrolyser_others_capex": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
+    "electrolyser_others_opex_annual": {"min": 0.0, "max": 1000000.0, "step": 1000.0},
+    "electrolyser_others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0}
 }
 
 # CSS Styles
