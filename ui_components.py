@@ -277,46 +277,70 @@ def display_lcoh_results(lcoh_results):
     with st.expander("📊 LCOH Cost Breakdown (€/kg H₂)", expanded=True):
         breakdown = lcoh_results['breakdown']
         
+        # Get project lifetime for lifetime cost calculation
+        project_lifetime = lcoh_results['annualized_costs']['lifetime']
+        
+        # Calculate lifetime costs
+        # Note: OPEX = Electricity + Water, so we calculate it accordingly
+        lifetime_capex = lcoh_results['annualized_costs']['capex_total']  # CapEx is already total
+        lifetime_electricity = lcoh_results['annualized_costs']['opex_electricity'] * project_lifetime
+        lifetime_water = lcoh_results['annualized_costs']['opex_water'] * project_lifetime
+        lifetime_opex = lifetime_electricity + lifetime_water  # OPEX = Electricity + Water
+        lifetime_maintenance = lcoh_results['annualized_costs']['maintenance_annual'] * project_lifetime
+        lifetime_stack = lcoh_results['annualized_costs']['stack_annual'] * project_lifetime
+        lifetime_other = lcoh_results['annualized_costs']['other_annual'] * project_lifetime
+        lifetime_total = lifetime_capex + lifetime_opex + lifetime_maintenance + lifetime_stack + lifetime_other
+        
         # Create breakdown dataframe
         breakdown_data = {
             'Component': [
                 'CapEx (annualized)',
-                'OPEX',
+                'OPEX (Electricity + Water)',
+                '  → Electricity',
+                '  → Water',
                 'Maintenance',
-                'Water',
                 'Stack Replacement',
                 'Other Costs',
-                'Electricity (all sources)',
                 '**TOTAL LCOH**'
             ],
             'Cost (€/kg H₂)': [
                 f"{breakdown['capex']:.3f}",
                 f"{breakdown['opex']:.3f}",
-                f"{breakdown['maintenance']:.3f}",
+                f"{breakdown['electricity']:.3f}",
                 f"{breakdown['water']:.3f}",
+                f"{breakdown['maintenance']:.3f}",
                 f"{breakdown['stack']:.3f}",
                 f"{breakdown['other']:.3f}",
-                f"{breakdown['electricity']:.3f}",
                 f"**{lcoh_results['lcoh_eur_per_kg']:.3f}**"
             ],
             'Annual Cost (€)': [
                 f"{lcoh_results['annualized_costs']['capex_annualized']:,.0f}",
                 f"{lcoh_results['annualized_costs']['opex_annual']:,.0f}",
+                f"{lcoh_results['annualized_costs']['opex_electricity']:,.0f}",
+                f"{lcoh_results['annualized_costs']['opex_water']:,.0f}",
                 f"{lcoh_results['annualized_costs']['maintenance_annual']:,.0f}",
-                f"{lcoh_results['annualized_costs']['water_annual']:,.0f}",
                 f"{lcoh_results['annualized_costs']['stack_annual']:,.0f}",
                 f"{lcoh_results['annualized_costs']['other_annual']:,.0f}",
-                f"{lcoh_results['electricity_costs']['total_cost']:,.0f}",
                 f"**{lcoh_results['total_annual_cost']:,.0f}**"
+            ],
+            f'Lifetime Cost ({project_lifetime} years) (€)': [
+                f"{lifetime_capex:,.0f}",
+                f"{lifetime_opex:,.0f}",
+                f"{lifetime_electricity:,.0f}",
+                f"{lifetime_water:,.0f}",
+                f"{lifetime_maintenance:,.0f}",
+                f"{lifetime_stack:,.0f}",
+                f"{lifetime_other:,.0f}",
+                f"**{lifetime_total:,.0f}**"
             ],
             'Percentage': [
                 f"{(breakdown['capex']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
                 f"{(breakdown['opex']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
-                f"{(breakdown['maintenance']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
+                f"{(breakdown['electricity']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
                 f"{(breakdown['water']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
+                f"{(breakdown['maintenance']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
                 f"{(breakdown['stack']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
                 f"{(breakdown['other']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
-                f"{(breakdown['electricity']/lcoh_results['lcoh_eur_per_kg']*100):.1f}%",
                 "**100.0%**"
             ]
         }
@@ -331,29 +355,25 @@ def display_lcoh_results(lcoh_results):
         
         with col_pie:
             # Create pie chart for LCOH breakdown
-            # Prepare data for pie chart (exclude total)
+            # Prepare data for pie chart (exclude total and sub-items)
             pie_labels = [
                 'CapEx',
-                'OPEX',
+                'OPEX\n(Elec+Water)',
                 'Maintenance',
-                'Water',
                 'Stack',
-                'Other',
-                'Electricity'
+                'Other'
             ]
             pie_values = [
                 breakdown['capex'],
                 breakdown['opex'],
                 breakdown['maintenance'],
-                breakdown['water'],
                 breakdown['stack'],
-                breakdown['other'],
-                breakdown['electricity']
+                breakdown['other']
             ]
             
             # Create pie chart
             fig_pie, ax_pie = plt.subplots(figsize=(7, 7))
-            colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
+            colors = ['#1f77b4', '#e377c2', '#2ca02c', '#9467bd', '#8c564b']
             
             wedges, texts, autotexts = ax_pie.pie(
                 pie_values,
@@ -362,7 +382,7 @@ def display_lcoh_results(lcoh_results):
                 startangle=90,
                 colors=colors,
                 pctdistance=0.85,
-                explode=[0.05, 0, 0, 0, 0, 0, 0.1]  # Explode CapEx and Electricity slightly
+                explode=[0.05, 0.1, 0, 0, 0]  # Explode CapEx and OPEX slightly
             )
             
             # Enhance text

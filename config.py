@@ -48,7 +48,7 @@ DEFAULT_PARAMS = {
     "electrolyzer_capex_total": 7320000.0,
     "electrolyzer_lifetime": 20,
     "electrolyzer_discount_rate": 7.0,
-    "electrolyzer_opex_annual": 1317744.0,
+    "electrolyzer_opex_annual": 2168972.0,
     "electrolyzer_maintenance_annual": 51600.0,
     "water_price_per_m3": 5.0,
     "water_consumption_annual_m3": 8180.0,

@@ -94,15 +94,7 @@ def create_electrolyzer_parameters():
         electrolyzer_capex_annual = electrolyzer_capex_total * crf
         st.write(f"**CapEx Annualized**: {electrolyzer_capex_annual:,.0f} €/year (CRF: {crf:.4f})")
         
-        # OPEX électrolyseur
-        electrolyzer_opex_annual = st.number_input(
-            "OPEX (€/year)",
-            min_value=PARAM_RANGES["electrolyzer_opex_annual"]["min"],
-            max_value=PARAM_RANGES["electrolyzer_opex_annual"]["max"],
-            value=DEFAULT_PARAMS["electrolyzer_opex_annual"],
-            step=PARAM_RANGES["electrolyzer_opex_annual"]["step"],
-            help="Annual operational expenditure"
-        )
+        st.info("ℹ️ OPEX is calculated automatically as: Electricity Cost + Water Cost")
         
         # Maintenance électrolyseur
         electrolyzer_maintenance_annual = st.number_input(
@@ -182,7 +174,6 @@ def create_electrolyzer_parameters():
         'electrolyzer_capex_annual': electrolyzer_capex_annual,
         'electrolyzer_lifetime': electrolyzer_lifetime,
         'electrolyzer_discount_rate': electrolyzer_discount_rate,
-        'electrolyzer_opex_annual': electrolyzer_opex_annual,
         'electrolyzer_maintenance_annual': electrolyzer_maintenance_annual,
         'water_price_per_m3': water_price_per_m3,
         'water_consumption_annual_m3': water_consumption_annual_m3,
@@ -566,7 +557,6 @@ def get_current_parameters(selected_years, electrolyser_power, electrolyser_spec
             'electrolyzer_capex_annual': electrolyzer_econ['electrolyzer_capex_annual'],
             'electrolyzer_lifetime': electrolyzer_econ['electrolyzer_lifetime'],
             'electrolyzer_discount_rate': electrolyzer_econ['electrolyzer_discount_rate'],
-            'electrolyzer_opex_annual': electrolyzer_econ['electrolyzer_opex_annual'],
             'electrolyzer_maintenance_annual': electrolyzer_econ['electrolyzer_maintenance_annual'],
             'water_price_per_m3': electrolyzer_econ['water_price_per_m3'],
             'water_consumption_annual_m3': electrolyzer_econ['water_consumption_annual_m3'],
