@@ -175,11 +175,8 @@ def create_electrolyzer_parameters():
         electrolyzer_capex_annual = electrolyzer_capex_total * crf
         
         # Display totals
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Total CapEx", f"{electrolyzer_capex_total:,.0f} €")
-        with col2:
-            st.metric("CapEx Annualized", f"{electrolyzer_capex_annual:,.0f} €/year")
+        st.metric("CapEx Annualized", f"{electrolyzer_capex_annual:,.0f} €/year")
+        st.metric("Total CapEx", f"{electrolyzer_capex_total:,.0f} €")
         
         # ============================================
         # OPEX SECTION
