@@ -59,25 +59,23 @@ def create_electrolyzer_parameters():
         st.markdown("### Economic Parameters (LCOH)")
         
         # Project parameters
-        col1, col2 = st.columns(2)
-        with col1:
-            electrolyzer_lifetime = st.slider(
-                "Project Lifetime (years)",
-                min_value=PARAM_RANGES["electrolyzer_lifetime"]["min"],
-                max_value=PARAM_RANGES["electrolyzer_lifetime"]["max"],
-                value=DEFAULT_PARAMS["electrolyzer_lifetime"],
-                step=PARAM_RANGES["electrolyzer_lifetime"]["step"],
-                help="Expected lifetime of the electrolyzer project"
-            )
-        with col2:
-            electrolyzer_discount_rate = st.slider(
-                "Discount Rate (%)",
-                min_value=PARAM_RANGES["electrolyzer_discount_rate"]["min"],
-                max_value=PARAM_RANGES["electrolyzer_discount_rate"]["max"],
-                value=DEFAULT_PARAMS["electrolyzer_discount_rate"],
-                step=PARAM_RANGES["electrolyzer_discount_rate"]["step"],
-                help="Discount rate for LCOH calculation"
-            )
+        electrolyzer_lifetime = st.slider(
+            "Project Lifetime (years)",
+            min_value=PARAM_RANGES["electrolyzer_lifetime"]["min"],
+            max_value=PARAM_RANGES["electrolyzer_lifetime"]["max"],
+            value=DEFAULT_PARAMS["electrolyzer_lifetime"],
+            step=PARAM_RANGES["electrolyzer_lifetime"]["step"],
+            help="Expected lifetime of the electrolyzer project"
+        )
+        
+        electrolyzer_discount_rate = st.slider(
+            "Discount Rate (%)",
+            min_value=PARAM_RANGES["electrolyzer_discount_rate"]["min"],
+            max_value=PARAM_RANGES["electrolyzer_discount_rate"]["max"],
+            value=DEFAULT_PARAMS["electrolyzer_discount_rate"],
+            step=PARAM_RANGES["electrolyzer_discount_rate"]["step"],
+            help="Discount rate for LCOH calculation"
+        )
         
         # ============================================
         # CAPEX SECTION

@@ -60,7 +60,7 @@ DEFAULT_PARAMS = {
     "maintenance_ratio_piping": 0.5,
     # Economics parameters
     "electrolyzer_lifetime": 20,
-    "electrolyzer_discount_rate": 7.0,
+    "electrolyzer_discount_rate": 0.0,
     "electrolyzer_opex_annual": 2168972.0,
     "electrolyzer_maintenance_annual": 51600.0,
     "water_price_per_m3": 5.0,
