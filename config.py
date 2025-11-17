@@ -88,7 +88,7 @@ PARAM_RANGES = {
     "pv_cost_per_wp": {"min": 0.3, "max": 2.0, "step": 0.05},
     "battery_cost_per_kwh": {"min": 100.0, "max": 500.0, "step": 10.0},
     "opex_percentage": {"min": 0.5, "max": 5.0, "step": 0.1},
-    "discount_rate": {"min": 2.0, "max": 12.0, "step": 0.5},
+    "discount_rate": {"min": 0.0, "max": 12.0, "step": 0.5},
     "pci_ch4_kwh_per_kg": {"min": 10.0, "max": 20.0, "step": 0.1},
     # Electrolyzer Economics ranges
     # CapEx Components ranges
@@ -106,7 +106,7 @@ PARAM_RANGES = {
     "maintenance_ratio_piping": {"min": 0.0, "max": 10.0, "step": 0.1},
     # Economics parameters ranges
     "electrolyzer_lifetime": {"min": 5, "max": 30, "step": 1},
-    "electrolyzer_discount_rate": {"min": 1.0, "max": 15.0, "step": 0.5},
+    "electrolyzer_discount_rate": {"min": 0.0, "max": 15.0, "step": 0.5},
     "electrolyzer_opex_annual": {"min": 0.0, "max": 10000000.0, "step": 10000.0},
     "electrolyzer_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0},
     "water_price_per_m3": {"min": 0.0, "max": 20.0, "step": 0.1},

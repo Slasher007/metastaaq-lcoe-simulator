@@ -318,8 +318,9 @@ def create_electrolyzer_parameters():
         # Display total
         st.metric("Total Maintenance", f"{electrolyzer_maintenance_annual:,.0f} €/year")
     
-    # Calculate other_costs_annual for backward compatibility (sum of all others)
-    other_costs_annual = others_capex * calculate_crf(electrolyzer_discount_rate, electrolyzer_lifetime) + others_opex_annual + others_maintenance_annual
+    # Calculate other_costs_annual (Others CapEx annualized + Others Maintenance)
+    # Note: Others OpEx is handled separately in OPEX
+    other_costs_annual = others_capex * calculate_crf(electrolyzer_discount_rate, electrolyzer_lifetime) + others_maintenance_annual
     
     electrolyzer_econ = {
         'capex_components': {

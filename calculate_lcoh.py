@@ -35,6 +35,7 @@ def calculate_electrolyzer_annualized_costs(
     stack_replacement_cost,
     stack_replacement_years,
     electricity_cost_annual,
+    others_opex_annual=0.0,
     water_price_per_m3=None,
     water_consumption_annual_m3=None
 ):
@@ -66,8 +67,8 @@ def calculate_electrolyzer_annualized_costs(
     water_annual = water_cost_annual
     other_annual = other_costs_annual
     
-    # OPEX is calculated as: Electricity + Water
-    opex_annual = electricity_cost_annual + water_annual
+    # OPEX is calculated as: Electricity + Water + Others OpEx
+    opex_annual = electricity_cost_annual + water_annual + others_opex_annual
     
     # Stack replacement cost (annualized using CRF)
     # Annualize over replacement interval
@@ -86,6 +87,7 @@ def calculate_electrolyzer_annualized_costs(
         'opex_annual': opex_annual,
         'opex_electricity': electricity_cost_annual,
         'opex_water': water_annual,
+        'opex_others': others_opex_annual,
         'maintenance_annual': maintenance_annual,
         'water_annual': water_annual,
         'other_annual': other_annual,
@@ -270,7 +272,7 @@ def calculate_lcoh(
         go_cost_per_mwh
     )
     
-    # 2. Calculate annualized electrolyzer costs (including OPEX = electricity + water)
+    # 2. Calculate annualized electrolyzer costs (including OPEX = electricity + water + others opex)
     annualized_costs = calculate_electrolyzer_annualized_costs(
         electrolyzer_economics.get('electrolyzer_capex_total', electrolyzer_economics.get('electrolyzer_capex_annual', 0) / calculate_crf(electrolyzer_economics.get('electrolyzer_discount_rate', 5.0), electrolyzer_economics.get('electrolyzer_lifetime', 10))),
         electrolyzer_economics.get('electrolyzer_lifetime', 20),
@@ -281,6 +283,7 @@ def calculate_lcoh(
         electrolyzer_economics['stack_replacement_cost'],
         electrolyzer_economics['stack_replacement_years'],
         electricity_costs['total_cost'],
+        electrolyzer_economics.get('others_opex_annual', 0.0),
         electrolyzer_economics.get('water_price_per_m3'),
         electrolyzer_economics.get('water_consumption_annual_m3')
     )
@@ -306,11 +309,12 @@ def calculate_lcoh(
     lcoh_eur_per_mwh = lcoh_eur_per_kg * (1000 / h2_lhv_kwh_per_kg)
     
     # Breakdown by component (€/kg H2)
-    # Note: OPEX = Electricity + Water, so we break it down for display
+    # Note: OPEX = Electricity + Water + Others OpEx
     capex_component = annualized_costs['capex_annualized'] / h2_production_kg if h2_production_kg > 0 else 0
     electricity_component = annualized_costs['opex_electricity'] / h2_production_kg if h2_production_kg > 0 else 0
     water_component = annualized_costs['opex_water'] / h2_production_kg if h2_production_kg > 0 else 0
-    opex_component = electricity_component + water_component  # OPEX = Electricity + Water
+    others_opex_component = annualized_costs['opex_others'] / h2_production_kg if h2_production_kg > 0 else 0
+    opex_component = electricity_component + water_component + others_opex_component  # OPEX = Electricity + Water + Others
     maintenance_component = annualized_costs['maintenance_annual'] / h2_production_kg if h2_production_kg > 0 else 0
     other_component = annualized_costs['other_annual'] / h2_production_kg if h2_production_kg > 0 else 0
     stack_component = annualized_costs['stack_annual'] / h2_production_kg if h2_production_kg > 0 else 0
@@ -326,11 +330,12 @@ def calculate_lcoh(
         'breakdown': {
             'capex': capex_component,
             'opex': opex_component,
-            'maintenance': maintenance_component,
+            'electricity': electricity_component,
             'water': water_component,
+            'others_opex': others_opex_component,
+            'maintenance': maintenance_component,
             'other': other_component,
-            'stack': stack_component,
-            'electricity': electricity_component
+            'stack': stack_component
         }
     }
 
