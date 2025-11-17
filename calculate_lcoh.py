@@ -70,14 +70,14 @@ def calculate_electrolyzer_annualized_costs(
     # OPEX is calculated as: Electricity + Water + Others OpEx
     opex_annual = electricity_cost_annual + water_annual + others_opex_annual
     
-    # Stack replacement cost (annualized using CRF)
-    # Annualize over replacement interval
+    # Stack replacement is already included in CapEx total, so we don't annualize it separately
+    # We keep it for display purposes only
     stack_crf = calculate_crf(electrolyzer_discount_rate, stack_replacement_years)
-    stack_annual = stack_replacement_cost * stack_crf
+    stack_annual = 0.0  # Set to 0 to avoid double counting
     
     # Total annualized costs
-    # Note: OPEX already includes electricity and water, so we don't add them separately
-    total_annualized = capex_annualized + opex_annual + maintenance_annual + other_annual + stack_annual
+    # Note: Stack replacement is included in CapEx, OPEX already includes electricity and water
+    total_annualized = capex_annualized + opex_annual + maintenance_annual + other_annual
     
     result = {
         'capex_total': electrolyzer_capex_total,
@@ -310,6 +310,7 @@ def calculate_lcoh(
     
     # Breakdown by component (€/kg H2)
     # Note: OPEX = Electricity + Water + Others OpEx
+    # Stack replacement is included in CapEx
     capex_component = annualized_costs['capex_annualized'] / h2_production_kg if h2_production_kg > 0 else 0
     electricity_component = annualized_costs['opex_electricity'] / h2_production_kg if h2_production_kg > 0 else 0
     water_component = annualized_costs['opex_water'] / h2_production_kg if h2_production_kg > 0 else 0
@@ -317,7 +318,7 @@ def calculate_lcoh(
     opex_component = electricity_component + water_component + others_opex_component  # OPEX = Electricity + Water + Others
     maintenance_component = annualized_costs['maintenance_annual'] / h2_production_kg if h2_production_kg > 0 else 0
     other_component = annualized_costs['other_annual'] / h2_production_kg if h2_production_kg > 0 else 0
-    stack_component = annualized_costs['stack_annual'] / h2_production_kg if h2_production_kg > 0 else 0
+    stack_component = 0.0  # Stack is included in CapEx, not counted separately
     
     return {
         'lcoh_eur_per_kg': lcoh_eur_per_kg,

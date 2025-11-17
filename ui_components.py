@@ -4,6 +4,7 @@ UI Components for the MetaSTAAQ Dashboard
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from config import CUSTOM_CSS, PV_IMAGES
 import folium
@@ -397,27 +398,148 @@ def display_lcoh_results(lcoh_results):
             plt.tight_layout()
             st.pyplot(fig_pie)
         
-        # Additional economic details
-        st.markdown("#### 📈 Economic Parameters")
-        econ_col1, econ_col2, econ_col3, econ_col4 = st.columns(4)
-        with econ_col1:
-            st.write(f"**Total CapEx**: {lcoh_results['annualized_costs']['capex_total']:,.0f} €")
-            st.write(f"**Lifetime**: {lcoh_results['annualized_costs']['lifetime']} years | **CRF**: {lcoh_results['annualized_costs']['crf']:.4f}")
-            st.write(f"**CapEx Annualized**: {lcoh_results['annualized_costs']['capex_annualized']:,.0f} €/year")
-        with econ_col2:
-            if 'stack_replacement_cost_total' in lcoh_results['annualized_costs']:
-                st.write(f"**Stack Replacement Cost**: {lcoh_results['annualized_costs']['stack_replacement_cost_total']:,.0f} €")
-            if 'water_details' in lcoh_results['annualized_costs']:
-                water_details = lcoh_results['annualized_costs']['water_details']
-                st.write(f"**Water**: {water_details['price_per_m3']:.2f} €/m³ × {water_details['consumption_m3']:,.0f} m³/year")
+        # Detailed Cost Breakdown Bar Charts
+        st.markdown("#### 📊 Detailed Cost Breakdown")
+        
+        # Get CapEx and Maintenance components if available
+        capex_components = lcoh_results['annualized_costs'].get('capex_components', {})
+        maintenance_breakdown = lcoh_results['annualized_costs'].get('maintenance_breakdown', {})
+        
+        # Create 3 columns for 3 charts
+        col1, col2, col3 = st.columns(3)
+        
+        # --- 1. CapEx Breakdown Chart ---
+        with col1:
+            st.markdown("##### CapEx Components")
+            if capex_components:
+                # Get components
+                capex_data = {
+                    'Transformer': capex_components.get('transformer', 0),
+                    'Electrolyzer': capex_components.get('electrolyzer', 0),
+                    'Compressor': capex_components.get('compressor', 0),
+                    'H₂ Storage': capex_components.get('h2_storage', 0),
+                    'Piping': capex_components.get('piping', 0),
+                    'Stack Repl.': lcoh_results['annualized_costs'].get('stack_replacement_cost_total', 0),
+                    'Others': capex_components.get('others', 0)
+                }
+                
+                # Filter out zero values
+                capex_data = {k: v for k, v in capex_data.items() if v > 0}
+                
+                if capex_data:
+                    # Create figure
+                    fig1, ax1 = plt.subplots(figsize=(6, 5))
+                    
+                    components = list(capex_data.keys())
+                    values = list(capex_data.values())
+                    colors = plt.cm.Blues(np.linspace(0.4, 0.9, len(components)))
+                    
+                    bars = ax1.barh(components, values, color=colors, edgecolor='black', linewidth=1.2)
+                    
+                    # Add value labels
+                    for i, (bar, val) in enumerate(zip(bars, values)):
+                        width = bar.get_width()
+                        ax1.text(width, bar.get_y() + bar.get_height()/2,
+                               f' €{val:,.0f}',
+                               ha='left', va='center', fontsize=8, fontweight='bold')
+                    
+                    ax1.set_xlabel('Cost (€)', fontsize=10, fontweight='bold')
+                    ax1.set_title(f'Total: €{sum(values):,.0f}', fontsize=11, fontweight='bold', pad=10)
+                    ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
+                    ax1.grid(axis='x', alpha=0.3, linestyle='--')
+                    ax1.set_axisbelow(True)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig1)
+                    plt.close()
             else:
-                st.write(f"**Water Cost**: {lcoh_results['annualized_costs']['water_annual']:,.0f} €/year")
-        with econ_col3:
-            st.write(f"**H₂ Production**: {lcoh_results['h2_production_kg']:,.0f} kg/year")
-            st.write(f"**Avg Electricity Cost**: {lcoh_results['electricity_costs']['avg_electricity_cost']:.2f} €/MWh")
-        with econ_col4:
-            st.write(f"**Total Energy Consumed**: {lcoh_results['electricity_costs']['total_energy']:,.1f} MWh/year")
-            st.write(f"**Specific Consumption**: {lcoh_results['electricity_costs']['total_energy']*1000/lcoh_results['h2_production_kg']:.2f} kWh/kg H₂")
+                st.info("No CapEx breakdown available")
+        
+        # --- 2. OpEx Breakdown Chart ---
+        with col2:
+            st.markdown("##### OpEx Components")
+            opex_data = {
+                'Electricity': lifetime_electricity,
+                'Water': lifetime_water,
+                'Others': lifetime_others_opex
+            }
+            
+            # Filter out zero values
+            opex_data = {k: v for k, v in opex_data.items() if v > 0}
+            
+            if opex_data:
+                # Create figure
+                fig2, ax2 = plt.subplots(figsize=(6, 5))
+                
+                components = list(opex_data.keys())
+                values = list(opex_data.values())
+                colors = plt.cm.Oranges(np.linspace(0.4, 0.9, len(components)))
+                
+                bars = ax2.barh(components, values, color=colors, edgecolor='black', linewidth=1.2)
+                
+                # Add value labels
+                for i, (bar, val) in enumerate(zip(bars, values)):
+                    width = bar.get_width()
+                    ax2.text(width, bar.get_y() + bar.get_height()/2,
+                           f' €{val:,.0f}',
+                           ha='left', va='center', fontsize=8, fontweight='bold')
+                
+                ax2.set_xlabel('Cost (€)', fontsize=10, fontweight='bold')
+                ax2.set_title(f'Total: €{sum(values):,.0f}', fontsize=11, fontweight='bold', pad=10)
+                ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
+                ax2.grid(axis='x', alpha=0.3, linestyle='--')
+                ax2.set_axisbelow(True)
+                
+                plt.tight_layout()
+                st.pyplot(fig2)
+                plt.close()
+            else:
+                st.info("No OpEx breakdown available")
+        
+        # --- 3. Maintenance Breakdown Chart ---
+        with col3:
+            st.markdown("##### Maintenance Components")
+            if maintenance_breakdown:
+                maintenance_data = {
+                    'Transformer': maintenance_breakdown.get('transformer', 0) * project_lifetime,
+                    'Electrolyzer': maintenance_breakdown.get('electrolyzer', 0) * project_lifetime,
+                    'Compressor': maintenance_breakdown.get('compressor', 0) * project_lifetime,
+                    'H₂ Storage': maintenance_breakdown.get('h2_storage', 0) * project_lifetime,
+                    'Piping': maintenance_breakdown.get('piping', 0) * project_lifetime,
+                    'Others': maintenance_breakdown.get('others', 0) * project_lifetime
+                }
+                
+                # Filter out zero values
+                maintenance_data = {k: v for k, v in maintenance_data.items() if v > 0}
+                
+                if maintenance_data:
+                    # Create figure
+                    fig3, ax3 = plt.subplots(figsize=(6, 5))
+                    
+                    components = list(maintenance_data.keys())
+                    values = list(maintenance_data.values())
+                    colors = plt.cm.Greens(np.linspace(0.4, 0.9, len(components)))
+                    
+                    bars = ax3.barh(components, values, color=colors, edgecolor='black', linewidth=1.2)
+                    
+                    # Add value labels
+                    for i, (bar, val) in enumerate(zip(bars, values)):
+                        width = bar.get_width()
+                        ax3.text(width, bar.get_y() + bar.get_height()/2,
+                               f' €{val:,.0f}',
+                               ha='left', va='center', fontsize=8, fontweight='bold')
+                    
+                    ax3.set_xlabel('Cost (€)', fontsize=10, fontweight='bold')
+                    ax3.set_title(f'Total: €{sum(values):,.0f}', fontsize=11, fontweight='bold', pad=10)
+                    ax3.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
+                    ax3.grid(axis='x', alpha=0.3, linestyle='--')
+                    ax3.set_axisbelow(True)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig3)
+                    plt.close()
+            else:
+                st.info("No Maintenance breakdown available")
         
         # Electricity breakdown by source
         st.markdown("#### ⚡ Electricity Cost Breakdown by Source")
