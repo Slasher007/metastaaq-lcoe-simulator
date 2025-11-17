@@ -708,7 +708,10 @@ def main():
                             electricity_costs_precalculated=electricity_costs_for_lcoh
                         )
                         
-                        display_lcoh_results(lcoh_results)
+                        # Calculate average service ratio for display
+                        avg_service_ratio = sum(ratios_for_lcoh.values()) / len(ratios_for_lcoh) if ratios_for_lcoh else None
+                        
+                        display_lcoh_results(lcoh_results, avg_service_ratio, go_enabled, go_cost_per_mwh)
                         
                         # Store results
                         all_results.append({

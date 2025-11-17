@@ -258,7 +258,7 @@ def display_pv_economics_summary(estimated_power_mwp, estimated_power_kwp, batte
         st.write(f"**PV LCOE**: {pv_lcoe_eur_per_mwh:.2f} €/MWh")
 
 
-def display_lcoh_results(lcoh_results):
+def display_lcoh_results(lcoh_results, avg_service_ratio=None, go_enabled=False, go_cost_per_mwh=0.0):
     """Display LCOH calculation results"""
     st.markdown("---")
     st.markdown("### 💧 LCOH (Levelized Cost of Hydrogen) Analysis")
@@ -390,7 +390,11 @@ def display_lcoh_results(lcoh_results):
                 text.set_fontsize(10)
                 text.set_fontweight('bold')
             
-            ax_pie.set_title('LCOH Cost Breakdown\n(€/kg H₂)', fontsize=12, fontweight='bold', pad=20)
+            # Create title with average service ratio if available
+            title = 'LCOH Cost Breakdown'
+            if avg_service_ratio is not None:
+                title += f'\nService Ratio: {avg_service_ratio:.1%}'
+            ax_pie.set_title(title, fontsize=12, fontweight='bold', pad=20)
             
             # Equal aspect ratio ensures that pie is drawn as a circle
             ax_pie.axis('equal')
@@ -444,7 +448,10 @@ def display_lcoh_results(lcoh_results):
                                ha='left', va='center', fontsize=8, fontweight='bold')
                     
                     ax1.set_xlabel('Cost (€)', fontsize=10, fontweight='bold')
-                    ax1.set_title(f'Total: €{sum(values):,.0f}', fontsize=11, fontweight='bold', pad=10)
+                    title1 = f'Total: €{sum(values):,.0f}'
+                    if avg_service_ratio is not None:
+                        title1 += f'\nService Ratio: {avg_service_ratio:.1%}'
+                    ax1.set_title(title1, fontsize=11, fontweight='bold', pad=10)
                     ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
                     ax1.grid(axis='x', alpha=0.3, linestyle='--')
                     ax1.set_axisbelow(True)
@@ -485,7 +492,12 @@ def display_lcoh_results(lcoh_results):
                            ha='left', va='center', fontsize=8, fontweight='bold')
                 
                 ax2.set_xlabel('Cost (€)', fontsize=10, fontweight='bold')
-                ax2.set_title(f'Total: €{sum(values):,.0f}', fontsize=11, fontweight='bold', pad=10)
+                title2 = f'Total: €{sum(values):,.0f}'
+                if avg_service_ratio is not None:
+                    title2 += f'\nService Ratio: {avg_service_ratio:.1%}'
+                if go_enabled:
+                    title2 += f'\n(Spot with GO: +{go_cost_per_mwh:.1f}€/MWh)'
+                ax2.set_title(title2, fontsize=11, fontweight='bold', pad=10)
                 ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
                 ax2.grid(axis='x', alpha=0.3, linestyle='--')
                 ax2.set_axisbelow(True)
@@ -530,7 +542,10 @@ def display_lcoh_results(lcoh_results):
                                ha='left', va='center', fontsize=8, fontweight='bold')
                     
                     ax3.set_xlabel('Cost (€)', fontsize=10, fontweight='bold')
-                    ax3.set_title(f'Total: €{sum(values):,.0f}', fontsize=11, fontweight='bold', pad=10)
+                    title3 = f'Total: €{sum(values):,.0f}'
+                    if avg_service_ratio is not None:
+                        title3 += f'\nService Ratio: {avg_service_ratio:.1%}'
+                    ax3.set_title(title3, fontsize=11, fontweight='bold', pad=10)
                     ax3.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
                     ax3.grid(axis='x', alpha=0.3, linestyle='--')
                     ax3.set_axisbelow(True)
