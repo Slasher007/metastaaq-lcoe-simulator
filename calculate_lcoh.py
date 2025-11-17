@@ -466,17 +466,29 @@ def calculate_methanation_electricity_cost(
 def calculate_lcoc(
     h2_production_kg,
     methanation_economics,
-    avg_electricity_cost_per_mwh
+    avg_electricity_cost_per_mwh,
+    site_co2_economics=None,
+    electrolyzer_economics=None,
+    lcoh_results=None
 ):
     """
     Calculate LCOC (Levelized Cost of CH4) in €/kg CH₄
     
-    LCOC = (CapEx_ann + O&M_ann + Electricity_cost_ann + Other_costs) / CH4_production_ann
+    LCOC = (All CapEx + All OpEx + All Maintenance) / CH4_production_ann
+    
+    Includes ALL financial components:
+    - Electrolyser (CapEx, OpEx, Maintenance)
+    - Methanation (CapEx, OpEx, Maintenance)
+    - Site (CapEx, OpEx, Maintenance)
+    - CO2 Supply (CapEx, OpEx, Maintenance)
     
     Args:
         h2_production_kg: Annual H2 production in kg (from electrolyzer)
         methanation_economics: dict with methanation economic parameters
         avg_electricity_cost_per_mwh: Average electricity cost (€/MWh) from LCOH calculation
+        site_co2_economics: dict with site and CO2 supply economic parameters (optional)
+        electrolyzer_economics: dict with electrolyzer economic parameters (optional)
+        lcoh_results: LCOH calculation results (optional, for electrolyzer costs)
     
     Returns:
         dict with LCOC and detailed breakdown
@@ -505,8 +517,63 @@ def calculate_lcoc(
     # Add CapEx components details if available
     annualized_costs = add_methanation_capex_components_to_result(annualized_costs, methanation_economics)
     
-    # 4. Calculate LCOC
-    total_annual_cost = annualized_costs['total_annualized']
+    # 4. Add Electrolyzer costs if provided (from LCOH results)
+    electrolyzer_capex_annual = 0
+    electrolyzer_opex_annual = 0
+    electrolyzer_maintenance_annual = 0
+    electrolyzer_total_annual = 0
+    
+    if lcoh_results:
+        # Get electrolyzer annualized costs from LCOH results
+        electrolyzer_annualized = lcoh_results.get('annualized_costs', {})
+        electrolyzer_capex_annual = electrolyzer_annualized.get('capex_annualized', 0)
+        electrolyzer_opex_annual = electrolyzer_annualized.get('opex_annual', 0)
+        electrolyzer_maintenance_annual = electrolyzer_annualized.get('maintenance_annual', 0)
+        electrolyzer_other_annual = electrolyzer_annualized.get('other_annual', 0)
+        
+        # Total Electrolyzer annual cost
+        electrolyzer_total_annual = (electrolyzer_capex_annual + electrolyzer_opex_annual + 
+                                    electrolyzer_maintenance_annual + electrolyzer_other_annual)
+    
+    # 5. Add Site and CO2 Supply costs if provided
+    site_capex_annual = 0
+    appro_co2_capex_annual = 0
+    site_opex_annual = 0
+    appro_co2_opex_annual = 0
+    site_maintenance_annual = 0
+    appro_co2_maintenance_annual = 0
+    site_co2_capex_annual = 0
+    site_co2_opex_annual = 0
+    site_co2_maintenance_annual = 0
+    site_co2_total_annual = 0
+    
+    if site_co2_economics:
+        # Get individual Site and CO2 costs
+        crf = annualized_costs['crf']  # Use same CRF as methanation
+        
+        # Site costs
+        site_capex_total = site_co2_economics.get('site_capex', 0)
+        site_capex_annual = site_capex_total * crf
+        site_opex_annual = site_co2_economics.get('site_opex', 0)
+        site_maintenance_annual = site_co2_economics.get('site_maintenance', 0)
+        
+        # CO2 costs
+        appro_co2_capex_total = site_co2_economics.get('appro_co2_capex', 0)
+        appro_co2_capex_annual = appro_co2_capex_total * crf
+        appro_co2_opex_annual = site_co2_economics.get('appro_co2_opex', 0)
+        appro_co2_maintenance_annual = site_co2_economics.get('appro_co2_maintenance', 0)
+        
+        # Totals
+        site_co2_capex_annual = site_capex_annual + appro_co2_capex_annual
+        site_co2_opex_annual = site_opex_annual + appro_co2_opex_annual
+        site_co2_maintenance_annual = site_maintenance_annual + appro_co2_maintenance_annual
+        
+        # Total Site & CO2 annual cost
+        site_co2_total_annual = site_co2_capex_annual + site_co2_opex_annual + site_co2_maintenance_annual
+    
+    # 6. Calculate LCOC - Include ALL components
+    total_annual_cost = (electrolyzer_total_annual + annualized_costs['total_annualized'] + 
+                        site_co2_total_annual)
     
     lcoc_eur_per_kg = total_annual_cost / ch4_production_kg if ch4_production_kg > 0 else 0
     
@@ -515,12 +582,33 @@ def calculate_lcoc(
     lcoc_eur_per_mwh = lcoc_eur_per_kg * (1000 / ch4_lhv_kwh_per_kg)
     
     # Breakdown by component (€/kg CH4)
-    capex_component = annualized_costs['capex_annualized'] / ch4_production_kg if ch4_production_kg > 0 else 0
-    electricity_component = annualized_costs['opex_electricity'] / ch4_production_kg if ch4_production_kg > 0 else 0
-    others_opex_component = annualized_costs['opex_others'] / ch4_production_kg if ch4_production_kg > 0 else 0
-    opex_component = electricity_component + others_opex_component
-    maintenance_component = annualized_costs['maintenance_annual'] / ch4_production_kg if ch4_production_kg > 0 else 0
-    other_component = annualized_costs['other_annual'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    # Electrolyzer breakdown
+    electrolyzer_capex_component = electrolyzer_capex_annual / ch4_production_kg if ch4_production_kg > 0 else 0
+    electrolyzer_opex_component = electrolyzer_opex_annual / ch4_production_kg if ch4_production_kg > 0 else 0
+    electrolyzer_maintenance_component = electrolyzer_maintenance_annual / ch4_production_kg if ch4_production_kg > 0 else 0
+    electrolyzer_total_component = electrolyzer_total_annual / ch4_production_kg if ch4_production_kg > 0 else 0
+    
+    # Methanation breakdown
+    methanation_capex_component = annualized_costs['capex_annualized'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    methanation_electricity_component = annualized_costs['opex_electricity'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    methanation_others_opex_component = annualized_costs['opex_others'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    methanation_opex_component = methanation_electricity_component + methanation_others_opex_component
+    methanation_maintenance_component = annualized_costs['maintenance_annual'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    methanation_other_component = annualized_costs['other_annual'] / ch4_production_kg if ch4_production_kg > 0 else 0
+    methanation_total_component = (methanation_capex_component + methanation_opex_component + 
+                                   methanation_maintenance_component + methanation_other_component)
+    
+    # Site & CO2 breakdown
+    site_co2_capex_component = site_co2_capex_annual / ch4_production_kg if ch4_production_kg > 0 else 0
+    site_co2_opex_component = site_co2_opex_annual / ch4_production_kg if ch4_production_kg > 0 else 0
+    site_co2_maintenance_component = site_co2_maintenance_annual / ch4_production_kg if ch4_production_kg > 0 else 0
+    site_co2_total_component = site_co2_capex_component + site_co2_opex_component + site_co2_maintenance_component
+    
+    # Total breakdown by category (across all components)
+    total_capex_component = electrolyzer_capex_component + methanation_capex_component + site_co2_capex_component
+    total_opex_component = electrolyzer_opex_component + methanation_opex_component + site_co2_opex_component
+    total_maintenance_component = (electrolyzer_maintenance_component + methanation_maintenance_component + 
+                                   methanation_other_component + site_co2_maintenance_component)
     
     return {
         'lcoc_eur_per_kg': lcoc_eur_per_kg,
@@ -534,12 +622,49 @@ def calculate_lcoc(
         'methanation_electricity_cost': methanation_electricity_cost,
         'methanation_electricity_mwh': total_electricity_mwh,
         'avg_electricity_cost_per_mwh': avg_electricity_cost_per_mwh,
+        'electrolyzer_costs': {
+            'capex_annual': electrolyzer_capex_annual,
+            'opex_annual': electrolyzer_opex_annual,
+            'maintenance_annual': electrolyzer_maintenance_annual,
+            'total_annual': electrolyzer_total_annual,
+            'capex_component': electrolyzer_capex_component,
+            'opex_component': electrolyzer_opex_component,
+            'maintenance_component': electrolyzer_maintenance_component,
+            'total_component': electrolyzer_total_component
+        },
+        'methanation_costs': {
+            'capex_annual': annualized_costs['capex_annualized'],
+            'opex_annual': annualized_costs['opex_annual'],
+            'maintenance_annual': annualized_costs['maintenance_annual'],
+            'total_annual': annualized_costs['total_annualized'],
+            'capex_component': methanation_capex_component,
+            'opex_component': methanation_opex_component,
+            'maintenance_component': methanation_maintenance_component,
+            'total_component': methanation_total_component
+        },
+        'site_co2_costs': {
+            'capex_annual': site_co2_capex_annual,
+            'opex_annual': site_co2_opex_annual,
+            'maintenance_annual': site_co2_maintenance_annual,
+            'total_annual': site_co2_total_annual,
+            'capex_component': site_co2_capex_component,
+            'opex_component': site_co2_opex_component,
+            'maintenance_component': site_co2_maintenance_component,
+            'total_component': site_co2_total_component,
+            # Separate Site and CO2 costs
+            'site_capex_annual': site_capex_annual,
+            'site_opex_annual': site_opex_annual,
+            'site_maintenance_annual': site_maintenance_annual,
+            'appro_co2_capex_annual': appro_co2_capex_annual,
+            'appro_co2_opex_annual': appro_co2_opex_annual,
+            'appro_co2_maintenance_annual': appro_co2_maintenance_annual
+        },
         'breakdown': {
-            'capex': capex_component,
-            'opex': opex_component,
-            'electricity': electricity_component,
-            'others_opex': others_opex_component,
-            'maintenance': maintenance_component,
-            'other': other_component
+            'capex': total_capex_component,
+            'opex': total_opex_component,
+            'maintenance': total_maintenance_component,
+            'electrolyzer': electrolyzer_total_component,
+            'methanation': methanation_total_component,
+            'site_co2': site_co2_total_component
         }
     }

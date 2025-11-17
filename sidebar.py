@@ -655,6 +655,23 @@ def create_methanation_parameters():
         
         # Display total
         st.metric("Total Maintenance", f"{methanation_maintenance_annual:,.0f} €/year")
+        
+        # ============================================
+        # CH4 PROPERTIES
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### CH₄ Properties")
+        
+        pci_ch4_kwh_per_kg = st.slider(
+            "PCI CH₄ (kWh/kg)",
+            min_value=PARAM_RANGES["pci_ch4_kwh_per_kg"]["min"],
+            max_value=PARAM_RANGES["pci_ch4_kwh_per_kg"]["max"],
+            value=DEFAULT_PARAMS["pci_ch4_kwh_per_kg"],
+            step=PARAM_RANGES["pci_ch4_kwh_per_kg"]["step"],
+            help="Lower heating value of methane",
+            key="methanation_pci_ch4"
+        )
+    
     
     # Calculate other_costs_annual (Others CapEx annualized + Others Maintenance)
     # Note: Others OpEx is handled separately in OPEX
@@ -700,10 +717,131 @@ def create_methanation_parameters():
         'others_capex': others_capex,
         'others_opex_annual': others_opex_annual,
         'others_maintenance_annual': others_maintenance_annual,
-        'other_costs_annual': other_costs_annual
+        'other_costs_annual': other_costs_annual,
+        'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg
     }
     
     return methanation_econ
+
+
+def create_site_co2_parameters():
+    """Create Site and CO2 Supply parameter inputs"""
+    with st.sidebar.expander("🏭 Site & CO2 Supply", expanded=False):
+        st.markdown("**Financial Parameters**")
+        st.info("Site and CO2 Supply costs (separate from methanation unit)")
+        
+        # ============================================
+        # CAPEX SECTION
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### CapEx (Capital Expenditure)")
+        
+        with st.expander("CapEx Parameters", expanded=False):
+            site_capex = st.number_input(
+                "Site (€)",
+                min_value=PARAM_RANGES["site_capex"]["min"],
+                max_value=PARAM_RANGES["site_capex"]["max"],
+                value=DEFAULT_PARAMS["site_capex"],
+                step=PARAM_RANGES["site_capex"]["step"],
+                help="Site preparation and infrastructure cost",
+                key="site_capex_input"
+            )
+            
+            appro_co2_capex = st.number_input(
+                "CO2 Supply Infrastructure (€)",
+                min_value=PARAM_RANGES["appro_co2_capex"]["min"],
+                max_value=PARAM_RANGES["appro_co2_capex"]["max"],
+                value=DEFAULT_PARAMS["appro_co2_capex"],
+                step=PARAM_RANGES["appro_co2_capex"]["step"],
+                help="CO2 supply infrastructure cost",
+                key="appro_co2_capex_input"
+            )
+        
+        # Calculate total CapEx
+        total_site_co2_capex = site_capex + appro_co2_capex
+        
+        # Display total
+        st.metric("Total CapEx", f"{total_site_co2_capex:,.0f} €")
+        
+        # ============================================
+        # OPEX SECTION
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### OpEx (Operational Expenditure)")
+        
+        with st.expander("OpEx Parameters", expanded=False):
+            site_opex = st.number_input(
+                "Site OpEx (€/year)",
+                min_value=PARAM_RANGES["site_opex"]["min"],
+                max_value=PARAM_RANGES["site_opex"]["max"],
+                value=DEFAULT_PARAMS["site_opex"],
+                step=PARAM_RANGES["site_opex"]["step"],
+                help="Annual operational costs for site",
+                key="site_opex_input"
+            )
+            
+            appro_co2_opex = st.number_input(
+                "CO2 Supply OpEx (€/year)",
+                min_value=PARAM_RANGES["appro_co2_opex"]["min"],
+                max_value=PARAM_RANGES["appro_co2_opex"]["max"],
+                value=DEFAULT_PARAMS["appro_co2_opex"],
+                step=PARAM_RANGES["appro_co2_opex"]["step"],
+                help="Annual CO2 supply and procurement costs",
+                key="appro_co2_opex_input"
+            )
+        
+        # Calculate total OpEx
+        total_site_co2_opex = site_opex + appro_co2_opex
+        
+        # Display total
+        st.metric("Total OpEx", f"{total_site_co2_opex:,.0f} €/year")
+        
+        # ============================================
+        # MAINTENANCE SECTION
+        # ============================================
+        st.markdown("---")
+        st.markdown("#### Maintenance Costs")
+        
+        with st.expander("Maintenance Parameters", expanded=False):
+            site_maintenance = st.number_input(
+                "Site Maintenance (€/year)",
+                min_value=PARAM_RANGES["site_maintenance"]["min"],
+                max_value=PARAM_RANGES["site_maintenance"]["max"],
+                value=DEFAULT_PARAMS["site_maintenance"],
+                step=PARAM_RANGES["site_maintenance"]["step"],
+                help="Annual maintenance costs for site",
+                key="site_maintenance_input"
+            )
+            
+            appro_co2_maintenance = st.number_input(
+                "CO2 Supply Maintenance (€/year)",
+                min_value=PARAM_RANGES["appro_co2_maintenance"]["min"],
+                max_value=PARAM_RANGES["appro_co2_maintenance"]["max"],
+                value=DEFAULT_PARAMS["appro_co2_maintenance"],
+                step=PARAM_RANGES["appro_co2_maintenance"]["step"],
+                help="Annual maintenance costs for CO2 supply infrastructure",
+                key="appro_co2_maintenance_input"
+            )
+        
+        # Calculate total Maintenance
+        total_site_co2_maintenance = site_maintenance + appro_co2_maintenance
+        
+        # Display total
+        st.metric("Total Maintenance", f"{total_site_co2_maintenance:,.0f} €/year")
+    
+    site_co2_econ = {
+        'site_capex': site_capex,
+        'appro_co2_capex': appro_co2_capex,
+        'total_capex': total_site_co2_capex,
+        'site_opex': site_opex,
+        'appro_co2_opex': appro_co2_opex,
+        'total_opex': total_site_co2_opex,
+        'site_maintenance': site_maintenance,
+        'appro_co2_maintenance': appro_co2_maintenance,
+        'total_maintenance': total_site_co2_maintenance
+    }
+    
+    return site_co2_econ
 
 
 def create_monthly_service_ratios(allow_edit=True, preset_ratios=None):
@@ -1005,15 +1143,6 @@ def create_pv_installation_parameters():
                 help="Manual PV OPEX input"
             )
 
-        pci_ch4_kwh_per_kg = st.slider(
-            "PCI CH₄ (kWh/kg)",
-            min_value=PARAM_RANGES["pci_ch4_kwh_per_kg"]["min"],
-            max_value=PARAM_RANGES["pci_ch4_kwh_per_kg"]["max"],
-            value=DEFAULT_PARAMS["pci_ch4_kwh_per_kg"],
-            step=PARAM_RANGES["pci_ch4_kwh_per_kg"]["step"],
-            help="Lower heating value of methane"
-        )
-
     return {
         'pv_project_years': pv_project_years,
         'pv_surface_hectares': pv_surface_hectares,
@@ -1031,7 +1160,6 @@ def create_pv_installation_parameters():
         'discount_rate': discount_rate,
         'use_calculated_opex': use_calculated_opex,
         'pv_opex': pv_opex,
-        'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg,
         'lat': lat,
         'lon': lon,
         'loss': loss
@@ -1040,7 +1168,7 @@ def create_pv_installation_parameters():
 
 def get_current_parameters(selected_years, electrolyser_power, electrolyser_specific_consumption,
                           monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
-                          go_enabled=False, go_cost_per_mwh=0.0, electrolyzer_econ=None):
+                          go_enabled=False, go_cost_per_mwh=0.0, electrolyzer_econ=None, methanation_econ=None):
     """Get current parameters for change detection"""
     params = {
         'years': tuple(sorted(selected_years)) if selected_years else (),
@@ -1064,7 +1192,6 @@ def get_current_parameters(selected_years, electrolyser_power, electrolyser_spec
         'use_calculated_opex': pv_params['use_calculated_opex'],
         'pv_capex': pv_params['pv_capex'],
         'pv_opex': pv_params['pv_opex'],
-        'pci_ch4_kwh_per_kg': pv_params['pci_ch4_kwh_per_kg'],
         'lat': pv_params['lat'],
         'lon': pv_params['lon'],
         'loss': pv_params['loss']

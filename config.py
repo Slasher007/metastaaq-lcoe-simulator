@@ -71,6 +71,16 @@ DEFAULT_PARAMS = {
     "electrolyser_others_capex": 0.0,
     "electrolyser_others_opex_annual": 0.0,
     "electrolyser_others_maintenance_annual": 0.0,
+    # Site and CO2 Supply Economics (Separate from methanation)
+    # CapEx
+    "site_capex": 252000.0,
+    "appro_co2_capex": 250000.0,
+    # OpEx - Annual costs (€/year)
+    "site_opex": 0.0,
+    "appro_co2_opex": 227929.0,
+    # Maintenance - Annual costs (€/year)
+    "site_maintenance": 1200.0,
+    "appro_co2_maintenance": 2250.0,
     # Methanation Economics (for LCOCH4 calculation)
     # CapEx Components
     "methanation_capex_methanation_unit": 4000000.0,
@@ -143,6 +153,13 @@ PARAM_RANGES = {
     "electrolyser_others_capex": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
     "electrolyser_others_opex_annual": {"min": 0.0, "max": 1000000.0, "step": 1000.0},
     "electrolyser_others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0},
+    # Site and CO2 Supply ranges
+    "site_capex": {"min": 0.0, "max": 2000000.0, "step": 1000.0},
+    "appro_co2_capex": {"min": 0.0, "max": 2000000.0, "step": 1000.0},
+    "site_opex": {"min": 0.0, "max": 500000.0, "step": 1000.0},
+    "appro_co2_opex": {"min": 0.0, "max": 500000.0, "step": 1000.0},
+    "site_maintenance": {"min": 0.0, "max": 100000.0, "step": 100.0},
+    "appro_co2_maintenance": {"min": 0.0, "max": 100000.0, "step": 100.0},
     # Methanation Economics ranges
     # CapEx Components ranges
     "methanation_capex_methanation_unit": {"min": 0.0, "max": 20000000.0, "step": 100000.0},

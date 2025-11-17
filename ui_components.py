@@ -627,7 +627,7 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
     with col1:
         st.metric("**LCOC**", f"{lcoc_results['lcoc_eur_per_kg']:.2f} €/kg CH₄")
     with col2:
-        st.metric("**LCOC**", f"{lcoc_results['lcoc_eur_per_mwh']:.1f} €/MWh CH₄")
+        st.metric("**LCOC**", f"{lcoc_results['lcoc_eur_per_mwh']:.1f} €/MWh CH₄ PCI")
     with col3:
         st.metric("**CH₄ Production**", f"{lcoc_results['ch4_production_tonnes']:.1f} T/year")
     with col4:
@@ -658,46 +658,56 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
         lifetime_opex = lifetime_electricity + lifetime_others_opex
         lifetime_maintenance = lcoc_results['annualized_costs']['maintenance_annual'] * project_lifetime
         lifetime_other = lcoc_results['annualized_costs']['other_annual'] * project_lifetime
-        lifetime_total = lifetime_capex + lifetime_opex + lifetime_maintenance + lifetime_other
         
-        # Calculate combined maintenance
-        total_maintenance_annual = (
-            lcoc_results['annualized_costs']['maintenance_annual'] +
-            lcoc_results['annualized_costs']['other_annual']
-        )
-        lifetime_total_maintenance = lifetime_maintenance + lifetime_other
-        maintenance_per_kg = breakdown['maintenance'] + breakdown['other']
+        # Get all component costs
+        electrolyzer_costs = lcoc_results.get('electrolyzer_costs', {})
+        methanation_costs = lcoc_results.get('methanation_costs', {})
+        site_co2_costs = lcoc_results.get('site_co2_costs', {})
         
-        # Create breakdown dataframe - simplified to 3 main categories
+        electrolyzer_annual = electrolyzer_costs.get('total_annual', 0)
+        methanation_annual = methanation_costs.get('total_annual', 0)
+        site_co2_annual = site_co2_costs.get('total_annual', 0)
+        
+        electrolyzer_per_kg = electrolyzer_costs.get('total_component', 0)
+        methanation_per_kg = methanation_costs.get('total_component', 0)
+        site_co2_per_kg = site_co2_costs.get('total_component', 0)
+        
+        lifetime_electrolyzer = electrolyzer_annual * project_lifetime
+        lifetime_methanation = methanation_annual * project_lifetime
+        lifetime_site_co2 = site_co2_annual * project_lifetime
+        
+        lifetime_total = lifetime_electrolyzer + lifetime_methanation + lifetime_site_co2
+        
+        # Create breakdown dataframe - by financial component
         breakdown_data = {
             'Component': [
-                'CapEx',
-                'OpEx',
-                'Maintenance',
+                'Electrolyser',
+                'Methanation',
+                'Site & CO₂',
                 '**TOTAL LCOC**'
             ],
             'Cost (€/kg CH₄)': [
-                f"{breakdown['capex']:.3f}",
-                f"{breakdown['opex']:.3f}",
-                f"{maintenance_per_kg:.3f}",
+                f"{electrolyzer_per_kg:.3f}",
+                f"{methanation_per_kg:.3f}",
+                f"{site_co2_per_kg:.3f}",
                 f"**{lcoc_results['lcoc_eur_per_kg']:.3f}**"
             ],
             'Annual Cost (€)': [
-                f"{lcoc_results['annualized_costs']['capex_annualized']:,.0f}",
-                f"{lcoc_results['annualized_costs']['opex_annual']:,.0f}",
-                f"{total_maintenance_annual:,.0f}",
+                f"{electrolyzer_annual:,.0f}",
+                f"{methanation_annual:,.0f}",
+                f"{site_co2_annual:,.0f}",
                 f"**{lcoc_results['total_annual_cost']:,.0f}**"
             ],
             f'Lifetime Cost ({project_lifetime} years) (€)': [
-                f"{lifetime_capex:,.0f}",
-                f"{lifetime_opex:,.0f}",
-                f"{lifetime_total_maintenance:,.0f}",
+                f"{lifetime_electrolyzer:,.0f}",
+                f"{lifetime_methanation:,.0f}",
+                f"{lifetime_site_co2:,.0f}",
                 f"**{lifetime_total:,.0f}**"
             ],
             'Percentage': [
-                f"{(breakdown['capex']/lcoc_results['lcoc_eur_per_kg']*100):.1f}%" if lcoc_results['lcoc_eur_per_kg'] > 0 else "0%",
-                f"{(breakdown['opex']/lcoc_results['lcoc_eur_per_kg']*100):.1f}%" if lcoc_results['lcoc_eur_per_kg'] > 0 else "0%",
-                f"{(maintenance_per_kg/lcoc_results['lcoc_eur_per_kg']*100):.1f}%" if lcoc_results['lcoc_eur_per_kg'] > 0 else "0%",
+                f"{(electrolyzer_per_kg/lcoc_results['lcoc_eur_per_kg']*100):.1f}%" if lcoc_results['lcoc_eur_per_kg'] > 0 else "0%",
+                f"{(methanation_per_kg/lcoc_results['lcoc_eur_per_kg']*100):.1f}%" if lcoc_results['lcoc_eur_per_kg'] > 0 else "0%",
+                f"{(site_co2_per_kg/lcoc_results['lcoc_eur_per_kg']*100):.1f}%" if lcoc_results['lcoc_eur_per_kg'] > 0 else "0%",
                 "**100.0%**"
             ]
         }
@@ -711,9 +721,9 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
             st.table(df_breakdown)
         
         with col_pie:
-            # Create pie chart for LCOC breakdown
-            pie_labels = ['CapEx', 'OpEx', 'Maintenance']
-            pie_values = [breakdown['capex'], breakdown['opex'], maintenance_per_kg]
+            # Create pie chart for LCOC breakdown by component
+            pie_labels = ['Electrolyser', 'Methanation', 'Site & CO₂']
+            pie_values = [electrolyzer_per_kg, methanation_per_kg, site_co2_per_kg]
             
             # Create pie chart
             fig_pie, ax_pie = plt.subplots(figsize=(7, 7))
@@ -749,8 +759,99 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
             plt.tight_layout()
             st.pyplot(fig_pie)
         
+        # Detailed Cost Breakdown Structure
+        st.markdown("#### 📋 Detailed Cost Breakdown")
+        
+        # Extract annual costs for each component
+        electrolyzer_capex_annual_cat = electrolyzer_costs.get('capex_annual', 0)
+        electrolyzer_opex_annual_cat = electrolyzer_costs.get('opex_annual', 0)
+        electrolyzer_maintenance_annual_cat = electrolyzer_costs.get('maintenance_annual', 0)
+        
+        methanation_capex_annual_cat = methanation_costs.get('capex_annual', 0)
+        methanation_opex_annual_cat = methanation_costs.get('opex_annual', 0)
+        methanation_maintenance_annual_cat = methanation_costs.get('maintenance_annual', 0)
+        
+        site_co2_capex_annual_cat = site_co2_costs.get('capex_annual', 0)
+        site_co2_opex_annual_cat = site_co2_costs.get('opex_annual', 0)
+        site_co2_maintenance_annual_cat = site_co2_costs.get('maintenance_annual', 0)
+        
+        # Get separate Site and CO2 costs
+        site_capex_annual = site_co2_costs.get('site_capex_annual', 0)
+        appro_co2_capex_annual = site_co2_costs.get('appro_co2_capex_annual', 0)
+        
+        site_opex_annual = site_co2_costs.get('site_opex_annual', 0)
+        appro_co2_opex_annual = site_co2_costs.get('appro_co2_opex_annual', 0)
+        
+        site_maintenance_annual = site_co2_costs.get('site_maintenance_annual', 0)
+        appro_co2_maintenance_annual = site_co2_costs.get('appro_co2_maintenance_annual', 0)
+        
+        # Total by category
+        total_capex_annual_cat = electrolyzer_capex_annual_cat + methanation_capex_annual_cat + site_co2_capex_annual_cat
+        total_opex_annual_cat = electrolyzer_opex_annual_cat + methanation_opex_annual_cat + site_co2_opex_annual_cat
+        total_maintenance_annual_cat = electrolyzer_maintenance_annual_cat + methanation_maintenance_annual_cat + site_co2_maintenance_annual_cat
+        
+        # Create hierarchical breakdown
+        detailed_breakdown_data = {
+            'Cost Category': [
+                '**INVESTISSEMENT (CapEx annualized)**',
+                '  Site',
+                '  Prod H₂',
+                '  Methanation',
+                '  Appro CO₂',
+                '',
+                '**OPEX ANNUEL**',
+                '  Site',
+                '  Prod H₂',
+                '  Methanation',
+                '  Appro CO₂',
+                '',
+                '**MAINTENANCE ANNUELLE**',
+                '  Site',
+                '  Prod H₂',
+                '  Methanation',
+                '  Appro CO₂',
+                '',
+                '**TOTAL ANNUEL**'
+            ],
+            'Annual Cost (€)': [
+                f"**{total_capex_annual_cat:,.0f}**",
+                f"{site_capex_annual:,.0f}",
+                f"{electrolyzer_capex_annual_cat:,.0f}",
+                f"{methanation_capex_annual_cat:,.0f}",
+                f"{appro_co2_capex_annual:,.0f}",
+                '',
+                f"**{total_opex_annual_cat:,.0f}**",
+                f"{site_opex_annual:,.0f}",
+                f"{electrolyzer_opex_annual_cat:,.0f}",
+                f"{methanation_opex_annual_cat:,.0f}",
+                f"{appro_co2_opex_annual:,.0f}",
+                '',
+                f"**{total_maintenance_annual_cat:,.0f}**",
+                f"{site_maintenance_annual:,.0f}",
+                f"{electrolyzer_maintenance_annual_cat:,.0f}",
+                f"{methanation_maintenance_annual_cat:,.0f}",
+                f"{appro_co2_maintenance_annual:,.0f}",
+                '',
+                f"**{lcoc_results['total_annual_cost']:,.0f}**"
+            ]
+        }
+        
+        df_detailed_breakdown = pd.DataFrame(detailed_breakdown_data)
+        
+        # Style the dataframe
+        def style_breakdown_rows(row):
+            if row.name in [0, 6, 12, 18]:  # Bold rows (category headers and total)
+                return ['background-color: #e8f4f8; font-weight: bold'] * len(row)
+            elif row.name in [5, 11, 17]:  # Empty separator rows
+                return ['background-color: white; height: 5px'] * len(row)
+            else:
+                return ['padding-left: 20px'] * len(row)
+        
+        styled_breakdown = df_detailed_breakdown.style.apply(style_breakdown_rows, axis=1)
+        st.dataframe(styled_breakdown, hide_index=True, use_container_width=True)
+        
         # Detailed Cost Breakdown Bar Charts
-        st.markdown("#### 📊 Detailed Cost Breakdown")
+        st.markdown("#### 📊 Detailed Cost Breakdown by Component")
         
         # Get CapEx and Maintenance components if available
         capex_components = lcoc_results['annualized_costs'].get('capex_components', {})
@@ -888,3 +989,44 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
         st.info(f"Total methanation electricity: **{lcoc_results['methanation_electricity_mwh']:.1f} MWh/year**  \n"
                 f"Average electricity cost: **{lcoc_results['avg_electricity_cost_per_mwh']:.2f} €/MWh**  \n"
                 f"Total electricity cost: **{lcoc_results['methanation_electricity_cost']:,.0f} €/year**")
+        
+        # Component Costs Summary
+        st.markdown("#### 💰 Annual Costs by Component")
+        
+        # Electrolyzer costs
+        st.markdown("##### ⚡ Electrolyser Costs")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("**CapEx (annualized)**", f"{electrolyzer_costs.get('capex_annual', 0):,.0f} €/year")
+        with col2:
+            st.metric("**OpEx**", f"{electrolyzer_costs.get('opex_annual', 0):,.0f} €/year")
+        with col3:
+            st.metric("**Maintenance**", f"{electrolyzer_costs.get('maintenance_annual', 0):,.0f} €/year")
+        st.metric("**Total Electrolyser Annual Cost**", f"{electrolyzer_annual:,.0f} €/year")
+        st.metric("**Electrolyser Cost per kg CH₄**", f"{electrolyzer_per_kg:.3f} €/kg CH₄")
+        
+        # Methanation costs
+        st.markdown("##### 🔥 Methanation Costs")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("**CapEx (annualized)**", f"{methanation_costs.get('capex_annual', 0):,.0f} €/year")
+        with col2:
+            st.metric("**OpEx**", f"{methanation_costs.get('opex_annual', 0):,.0f} €/year")
+        with col3:
+            st.metric("**Maintenance**", f"{methanation_costs.get('maintenance_annual', 0):,.0f} €/year")
+        st.metric("**Total Methanation Annual Cost**", f"{methanation_annual:,.0f} €/year")
+        st.metric("**Methanation Cost per kg CH₄**", f"{methanation_per_kg:.3f} €/kg CH₄")
+        
+        # Site & CO2 costs
+        if site_co2_annual > 0:
+            st.markdown("##### 🏭 Site & CO₂ Supply Costs")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("**CapEx (annualized)**", f"{site_co2_costs.get('capex_annual', 0):,.0f} €/year")
+            with col2:
+                st.metric("**OpEx**", f"{site_co2_costs.get('opex_annual', 0):,.0f} €/year")
+            with col3:
+                st.metric("**Maintenance**", f"{site_co2_costs.get('maintenance_annual', 0):,.0f} €/year")
+            
+            st.metric("**Total Site & CO₂ Annual Cost**", f"{site_co2_annual:,.0f} €/year")
+            st.metric("**Site & CO₂ Cost per kg CH₄**", f"{site_co2_per_kg:.3f} €/kg CH₄")

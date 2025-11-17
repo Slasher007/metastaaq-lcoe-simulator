@@ -31,7 +31,7 @@ from ui_components import (
 )
 from sidebar import (
     setup_sidebar_header, load_data_file, create_year_selection, create_electrolyzer_parameters,
-    create_methanation_parameters, create_monthly_service_ratios, create_operation_strategy_selection,
+    create_methanation_parameters, create_site_co2_parameters, create_monthly_service_ratios, create_operation_strategy_selection,
     create_price_parameters, create_pv_installation_parameters, get_current_parameters
 )
 from plots import (
@@ -73,6 +73,7 @@ def main():
     # Strategy selection before service ratios
     electrolyser_power, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters()
     methanation_econ = create_methanation_parameters()
+    site_co2_econ = create_site_co2_parameters()
     strategy_type = create_operation_strategy_selection()
     if strategy_type == "Target Price-Based":
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=st.session_state.get('computed_service_ratios'))
@@ -123,7 +124,7 @@ def main():
     current_params = get_current_parameters(
         selected_years, electrolyser_power, electrolyser_specific_consumption,
         monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
-        go_enabled, go_cost_per_mwh, electrolyzer_econ
+        go_enabled, go_cost_per_mwh, electrolyzer_econ, methanation_econ
     )
 
     current_params['strategy_type'] = strategy_type
@@ -643,7 +644,7 @@ def main():
                         
                         pv_economics = calculate_pv_economics(
                             sum(df_plot_data['PV']), total_energy_consumed, total_yearly_ch4_tonnes,
-                            pv_params['pci_ch4_kwh_per_kg'], capex_opex_data['total_capex_calculated'],
+                            methanation_econ['pci_ch4_kwh_per_kg'], capex_opex_data['total_capex_calculated'],
                             capex_opex_data['pv_opex_calculated'], pv_params['pv_project_years'],
                             pv_params['discount_rate']
                         )
@@ -721,7 +722,10 @@ def main():
                         lcoc_results = calculate_lcoc(
                             lcoh_results['h2_production_kg'],
                             methanation_econ,
-                            avg_electricity_cost
+                            avg_electricity_cost,
+                            site_co2_econ,
+                            electrolyzer_econ,
+                            lcoh_results
                         )
                         
                         display_lcoc_results(lcoc_results, avg_service_ratio)
