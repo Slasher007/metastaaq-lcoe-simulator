@@ -270,7 +270,7 @@ def display_lcoh_results(lcoh_results):
     with col2:
         st.metric("**LCOH**", f"{lcoh_results['lcoh_eur_per_mwh']:.1f} €/MWh H₂")
     with col3:
-        st.metric("**H₂ Production**", f"{lcoh_results['h2_production_tonnes']:.1f} Tonnes/year")
+        st.metric("**H₂ Production**", f"{lcoh_results['h2_production_tonnes']:.1f} T/year")
     with col4:
         st.metric("**Total Annual Cost**", f"{lcoh_results['total_annual_cost']:,.0f} €")
     
