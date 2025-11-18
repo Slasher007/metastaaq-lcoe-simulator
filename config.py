@@ -79,7 +79,7 @@ DEFAULT_PARAMS = {
     "appro_co2_capex": 250000.0,
     # OpEx - Annual costs (€/year)
     "site_opex": 0.0,
-    "appro_co2_opex": 227929.0,
+    "appro_co2_opex": 10974.0,
     # Maintenance - Annual costs (€/year)
     "site_maintenance": 1200.0,
     "appro_co2_maintenance": 2250.0,
