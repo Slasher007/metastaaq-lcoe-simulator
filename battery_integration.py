@@ -97,10 +97,26 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         day_filter_enabled = st.checkbox("Filter by Day of Week", value=False)
         if day_filter_enabled:
+            # Quick preset buttons
+            preset_col1, preset_col2, preset_col3 = st.columns(3)
+            with preset_col1:
+                if st.button("🏢 Weekdays", help="Monday to Friday", key='preset_weekdays'):
+                    st.session_state.day_preset = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+            with preset_col2:
+                if st.button("🏖️ Weekend", help="Saturday and Sunday", key='preset_weekend'):
+                    st.session_state.day_preset = ['Saturday', 'Sunday']
+            with preset_col3:
+                if st.button("🌐 All Days", help="All 7 days", key='preset_all'):
+                    st.session_state.day_preset = available_days
+            
+            # Get default from preset if available
+            default_days = st.session_state.get('day_preset', available_days)
+            default_days = [d for d in default_days if d in available_days]
+            
             selected_days = st.multiselect(
                 "📅 Day(s) of Week",
                 options=available_days,
-                default=available_days,
+                default=default_days,
                 help="Select specific days (e.g., weekdays only)"
             )
         else:
