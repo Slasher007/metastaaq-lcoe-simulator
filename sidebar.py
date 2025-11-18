@@ -771,9 +771,6 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
 def create_site_co2_parameters():
     """Create Site and CO2 Supply parameter inputs"""
     with st.sidebar.expander("🏭 Site & CO2 Supply", expanded=False):
-        st.markdown("**Financial Parameters**")
-        st.info("Site and CO2 Supply costs (separate from methanation unit)")
-        
         # ============================================
         # CAPEX SECTION
         # ============================================
