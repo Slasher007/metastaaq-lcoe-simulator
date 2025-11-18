@@ -623,7 +623,7 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
     st.markdown("### 🔥 LCOC (Levelized Cost of CH₄/Methane) Analysis")
     
     # Main metrics
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         st.metric("**LCOC**", f"{lcoc_results['lcoc_eur_per_kg']:.2f} €/kg CH₄")
     with col2:
@@ -632,16 +632,9 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
         st.metric("**CH₄ Production**", f"{lcoc_results['ch4_production_tonnes']:.1f} T/year")
     with col4:
         st.metric("**Total Annual Cost**", f"{lcoc_results['total_annual_cost']:,.0f} €")
-    
-    # Show H2 input
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("**H₂ Consumption**", f"{lcoc_results['h2_consumption_tonnes']:.1f} T/year")
-    with col2:
-        st.metric("**H₂ to CH₄ Ratio**", f"1 : {lcoc_results['ch4_production_kg']/lcoc_results['h2_consumption_kg']:.2f}")
-    with col3:
+    with col5:
         st.metric("**Methanation Elec.**", f"{lcoc_results['methanation_electricity_mwh']:.1f} MWh/year")
-    with col4:
+    with col6:
         st.metric("**Avg. Elec. Cost**", f"{lcoc_results['avg_electricity_cost_per_mwh']:.2f} €/MWh")
     
     # Detailed breakdown
