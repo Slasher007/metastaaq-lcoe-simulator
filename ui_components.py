@@ -230,30 +230,80 @@ def display_monthly_ch4_production(monthly_production_tonnes, service_ratios):
             st.write(f"**{month[:3]}**: {production:.1f} Tonnes ({service_pct:.0f}%)")
 
 
-def display_calculated_parameters(h2_flowrate, ch4_flowrate, avg_service_ratio):
+def display_calculated_parameters(h2_flowrate, ch4_flowrate, avg_service_ratio, cons_spec_ch4=None):
     """Display calculated parameters in sidebar"""
     st.sidebar.markdown("#### 📊 Calculated Parameters")
     st.sidebar.metric("H₂ Flow Rate", f"{h2_flowrate} Nm³/h")
     st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
     st.sidebar.metric("Avg Service Ratio", f"{avg_service_ratio:.1%}")
+    
+    # Calculate and display methanation power consumption if cons_spec_ch4 is provided
+    if cons_spec_ch4 is not None:
+        # Puissance instantanée (kW) = Débit CH₄ (Nm³/h) × Cons Spec (kWh/Nm³)
+        puissance_instantanee_kw = ch4_flowrate * cons_spec_ch4
+        
+        # Annual consumption (MWhe/year) = Puissance instantanée × Service Ratio × 8760 h / 1000
+        annual_consumption_mwh = (puissance_instantanee_kw * avg_service_ratio * 8760) / 1000
+        
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("**⚡ Methanation Power**")
+        st.sidebar.metric(
+            "Puissance Instantanée", 
+            f"{puissance_instantanee_kw:.1f} kW",
+            help=f"**Formula:** Débit CH₄ × Cons Spec CH₄\n\n"
+                 f"**Calculation:** {ch4_flowrate} Nm³/h × {cons_spec_ch4} kWh/Nm³ = {puissance_instantanee_kw:.1f} kW"
+        )
+        st.sidebar.metric(
+            "Annual Elec. Consumption", 
+            f"{annual_consumption_mwh:.1f} MWh/year",
+            help=f"**Formula:** Puissance instantanée × Service Ratio × 8760 h / 1000\n\n"
+                 f"**Calculation:** {puissance_instantanee_kw:.1f} kW × {avg_service_ratio:.1%} × 8760 h / 1000 = {annual_consumption_mwh:.1f} MWh/year"
+        )
 
 
 def display_pv_economics_summary(estimated_power_mwp, estimated_power_kwp, battery_capacity_mwh, 
                                 pv_capex_calculated, battery_capex, total_capex_calculated, pv_opex,
-                                pv_lcoe_eur_per_mwh=None):
+                                battery_opex=0, total_opex=None, pv_lcoe_eur_per_mwh=None):
     """Display PV economics summary"""
     st.write(f"**Estimated Power**: {estimated_power_mwp:.2f} MWp ({estimated_power_kwp:,.0f} kWp)")
     
     if battery_capacity_mwh > 0:
         st.write(f"**Daily Battery Capacity**: {battery_capacity_mwh:.2f} MWh/day")
     
-    st.write(f"**Calculated CAPEX**:")
-    st.write(f"• PV: {pv_capex_calculated:,.0f} €")
-    if battery_capex > 0:
-        st.write(f"• Battery: {battery_capex:,.0f} €")
-    st.write(f"• **Total: {total_capex_calculated:,.0f} €**")
+    # Display separate OpEx for PV and Battery
+    if total_opex is None:
+        total_opex = pv_opex + battery_opex
     
-    st.write(f"**Calculated OPEX**: {pv_opex:,.0f} €/year")
+    # Create economics table
+    if battery_capex > 0:
+        # With battery - show both PV and Battery
+        economics_data = {
+            'Component': ['PV', 'Battery', '**TOTAL**'],
+            'CAPEX (€)': [
+                f"{pv_capex_calculated:,.0f}",
+                f"{battery_capex:,.0f}",
+                f"**{total_capex_calculated:,.0f}**"
+            ],
+            'OPEX (€/year)': [
+                f"{pv_opex:,.0f}",
+                f"{battery_opex:,.0f}",
+                f"**{total_opex:,.0f}**"
+            ]
+        }
+    else:
+        # Without battery - show only PV
+        economics_data = {
+            'Component': ['PV'],
+            'CAPEX (€)': [f"{pv_capex_calculated:,.0f}"],
+            'OPEX (€/year)': [f"{pv_opex:,.0f}"]
+        }
+    
+    df_economics = pd.DataFrame(economics_data)
+    
+    # Display table
+    st.markdown("**Financial Summary:**")
+    st.table(df_economics)
+    
     if pv_lcoe_eur_per_mwh is not None:
         st.write(f"**PV LCOE**: {pv_lcoe_eur_per_mwh:.2f} €/MWh")
 
@@ -633,7 +683,17 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
     with col4:
         st.metric("**Total Annual Cost**", f"{lcoc_results['total_annual_cost']:,.0f} €")
     with col5:
-        st.metric("**Methanation Elec.**", f"{lcoc_results['methanation_electricity_mwh']:.1f} MWh/year")
+        # Add tooltip with calculation details if available
+        elec_help = None
+        if 'puissance_instantanee_kw' in lcoc_results:
+            ch4_flow = lcoc_results.get('ch4_flowrate_nm3h', 0)
+            cons_spec = lcoc_results.get('cons_spec_ch4', 0.7)
+            p_inst = lcoc_results['puissance_instantanee_kw']
+            service = avg_service_ratio if avg_service_ratio else 0
+            elec_help = (f"**Calculation:**\n\n"
+                        f"1. Puissance instantanée = {ch4_flow:.0f} Nm³/h × {cons_spec} kWh/Nm³ = {p_inst:.1f} kW\n\n"
+                        f"2. Annual consumption = {p_inst:.1f} kW × {service:.1%} (service ratio) × 8760 h / 1000 = {lcoc_results['methanation_electricity_mwh']:.1f} MWh/year")
+        st.metric("**Methanation Elec.**", f"{lcoc_results['methanation_electricity_mwh']:.1f} MWh/year", help=elec_help)
     with col6:
         st.metric("**Avg. Elec. Cost**", f"{lcoc_results['avg_electricity_cost_per_mwh']:.2f} €/MWh")
     

@@ -360,8 +360,13 @@ def create_electrolyzer_parameters():
     return electrolyser_power, electrolyser_specific_consumption, electrolyzer_econ
 
 
-def create_methanation_parameters():
-    """Create methanation parameter inputs including economics"""
+def create_methanation_parameters(electrolyser_power=None, electrolyser_specific_consumption=None):
+    """Create methanation parameter inputs including economics
+    
+    Args:
+        electrolyser_power: Electrolyzer power in MW (optional, for calculation display)
+        electrolyser_specific_consumption: Specific consumption in kWh/Nm³ H₂ (optional, for calculation display)
+    """
     with st.sidebar.expander("🔥 Methanation", expanded=False):
         st.markdown("**Economic Parameters (LCOCH4)**")
         
@@ -384,6 +389,22 @@ def create_methanation_parameters():
             step=PARAM_RANGES["methanation_discount_rate"]["step"],
             help="Discount rate for LCOCH4 calculation",
             key="methanation_discount_rate"
+        )
+        
+        # Specific consumption for CH4
+        st.markdown("---")
+        cons_spec_ch4 = st.slider(
+            "Cons Spec CH₄ (kWhₑ / Nm³ CH₄)",
+            min_value=PARAM_RANGES["methanation_cons_spec_ch4"]["min"],
+            max_value=PARAM_RANGES["methanation_cons_spec_ch4"]["max"],
+            value=DEFAULT_PARAMS["methanation_cons_spec_ch4"],
+            step=PARAM_RANGES["methanation_cons_spec_ch4"]["step"],
+            help="Specific electricity consumption for methanation per Nm³ of CH4 produced.\n\n"
+                 "**Calculation Formula:**\n"
+                 "• Puissance instantanée (kW) = Débit CH₄ (Nm³/h) × Cons Spec (kWh/Nm³)\n"
+                 "• Annual consumption (MWh/year) = Puissance × Service Ratio × 8760 h / 1000\n\n"
+                 "Results are displayed in the 'Calculated Parameters' section below.",
+            key="methanation_cons_spec_ch4"
         )
         
         # ============================================
@@ -480,18 +501,40 @@ def create_methanation_parameters():
         st.markdown("#### OpEx (Operational Expenditure)")
         
         with st.expander("OpEx Parameters - Electricity Consumption", expanded=False):
-            st.info("Electricity consumption in MWhe/year for each component")
-            
             st.markdown("**Electricity Consumption (MWhe/year)**")
-            elec_methanation_unit = st.number_input(
-                "Unité de méthanation (MWhe/year)",
-                min_value=PARAM_RANGES["methanation_electricity_methanation_unit"]["min"],
-                max_value=PARAM_RANGES["methanation_electricity_methanation_unit"]["max"],
-                value=DEFAULT_PARAMS["methanation_electricity_methanation_unit"],
-                step=PARAM_RANGES["methanation_electricity_methanation_unit"]["step"],
-                help="Annual electricity consumption for methanation unit",
-                key="methanation_electricity_methanation_unit"
-            )
+            
+            # Calculate methanation unit consumption if electrolyzer parameters are provided
+            if electrolyser_power is not None and electrolyser_specific_consumption is not None:
+                # Calculate CH4 flowrate
+                h2_flowrate = (electrolyser_power * 1000) / electrolyser_specific_consumption
+                ch4_flowrate = h2_flowrate / 4  # Stoichiometry H2:CH4 = 4:1
+                
+                # Calculate instantaneous power
+                puissance_instantanee_kw = ch4_flowrate * cons_spec_ch4
+                
+                # Estimate with a default service ratio of 0.98 for display (will be recalculated with actual ratio later)
+                estimated_service_ratio = 0.98
+                elec_methanation_unit_estimated = (puissance_instantanee_kw * estimated_service_ratio * 8760) / 1000
+                
+                # Display calculated value with tooltip
+                st.metric(
+                    "🔄 Unité de méthanation (auto-calculated)",
+                    f"{elec_methanation_unit_estimated:.1f} MWh/year",
+                    help=f"**Calculation Details:**\n\n"
+                         f"**Step 1: CH₄ Flow Rate**\n"
+                         f"• H₂ flow rate = {electrolyser_power} MW × 1000 / {electrolyser_specific_consumption} kWh/Nm³ = {h2_flowrate:.0f} Nm³/h\n"
+                         f"• CH₄ flow rate = {h2_flowrate:.0f} / 4 (stoichiometry) = {ch4_flowrate:.0f} Nm³/h\n\n"
+                         f"**Step 2: Instantaneous Power**\n"
+                         f"• Puissance = {ch4_flowrate:.0f} Nm³/h × {cons_spec_ch4} kWh/Nm³ = {puissance_instantanee_kw:.1f} kW\n\n"
+                         f"**Step 3: Annual Consumption**\n"
+                         f"• Consumption = {puissance_instantanee_kw:.1f} kW × {estimated_service_ratio:.0%} × 8760 h / 1000 = {elec_methanation_unit_estimated:.1f} MWh/year\n\n"
+                         f"_Estimated with {estimated_service_ratio:.0%} service ratio. Final value calculated with actual service ratio in results._"
+                )
+                
+                elec_methanation_unit = elec_methanation_unit_estimated  # Will be overridden with actual calculation
+            else:
+                st.caption("🔄 **Unité de méthanation**: Calculated automatically. See 'Calculated Parameters' section for details.")
+                elec_methanation_unit = DEFAULT_PARAMS["methanation_electricity_methanation_unit"]  # Placeholder
             
             elec_purification_unit = st.number_input(
                 "Unité de purification & analyse (MWhe/year)",
@@ -718,7 +761,8 @@ def create_methanation_parameters():
         'others_opex_annual': others_opex_annual,
         'others_maintenance_annual': others_maintenance_annual,
         'other_costs_annual': other_costs_annual,
-        'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg
+        'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg,
+        'cons_spec_ch4': cons_spec_ch4  # Specific consumption kWh/Nm³
     }
     
     return methanation_econ
@@ -1127,13 +1171,22 @@ def create_pv_installation_parameters():
             # Calculate OPEX from total CAPEX (PV + Battery)
             if use_calculated_capex:
                 total_capex_for_opex = total_capex_calculated
+                pv_opex_calculated = pv_capex_calculated * opex_percentage / 100
+                battery_opex_calculated = battery_capex * opex_percentage / 100 if include_battery else 0
             else:
                 # Convert MWh to kWh for cost per kWh
                 manual_battery_capex = ((battery_capacity_mwh * 1000) * battery_cost_per_kwh) if include_battery else 0
                 total_capex_for_opex = pv_capex + manual_battery_capex
+                pv_opex_calculated = pv_capex * opex_percentage / 100
+                battery_opex_calculated = manual_battery_capex * opex_percentage / 100 if include_battery else 0
 
             pv_opex = total_capex_for_opex * opex_percentage / 100
-            st.write(f"**Calculated OPEX**: {pv_opex:,.0f} €/year ({opex_percentage}% of total CAPEX)")
+            
+            st.write(f"**Calculated OPEX ({opex_percentage}% of CAPEX)**:")
+            st.write(f"• PV: {pv_opex_calculated:,.0f} €/year")
+            if include_battery:
+                st.write(f"• Battery: {battery_opex_calculated:,.0f} €/year")
+            st.write(f"• **Total: {pv_opex:,.0f} €/year**")
         else:
             pv_opex = st.number_input(
                 "PV OPEX (€/year)",
@@ -1142,7 +1195,63 @@ def create_pv_installation_parameters():
                 step=1000,
                 help="Manual PV OPEX input"
             )
+        
+        # Add Maintenance section
+        st.markdown("---")
+        st.markdown("#### 🔧 Maintenance")
+        
+        maintenance_percentage = st.slider(
+            "Maintenance Percentage (% of CAPEX/year)",
+            min_value=0.0,
+            max_value=5.0,
+            value=1.0,
+            step=0.1,
+            help="Annual maintenance cost as percentage of CAPEX"
+        )
+        
+        if use_calculated_capex:
+            pv_maintenance = pv_capex_calculated * maintenance_percentage / 100
+            battery_maintenance = battery_capex * maintenance_percentage / 100 if include_battery else 0
+            total_maintenance = pv_maintenance + battery_maintenance
+            
+            st.write(f"**Calculated Maintenance ({maintenance_percentage}% of CAPEX)**:")
+            st.write(f"• PV: {pv_maintenance:,.0f} €/year")
+            if include_battery:
+                st.write(f"• Battery: {battery_maintenance:,.0f} €/year")
+            st.write(f"• **Total: {total_maintenance:,.0f} €/year**")
+        else:
+            manual_battery_capex_for_maint = ((battery_capacity_mwh * 1000) * battery_cost_per_kwh) if include_battery else 0
+            pv_maintenance = pv_capex * maintenance_percentage / 100
+            battery_maintenance = manual_battery_capex_for_maint * maintenance_percentage / 100 if include_battery else 0
+            total_maintenance = pv_maintenance + battery_maintenance
+            
+            st.write(f"**Calculated Maintenance ({maintenance_percentage}% of CAPEX)**:")
+            st.write(f"• PV: {pv_maintenance:,.0f} €/year")
+            if include_battery:
+                st.write(f"• Battery: {battery_maintenance:,.0f} €/year")
+            st.write(f"• **Total: {total_maintenance:,.0f} €/year**")
+        
+        # Financial Summary
+        st.markdown("---")
+        st.markdown("#### 💰 Financial Summary")
+        
+        if use_calculated_capex:
+            st.info(f"**Annual Costs:**\n\n"
+                   f"• CAPEX (annualized): Calculated in LCOE\n\n"
+                   f"• OpEx: {pv_opex:,.0f} €/year\n\n"
+                   f"• Maintenance: {total_maintenance:,.0f} €/year\n\n"
+                   f"• **Total Annual O&M**: {pv_opex + total_maintenance:,.0f} €/year")
 
+    # Calculate final values for return
+    if use_calculated_capex:
+        final_pv_capex = pv_capex_calculated
+        final_battery_capex = battery_capex
+        final_total_capex = total_capex_calculated
+    else:
+        final_pv_capex = pv_capex
+        final_battery_capex = ((battery_capacity_mwh * 1000) * battery_cost_per_kwh) if include_battery else 0
+        final_total_capex = pv_capex + final_battery_capex
+    
     return {
         'pv_project_years': pv_project_years,
         'pv_surface_hectares': pv_surface_hectares,
@@ -1160,6 +1269,13 @@ def create_pv_installation_parameters():
         'discount_rate': discount_rate,
         'use_calculated_opex': use_calculated_opex,
         'pv_opex': pv_opex,
+        'maintenance_percentage': maintenance_percentage,
+        'pv_maintenance': pv_maintenance,
+        'battery_maintenance': battery_maintenance if include_battery else 0,
+        'total_maintenance': total_maintenance,
+        'pv_capex_calculated': final_pv_capex,
+        'battery_capex_calculated': final_battery_capex,
+        'total_capex_calculated': final_total_capex,
         'lat': lat,
         'lon': lon,
         'loss': loss
@@ -1192,6 +1308,10 @@ def get_current_parameters(selected_years, electrolyser_power, electrolyser_spec
         'use_calculated_opex': pv_params['use_calculated_opex'],
         'pv_capex': pv_params['pv_capex'],
         'pv_opex': pv_params['pv_opex'],
+        'maintenance_percentage': pv_params['maintenance_percentage'],
+        'pv_maintenance': pv_params['pv_maintenance'],
+        'battery_maintenance': pv_params['battery_maintenance'],
+        'total_maintenance': pv_params['total_maintenance'],
         'lat': pv_params['lat'],
         'lon': pv_params['lon'],
         'loss': pv_params['loss']

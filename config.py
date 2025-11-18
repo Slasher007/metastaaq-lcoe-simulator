@@ -39,11 +39,13 @@ DEFAULT_PARAMS = {
     "pv_surface_hectares": 1.0,
     "power_density_mwp_per_ha": 1.0,
     "storage_hours": 4.0,
-    "pv_cost_per_wp": 0.8,
+    "pv_cost_per_wp": 1.0,
     "battery_cost_per_kwh": 200.0,
     "opex_percentage": 2.0,
     "discount_rate": 6.0,
     "pci_ch4_kwh_per_kg": 13.9,
+    # Methanation specific consumption
+    "methanation_cons_spec_ch4": 0.7,  # kWhₑ / Nm³ CH₄
     # Electrolyzer Economics (for LCOH calculation)
     # CapEx Components
     "electrolyser_capex_transformer": 250000.0,
@@ -126,6 +128,8 @@ PARAM_RANGES = {
     "opex_percentage": {"min": 0.5, "max": 5.0, "step": 0.1},
     "discount_rate": {"min": 0.0, "max": 12.0, "step": 0.5},
     "pci_ch4_kwh_per_kg": {"min": 10.0, "max": 20.0, "step": 0.1},
+    # Methanation specific consumption
+    "methanation_cons_spec_ch4": {"min": 0.1, "max": 2.0, "step": 0.1},
     # Electrolyzer Economics ranges
     # CapEx Components ranges
     "electrolyser_capex_transformer": {"min": 0.0, "max": 5000000.0, "step": 10000.0},

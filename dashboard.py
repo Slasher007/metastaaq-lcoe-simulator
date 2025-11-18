@@ -72,7 +72,7 @@ def main():
     
     # Strategy selection before service ratios
     electrolyser_power, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters()
-    methanation_econ = create_methanation_parameters()
+    methanation_econ = create_methanation_parameters(electrolyser_power, electrolyser_specific_consumption)
     site_co2_econ = create_site_co2_parameters()
     strategy_type = create_operation_strategy_selection()
     if strategy_type == "Target Price-Based":
@@ -110,7 +110,8 @@ def main():
     display_calculated_parameters(
         derived_params['h2_flowrate'], 
         derived_params['ch4_flowrate'], 
-        avg_service_ratio
+        avg_service_ratio,
+        cons_spec_ch4=methanation_econ.get('cons_spec_ch4')
     )
     
     # Display monthly CH4 production
@@ -682,6 +683,8 @@ def main():
                             capex_opex_data['battery_capex'],
                             capex_opex_data['total_capex_calculated'],
                             capex_opex_data['pv_opex_calculated'],
+                            battery_opex=capex_opex_data.get('battery_opex_calculated', 0),
+                            total_opex=capex_opex_data.get('total_opex_calculated'),
                             pv_lcoe_eur_per_mwh=pv_lcoe_value
                         )
                         
@@ -719,6 +722,25 @@ def main():
                         # Use the average electricity cost from LCOH calculation
                         avg_electricity_cost = electricity_costs_for_lcoh.get('avg_electricity_cost', 0)
                         
+                        # Update methanation electricity consumption based on calculated power
+                        # Puissance instantanée (kW) = Débit CH₄ (Nm³/h) × Cons Spec (kWh/Nm³)
+                        cons_spec_ch4 = methanation_econ.get('cons_spec_ch4', 0.7)
+                        ch4_flowrate = derived_params['ch4_flowrate']  # Nm³/h
+                        puissance_instantanee_kw = ch4_flowrate * cons_spec_ch4
+                        
+                        # Annual consumption (MWhe/year) = Puissance instantanée × Service Ratio × 8760 h / 1000
+                        elec_methanation_calculated = (puissance_instantanee_kw * avg_service_ratio * 8760) / 1000
+                        
+                        # Update methanation_econ with calculated electricity consumption
+                        methanation_econ['electricity_consumption']['methanation_unit'] = elec_methanation_calculated
+                        methanation_econ['electricity_consumption']['total'] = (
+                            elec_methanation_calculated +
+                            methanation_econ['electricity_consumption']['purification_unit'] +
+                            methanation_econ['electricity_consumption']['compressor'] +
+                            methanation_econ['electricity_consumption']['ch4_storage'] +
+                            methanation_econ['electricity_consumption']['grid_injection']
+                        )
+                        
                         lcoc_results = calculate_lcoc(
                             lcoh_results['h2_production_kg'],
                             methanation_econ,
@@ -727,6 +749,11 @@ def main():
                             electrolyzer_econ,
                             lcoh_results
                         )
+                        
+                        # Add calculation details to results for display
+                        lcoc_results['puissance_instantanee_kw'] = puissance_instantanee_kw
+                        lcoc_results['ch4_flowrate_nm3h'] = ch4_flowrate
+                        lcoc_results['cons_spec_ch4'] = cons_spec_ch4
                         
                         display_lcoc_results(lcoc_results, avg_service_ratio)
                         
