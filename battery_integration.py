@@ -34,7 +34,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     Optimize battery operation with parametric time windows for:
     - PV-priority charging
     - Evening arbitrage discharge
-    - Night cheap charging  
+    - Spot grid charging  
     - Morning electrolyser supply
     """)
     st.markdown("---")
@@ -81,7 +81,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         week_filter_enabled = st.checkbox("Filter by Week", value=False)
         if week_filter_enabled:
             selected_weeks = st.multiselect(
-                "📊 Week(s) of Year",
+                "Week Number(s)",
                 options=available_weeks,
                 default=available_weeks[:4] if len(available_weeks) >= 4 else available_weeks,
                 help="Select specific weeks (1-52)"
@@ -122,57 +122,84 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         else:
             selected_days = available_days
     
-    # Apply filters
-    filtered_data = data_content.copy()
+    # Apply Filters Button
+    st.markdown("")  # Add spacing
+    apply_filters_btn = st.button("🔄 Apply Filters", type="primary", use_container_width=True, 
+                                  help="Click to apply selected filters and update analysis")
     
-    # Apply year filter
-    if selected_years:
-        filtered_data = filtered_data[filtered_data['Annee'].isin(selected_years)]
+    # Only apply filters if button was clicked or if filters were previously applied
+    if 'filters_applied' not in st.session_state:
+        st.session_state.filters_applied = False
     
-    # Apply month filter
-    if selected_months:
-        filtered_data = filtered_data[filtered_data['Mois'].isin(selected_months)]
+    if apply_filters_btn:
+        st.session_state.filters_applied = True
+        st.session_state.filter_config = {
+            'years': selected_years,
+            'months': selected_months,
+            'weeks': selected_weeks if week_filter_enabled else None,
+            'week_enabled': week_filter_enabled,
+            'days': selected_days if day_filter_enabled else None,
+            'day_enabled': day_filter_enabled
+        }
     
-    # Apply week filter
-    if week_filter_enabled and selected_weeks:
-        filtered_data = filtered_data[filtered_data['Week'].isin(selected_weeks)]
-    
-    # Apply day of week filter
-    if day_filter_enabled and selected_days:
-        filtered_data = filtered_data[filtered_data['DayOfWeek'].isin(selected_days)]
-    
-    # Display filter summary with statistics
-    total_hours_original = len(data_content)
-    total_hours_filtered = len(filtered_data)
-    filter_percentage = (total_hours_filtered / total_hours_original * 100) if total_hours_original > 0 else 0
-    
-    # Calculate some statistics on filtered data
-    avg_price_filtered = filtered_data['Prix'].mean()
-    min_price_filtered = filtered_data['Prix'].min()
-    max_price_filtered = filtered_data['Prix'].max()
-    
-    col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
-    with col_stat1:
-        st.metric("Filtered Hours", f"{total_hours_filtered:,}", 
-                 delta=f"{filter_percentage:.1f}% of total")
-    with col_stat2:
-        st.metric("Days Selected", f"{len(selected_days) if day_filter_enabled else 7}")
-    with col_stat3:
-        st.metric("Avg Price", f"{avg_price_filtered:.1f} €/MWh")
-    with col_stat4:
-        st.metric("Min Price", f"{min_price_filtered:.1f} €/MWh")
-    with col_stat5:
-        st.metric("Max Price", f"{max_price_filtered:.1f} €/MWh")
-    
-    if total_hours_filtered == 0:
-        st.error("❌ No data matches the selected filters. Please adjust your filter criteria.")
-        return
-    
-    if total_hours_filtered < 8760:
-        st.warning(f"⚠️ Note: Using {total_hours_filtered:,} hours (< 1 year). Results may not represent full annual performance.")
-    
-    # Update data_content to use filtered data for the rest of the analysis
-    data_content = filtered_data
+    # Apply filters if they have been applied at least once
+    if st.session_state.filters_applied and 'filter_config' in st.session_state:
+        filtered_data = data_content.copy()
+        config = st.session_state.filter_config
+        
+        # Apply year filter
+        if config['years']:
+            filtered_data = filtered_data[filtered_data['Annee'].isin(config['years'])]
+        
+        # Apply month filter
+        if config['months']:
+            filtered_data = filtered_data[filtered_data['Mois'].isin(config['months'])]
+        
+        # Apply week filter
+        if config['week_enabled'] and config['weeks']:
+            filtered_data = filtered_data[filtered_data['Week'].isin(config['weeks'])]
+        
+        # Apply day of week filter
+        if config['day_enabled'] and config['days']:
+            filtered_data = filtered_data[filtered_data['DayOfWeek'].isin(config['days'])]
+        
+        # Display filter summary with statistics
+        total_hours_original = len(data_content)
+        total_hours_filtered = len(filtered_data)
+        filter_percentage = (total_hours_filtered / total_hours_original * 100) if total_hours_original > 0 else 0
+        
+        # Calculate some statistics on filtered data
+        avg_price_filtered = filtered_data['Prix'].mean()
+        min_price_filtered = filtered_data['Prix'].min()
+        max_price_filtered = filtered_data['Prix'].max()
+        
+        col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
+        with col_stat1:
+            st.metric("Filtered Hours", f"{total_hours_filtered:,}", 
+                     delta=f"{filter_percentage:.1f}% of total")
+        with col_stat2:
+            st.metric("Days Selected", f"{len(config['days']) if config['day_enabled'] else 7}")
+        with col_stat3:
+            st.metric("Avg Price", f"{avg_price_filtered:.1f} €/MWh")
+        with col_stat4:
+            st.metric("Min Price", f"{min_price_filtered:.1f} €/MWh")
+        with col_stat5:
+            st.metric("Max Price", f"{max_price_filtered:.1f} €/MWh")
+        
+        if total_hours_filtered == 0:
+            st.error("❌ No data matches the selected filters. Please adjust your filter criteria.")
+            return
+        
+        if total_hours_filtered < 8760:
+            st.warning(f"⚠️ Note: Using {total_hours_filtered:,} hours (< 1 year). Results may not represent full annual performance.")
+        
+        # Update data_content to use filtered data for the rest of the analysis
+        data_content = filtered_data
+    else:
+        # Show info message when filters haven't been applied yet
+        st.info("👆 Select your filter criteria above and click '🔄 Apply Filters' to update the analysis")
+        # Use original data by default
+        filtered_data = data_content
     
     st.markdown("---")
     
@@ -215,7 +242,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     # Add shaded regions for typical time windows
     ax_price.axvspan(10, 16, alpha=0.15, color='gold', label='PV Charging (10-16h)')
     ax_price.axvspan(16, 23, alpha=0.15, color='blue', label='Arbitrage Discharge (16-23h)')
-    ax_price.axvspan(-0.5, 5, alpha=0.15, color='green', label='Night Charging (23-05h)')
+    ax_price.axvspan(-0.5, 5, alpha=0.15, color='green', label='Spot Charging (23-05h)')
     ax_price.axvspan(23, 24.5, alpha=0.15, color='green')
     ax_price.axvspan(5, 10, alpha=0.15, color='purple', label='Electrolyser (05-10h)')
     
@@ -311,7 +338,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         # Use tabs for time windows
         tw_tab1, tw_tab2, tw_tab3, tw_tab4 = st.tabs([
-            "🌞 PV Charging", "💰 Arbitrage", "🌙 Night Charge", "⚡ Electrolyser"
+            "🌞 PV Charging", "💰 Arbitrage", "⚡ Spot Charging", "🔋 Electrolyser"
         ])
         
         with tw_tab1:
@@ -347,12 +374,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             with col_a:
                 time_windows['night_charge_start'] = st.number_input(
                     "Start Hour", 0, 23, 23, 1, key='night_start',
-                    help="Night charging window start"
+                    help="Spot charging window start"
                 )
             with col_b:
                 time_windows['night_charge_end'] = st.number_input(
                     "End Hour", 0, 23, 5, 1, key='night_end',
-                    help="Night charging window end"
+                    help="Spot charging window end"
                 )
             
             night_strategy = NIGHT_CHARGE_STRATEGY.copy()
@@ -370,7 +397,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                     "Max Price (€/MWh)", 0.0, 200.0, 50.0, 5.0, key='night_price'
                 )
             
-            st.caption("Charge from grid during low-price night hours.")
+            st.caption("Charge from grid at spot market prices.")
         
         with tw_tab4:
             col_a, col_b = st.columns(2)
@@ -714,10 +741,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         **2. Arbitrage Discharge (16:00-23:00)**
         - Discharge to grid at maximum power
         - Sell energy at evening peak prices
-        - Goal: empty battery for night charging
+        - Goal: empty battery for spot charging
         
-        **3. Night Charging (23:00-05:00)**
-        - Charge from grid at low night prices
+        **3. Spot Charging (23:00-05:00)**
+        - Charge from grid at spot market prices
         - Prepare battery for electrolyser operation
         
         **4. Electrolyser Operation (05:00-10:00)**

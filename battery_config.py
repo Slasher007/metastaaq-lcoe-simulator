@@ -39,16 +39,16 @@ DEFAULT_TIME_WINDOWS = {
     "arbitrage_discharge_start": 16,  # 16:00 - Start selling to grid
     "arbitrage_discharge_end": 23,    # 23:00 - End selling to grid
     
-    # 3. Night cheap charging window
-    "night_charge_start": 23,  # 23:00 - Start cheap grid charging
-    "night_charge_end": 5,     # 05:00 - End cheap grid charging
+    # 3. Spot charging window (grid charging at spot prices)
+    "night_charge_start": 23,  # 23:00 - Start spot grid charging
+    "night_charge_end": 5,     # 05:00 - End spot grid charging
     
     # 4. Morning electrolyser supply window
     "electrolyser_start": 5,  # 05:00 - Start electrolyser operation
     "electrolyser_end": 10,   # 10:00 - End electrolyser operation
 }
 
-# Night charging strategy
+# Spot charging strategy (grid charging at spot market prices)
 NIGHT_CHARGE_STRATEGY = {
     "mode": "always_charge",  # Options: "always_charge", "price_threshold"
     "price_threshold": 50.0,  # €/MWh - Only charge if price below this (if mode = "price_threshold")
@@ -110,11 +110,11 @@ def validate_time_windows(time_windows):
     # Arbitrage discharge should start when PV ends or after
     # (allowing some overlap is OK, the optimizer handles priority)
     
-    # Night charging wraps around midnight
+    # Spot charging wraps around midnight
     if tw["night_charge_start"] < tw["night_charge_end"]:
-        return False, "Night charge window should wrap around midnight (start > end)"
+        return False, "Spot charge window should wrap around midnight (start > end)"
     
-    # Electrolyser should start when night charge ends
+    # Electrolyser should start when spot charge ends
     if tw["electrolyser_start"] >= tw["electrolyser_end"]:
         return False, "Electrolyser window: start must be before end"
     

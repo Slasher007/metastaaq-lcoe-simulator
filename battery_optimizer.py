@@ -17,7 +17,7 @@ class BatteryOptimizer:
     Battery Energy Management System with time-windowed operations:
     - PV priority charging (10:00-16:00)
     - Evening arbitrage discharge (16:00-23:00)
-    - Night cheap charging (23:00-05:00)
+    - Spot grid charging (23:00-05:00)
     - Morning electrolyser supply (05:00-10:00)
     """
     
@@ -217,7 +217,7 @@ class BatteryOptimizer:
         """
         Evening arbitrage discharge window (default 16:00-23:00)
         - Discharge battery to grid at maximum power to sell energy
-        - Goal: empty battery to prepare for night charging
+        - Goal: empty battery to prepare for spot charging
         - PV is curtailed (not sold in this implementation, could be modified)
         """
         flows = self._init_flows()
@@ -244,8 +244,8 @@ class BatteryOptimizer:
     
     def _night_charge_window(self, E_bat, pv_available, spot_price):
         """
-        Night cheap charging window (default 23:00-05:00)
-        - Charge from grid to prepare for electrolyser
+        Spot grid charging window (default 23:00-05:00)
+        - Charge from grid at spot market prices to prepare for electrolyser
         - Can use price threshold strategy or always charge
         """
         flows = self._init_flows()
@@ -271,7 +271,7 @@ class BatteryOptimizer:
         else:
             E_bat_new = E_bat
         
-        # No PV at night typically, but handle it
+        # No PV during this window typically, but handle it
         flows['pv_curtailed'] = pv_available
         
         return E_bat_new, flows
