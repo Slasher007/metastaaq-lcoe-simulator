@@ -47,80 +47,81 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     if not pd.api.types.is_datetime64_any_dtype(data_content['Date']):
         data_content['Date'] = pd.to_datetime(data_content['Date'])
     
+    # Add computed columns
+    data_content['Week'] = data_content['Date'].dt.isocalendar().week
+    data_content['DayOfWeek'] = data_content['Date'].dt.day_name()
+    
+    # Get available options
+    available_years = sorted(data_content['Annee'].unique())
+    month_names_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    available_months = sorted(data_content['Mois'].unique(), 
+                             key=lambda x: ['January', 'February', 'March', 'April', 'May', 'June',
+                                           'July', 'August', 'September', 'October', 'November', 'December'].index(x))
+    available_weeks = sorted(data_content['Week'].unique())
+    day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    available_days = [day for day in day_order if day in data_content['DayOfWeek'].unique()]
+    
+    # Initialize session state for filters if not exists
+    if 'filter_years' not in st.session_state:
+        st.session_state.filter_years = available_years
+    if 'filter_months' not in st.session_state:
+        st.session_state.filter_months = available_months
+    if 'filter_week_enabled' not in st.session_state:
+        st.session_state.filter_week_enabled = False
+    if 'filter_weeks' not in st.session_state:
+        st.session_state.filter_weeks = available_weeks[:4] if len(available_weeks) >= 4 else available_weeks
+    if 'filter_day_enabled' not in st.session_state:
+        st.session_state.filter_day_enabled = False
+    if 'filter_days' not in st.session_state:
+        st.session_state.filter_days = available_days
+    
     # Create filter columns
     filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
     
     with filter_col1:
         # Year filter
-        available_years = sorted(data_content['Annee'].unique())
-        selected_years = st.multiselect(
+        st.multiselect(
             "📅 Year(s)",
             options=available_years,
-            default=available_years,
-            help="Select one or more years to include"
+            default=st.session_state.filter_years,
+            help="Select one or more years to include",
+            key='filter_years'
         )
     
     with filter_col2:
         # Month filter
-        month_names_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        available_months = sorted(data_content['Mois'].unique(), 
-                                 key=lambda x: ['January', 'February', 'March', 'April', 'May', 'June',
-                                               'July', 'August', 'September', 'October', 'November', 'December'].index(x))
-        selected_months = st.multiselect(
+        st.multiselect(
             "📆 Month(s)",
             options=available_months,
-            default=available_months,
-            help="Select one or more months to include"
+            default=st.session_state.filter_months,
+            help="Select one or more months to include",
+            key='filter_months'
         )
     
     with filter_col3:
         # Week filter (using week of year)
-        data_content['Week'] = data_content['Date'].dt.isocalendar().week
-        available_weeks = sorted(data_content['Week'].unique())
-        week_filter_enabled = st.checkbox("Filter by Week", value=False)
-        if week_filter_enabled:
-            selected_weeks = st.multiselect(
-                "Week Number(s)",
+        st.checkbox("Filter by Week", value=st.session_state.filter_week_enabled, key='filter_week_enabled')
+        if st.session_state.filter_week_enabled:
+            st.multiselect(
+                "Week(s)",
                 options=available_weeks,
-                default=available_weeks[:4] if len(available_weeks) >= 4 else available_weeks,
-                help="Select specific weeks (1-52)"
+                default=st.session_state.filter_weeks,
+                help="Select specific weeks (1-52)",
+                key='filter_weeks'
             )
-        else:
-            selected_weeks = available_weeks
     
     with filter_col4:
         # Day of week filter
-        data_content['DayOfWeek'] = data_content['Date'].dt.day_name()
-        day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        available_days = [day for day in day_order if day in data_content['DayOfWeek'].unique()]
-        
-        day_filter_enabled = st.checkbox("Filter by Day of Week", value=False)
-        if day_filter_enabled:
-            # Quick preset buttons
-            preset_col1, preset_col2, preset_col3 = st.columns(3)
-            with preset_col1:
-                if st.button("🏢 Weekdays", help="Monday to Friday", key='preset_weekdays'):
-                    st.session_state.day_preset = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-            with preset_col2:
-                if st.button("🏖️ Weekend", help="Saturday and Sunday", key='preset_weekend'):
-                    st.session_state.day_preset = ['Saturday', 'Sunday']
-            with preset_col3:
-                if st.button("🌐 All Days", help="All 7 days", key='preset_all'):
-                    st.session_state.day_preset = available_days
-            
-            # Get default from preset if available
-            default_days = st.session_state.get('day_preset', available_days)
-            default_days = [d for d in default_days if d in available_days]
-            
-            selected_days = st.multiselect(
+        st.checkbox("Filter by Day of Week", value=st.session_state.filter_day_enabled, key='filter_day_enabled')
+        if st.session_state.filter_day_enabled:
+            st.multiselect(
                 "📅 Day(s) of Week",
                 options=available_days,
-                default=default_days,
-                help="Select specific days (e.g., weekdays only)"
+                default=st.session_state.filter_days,
+                help="Select specific days (e.g., weekdays only)",
+                key='filter_days'
             )
-        else:
-            selected_days = available_days
     
     # Apply Filters Button
     st.markdown("")  # Add spacing
@@ -134,12 +135,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     if apply_filters_btn:
         st.session_state.filters_applied = True
         st.session_state.filter_config = {
-            'years': selected_years,
-            'months': selected_months,
-            'weeks': selected_weeks if week_filter_enabled else None,
-            'week_enabled': week_filter_enabled,
-            'days': selected_days if day_filter_enabled else None,
-            'day_enabled': day_filter_enabled
+            'years': st.session_state.filter_years,
+            'months': st.session_state.filter_months,
+            'weeks': st.session_state.filter_weeks if st.session_state.filter_week_enabled else None,
+            'week_enabled': st.session_state.filter_week_enabled,
+            'days': st.session_state.filter_days if st.session_state.filter_day_enabled else None,
+            'day_enabled': st.session_state.filter_day_enabled
         }
     
     # Apply filters if they have been applied at least once
@@ -288,45 +289,43 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     with col1:
         st.subheader("⚙️ Battery Configuration")
         
-        # Battery parameters
-        battery_params = DEFAULT_BATTERY_PARAMS.copy()
-        
-        battery_params['E_bat_max'] = st.number_input(
+        # Battery parameters with session state keys
+        st.number_input(
             "Energy Capacity (MWh)", 
             min_value=5.0, max_value=50.0, value=10.0, step=1.0,
-            help="Maximum battery energy storage capacity"
+            help="Maximum battery energy storage capacity",
+            key='bat_capacity'
         )
         
-        battery_params['P_charge_max'] = st.number_input(
+        st.number_input(
             "Charge Power (MW)", 
             min_value=2.0, max_value=25.0, value=5.0, step=1.0,
-            help="Maximum charging power"
+            help="Maximum charging power",
+            key='bat_charge_power'
         )
         
-        battery_params['P_discharge_max'] = st.number_input(
+        st.number_input(
             "Discharge Power (MW)", 
             min_value=2.0, max_value=25.0, value=5.0, step=1.0,
-            help="Maximum discharging power"
+            help="Maximum discharging power",
+            key='bat_discharge_power'
         )
         
-        battery_params['eta_rt'] = st.slider(
+        st.slider(
             "Round-trip Efficiency", 
             min_value=0.80, max_value=0.98, value=0.92, step=0.01,
-            help="Battery round-trip efficiency"
+            help="Battery round-trip efficiency",
+            key='bat_efficiency'
         )
         
-        battery_params['eta_charge'] = np.sqrt(battery_params['eta_rt'])
-        battery_params['eta_discharge'] = np.sqrt(battery_params['eta_rt'])
-        
-        battery_params['DoD_max'] = st.slider(
+        st.slider(
             "Max Depth of Discharge", 
-            min_value=0.80, max_value=1.00, value=0.90, step=0.05
+            min_value=0.80, max_value=1.00, value=0.90, step=0.05,
+            key='bat_dod'
         )
         
         # Electrolyser parameters (from main dashboard)
         st.subheader("⚡ Electrolyser")
-        electrolyser_params = DEFAULT_ELECTROLYSER_PARAMS.copy()
-        electrolyser_params['P_ely'] = electrolyser_power
         
         st.info(f"Using electrolyser power from main config: **{electrolyser_power:.1f} MW**")
     
@@ -334,9 +333,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         st.subheader("⏰ Operational Time Windows")
         st.markdown("*Configure time windows for each operational mode (24-hour format)*")
         
-        time_windows = DEFAULT_TIME_WINDOWS.copy()
-        
-        # Use tabs for time windows
+        # Use tabs for time windows - all bound to session state
         tw_tab1, tw_tab2, tw_tab3, tw_tab4 = st.tabs([
             "🌞 PV Charging", "💰 Arbitrage", "⚡ Spot Charging", "🔋 Electrolyser"
         ])
@@ -344,12 +341,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with tw_tab1:
             col_a, col_b = st.columns(2)
             with col_a:
-                time_windows['pv_charge_start'] = st.number_input(
+                st.number_input(
                     "Start Hour", 0, 23, 10, 1, key='pv_start',
                     help="PV charging window start (e.g., 10 = 10:00)"
                 )
             with col_b:
-                time_windows['pv_charge_end'] = st.number_input(
+                st.number_input(
                     "End Hour", 0, 23, 16, 1, key='pv_end',
                     help="PV charging window end"
                 )
@@ -358,12 +355,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with tw_tab2:
             col_a, col_b = st.columns(2)
             with col_a:
-                time_windows['arbitrage_discharge_start'] = st.number_input(
+                st.number_input(
                     "Start Hour", 0, 23, 16, 1, key='arb_start',
                     help="Arbitrage discharge window start"
                 )
             with col_b:
-                time_windows['arbitrage_discharge_end'] = st.number_input(
+                st.number_input(
                     "End Hour", 0, 23, 23, 1, key='arb_end',
                     help="Arbitrage discharge window end"
                 )
@@ -372,28 +369,26 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with tw_tab3:
             col_a, col_b = st.columns(2)
             with col_a:
-                time_windows['night_charge_start'] = st.number_input(
+                st.number_input(
                     "Start Hour", 0, 23, 23, 1, key='night_start',
                     help="Spot charging window start"
                 )
             with col_b:
-                time_windows['night_charge_end'] = st.number_input(
+                st.number_input(
                     "End Hour", 0, 23, 5, 1, key='night_end',
                     help="Spot charging window end"
                 )
             
-            night_strategy = NIGHT_CHARGE_STRATEGY.copy()
-            charge_mode = st.radio(
+            st.radio(
                 "Strategy",
                 ["Always Charge", "Price Threshold"],
                 index=0,
                 horizontal=True,
                 key='night_mode'
             )
-            night_strategy['mode'] = 'always_charge' if charge_mode == "Always Charge" else 'price_threshold'
             
-            if night_strategy['mode'] == 'price_threshold':
-                night_strategy['price_threshold'] = st.number_input(
+            if st.session_state.get('night_mode', 'Always Charge') == 'Price Threshold':
+                st.number_input(
                     "Max Price (€/MWh)", 0.0, 200.0, 50.0, 5.0, key='night_price'
                 )
             
@@ -402,27 +397,59 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with tw_tab4:
             col_a, col_b = st.columns(2)
             with col_a:
-                time_windows['electrolyser_start'] = st.number_input(
+                st.number_input(
                     "Start Hour", 0, 23, 5, 1, key='ely_start',
                     help="Electrolyser operation window start"
                 )
             with col_b:
-                time_windows['electrolyser_end'] = st.number_input(
+                st.number_input(
                     "End Hour", 0, 23, 10, 1, key='ely_end',
                     help="Electrolyser operation window end"
                 )
             st.caption("Battery exclusively powers electrolyser (no grid purchase).")
     
-    # Validate time windows
-    is_valid, validation_msg = validate_time_windows(time_windows)
-    if not is_valid:
-        st.warning(f"⚠️ Time window configuration issue: {validation_msg}")
-    
     # Run button
     st.markdown("---")
-    run_battery_opt = st.button("🚀 Run Battery Optimization", type="primary", use_container_width=True)
+    
+    run_battery_opt = st.button("🚀 Run Battery Optimization", type="primary", use_container_width=True,
+                                help="Run simulation with current configuration")
     
     if run_battery_opt:
+        # Build configuration from session state
+        battery_params = DEFAULT_BATTERY_PARAMS.copy()
+        battery_params['E_bat_max'] = st.session_state.get('bat_capacity', 10.0)
+        battery_params['P_charge_max'] = st.session_state.get('bat_charge_power', 5.0)
+        battery_params['P_discharge_max'] = st.session_state.get('bat_discharge_power', 5.0)
+        battery_params['eta_rt'] = st.session_state.get('bat_efficiency', 0.92)
+        battery_params['eta_charge'] = np.sqrt(battery_params['eta_rt'])
+        battery_params['eta_discharge'] = np.sqrt(battery_params['eta_rt'])
+        battery_params['DoD_max'] = st.session_state.get('bat_dod', 0.90)
+        
+        time_windows = DEFAULT_TIME_WINDOWS.copy()
+        time_windows['pv_charge_start'] = st.session_state.get('pv_start', 10)
+        time_windows['pv_charge_end'] = st.session_state.get('pv_end', 16)
+        time_windows['arbitrage_discharge_start'] = st.session_state.get('arb_start', 16)
+        time_windows['arbitrage_discharge_end'] = st.session_state.get('arb_end', 23)
+        time_windows['night_charge_start'] = st.session_state.get('night_start', 23)
+        time_windows['night_charge_end'] = st.session_state.get('night_end', 5)
+        time_windows['electrolyser_start'] = st.session_state.get('ely_start', 5)
+        time_windows['electrolyser_end'] = st.session_state.get('ely_end', 10)
+        
+        night_strategy = NIGHT_CHARGE_STRATEGY.copy()
+        charge_mode = st.session_state.get('night_mode', 'Always Charge')
+        night_strategy['mode'] = 'always_charge' if charge_mode == "Always Charge" else 'price_threshold'
+        if night_strategy['mode'] == 'price_threshold':
+            night_strategy['price_threshold'] = st.session_state.get('night_price', 50.0)
+        
+        electrolyser_params = DEFAULT_ELECTROLYSER_PARAMS.copy()
+        electrolyser_params['P_ely'] = electrolyser_power
+        
+        # Validate time windows
+        is_valid, validation_msg = validate_time_windows(time_windows)
+        if not is_valid:
+            st.error(f"⚠️ Time window configuration issue: {validation_msg}")
+            st.stop()
+        
         with st.spinner("Running battery optimization..."):
             # Use existing columns from CSV data
             spot_prices = data_content['Prix'].values
@@ -450,11 +477,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             st.session_state['battery_summary'] = summary
             st.session_state['battery_params'] = battery_params
             st.session_state['battery_time_windows'] = time_windows
+            st.session_state['battery_optimization_run'] = True
         
         st.success("✅ Battery optimization complete!")
     
-    # Display results
-    if 'battery_results' in st.session_state:
+    # Display results only if optimization has been run
+    if st.session_state.get('battery_optimization_run', False) and 'battery_results' in st.session_state:
         df_results = st.session_state['battery_results']
         summary = st.session_state['battery_summary']
         battery_params = st.session_state['battery_params']
@@ -729,7 +757,40 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             st.table(pd.DataFrame(summary_data))
     
     else:
-        st.info("👆 Configure battery parameters and time windows above, then click 'Run Battery Optimization'")
+        st.info("👆 Configure battery parameters and time windows above, then click '🚀 Run Battery Optimization' to start the simulation")
+        
+        # Show example configuration help
+        with st.expander("💡 Quick Start Guide", expanded=False):
+            st.markdown("""
+            **Getting Started:**
+            
+            1. **Review Data Filters** (optional)
+               - Filter by year, month, week, or day of week
+               - Click '🔄 Apply Filters' to update data
+            
+            2. **Check Price Distribution Chart**
+               - Identify peak price hours (good for discharge)
+               - Identify low price hours (good for charging)
+            
+            3. **Configure Battery** (left column)
+               - Start with defaults or adjust capacity/power
+               - Set efficiency and depth of discharge
+            
+            4. **Set Time Windows** (right column)
+               - Use default windows or customize
+               - Align with your price patterns
+            
+            5. **Click 'Run Battery Optimization'**
+               - Wait 5-30 seconds for results
+               - Review KPIs and detailed analysis
+            
+            **Default Configuration:**
+            - Battery: 10 MWh capacity, 5 MW power
+            - PV Charging: 10:00-16:00
+            - Arbitrage: 16:00-23:00
+            - Spot Charging: 23:00-05:00
+            - Electrolyser: 05:00-10:00
+            """)
         
         # Show example time windows
         st.markdown("### 📋 Default Operating Strategy")

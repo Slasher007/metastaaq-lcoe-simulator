@@ -126,7 +126,7 @@ def main():
     if strategy_type == "Service Ratio-Based":
         display_monthly_ch4_production(monthly_ch4_production, monthly_service_ratios)
     
-    # Parameter change detection
+    # Store current parameters for main LCOE analysis only (not for battery tab)
     if 'last_params' not in st.session_state:
         st.session_state.last_params = {}
     
@@ -138,17 +138,14 @@ def main():
 
     current_params['strategy_type'] = strategy_type
 
+    # Only track parameter changes for main LCOE tab (will be used in tab content)
     params_changed = st.session_state.last_params != current_params
-    st.session_state.last_params = current_params.copy()
-
-    # Display parameter change info
-    display_parameter_change_info(params_changed)
-
+    # Don't update last_params here - let each tab manage its own state
+    
     if 'last_strategy_type' not in st.session_state:
         st.session_state.last_strategy_type = strategy_type
 
     strategy_changed_to_target = (st.session_state.last_strategy_type != strategy_type) and strategy_type == "Target Price-Based"
-    st.session_state.last_strategy_type = strategy_type
 
     auto_refresh = st.sidebar.checkbox("Enable auto-refresh on data changes", value=False, help="Checks for data file changes every 10 seconds and re-runs simulation if changed.")
 
@@ -174,6 +171,13 @@ def main():
     main_tab1, main_tab2 = st.tabs(["📊 LCOE & Energy Analysis", "🔋 Battery Arbitrage Optimization"])
     
     with main_tab1:
+        # Update last_params only when in LCOE tab
+        st.session_state.last_params = current_params.copy()
+        st.session_state.last_strategy_type = strategy_type
+        
+        # Display parameter change info only in LCOE tab
+        display_parameter_change_info(params_changed)
+        
         # Original dashboard content goes here
         _render_main_analysis(
             data_content, strategy_type, monthly_service_ratios, avg_service_ratio,
@@ -185,7 +189,7 @@ def main():
         )
     
     with main_tab2:
-        # Battery arbitrage optimization tab
+        # Battery arbitrage optimization tab - independent from main dashboard parameters
         if BATTERY_MODULE_AVAILABLE:
             # Prepare data with timestamp if not already present
             data_with_ts = data_content.copy()
@@ -193,6 +197,8 @@ def main():
                 from datetime import timedelta
                 import pandas as pd
                 data_with_ts['timestamp'] = pd.to_datetime(data_with_ts['Date']) + pd.to_timedelta(data_with_ts['Heure'], unit='h')
+            
+            # Battery tab has its own configuration management - no auto-updates from main dashboard
             render_battery_arbitrage_tab(data_with_ts, electrolyser_power, pv_energy_data)
         else:
             st.error("🔋 Battery Arbitrage module not available. Please ensure all battery optimization files are present.")
