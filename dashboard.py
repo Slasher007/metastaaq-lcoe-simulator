@@ -49,6 +49,14 @@ from calculate_lcoh import calculate_lcoh, calculate_lcoc
 import os
 import time
 
+# Import battery arbitrage integration
+try:
+    from battery_integration import render_battery_arbitrage_tab
+    BATTERY_MODULE_AVAILABLE = True
+except ImportError:
+    BATTERY_MODULE_AVAILABLE = False
+    print("⚠️ Battery arbitrage module not available. Install required dependencies.")
+
 
 def main():
     """Main dashboard function"""
@@ -162,6 +170,43 @@ def main():
             st.session_state.last_check = time.time()
             st.rerun()
 
+    # Create main tabs for different analysis sections
+    main_tab1, main_tab2 = st.tabs(["📊 LCOE & Energy Analysis", "🔋 Battery Arbitrage Optimization"])
+    
+    with main_tab1:
+        # Original dashboard content goes here
+        _render_main_analysis(
+            data_content, strategy_type, monthly_service_ratios, avg_service_ratio,
+            electrolyser_power, electrolyser_specific_consumption, derived_params,
+            monthly_ch4_production, target_prices, pv_price, ppa_price, pv_params,
+            pv_energy_data, electrolyzer_econ, methanation_econ, site_co2_econ,
+            go_enabled, go_cost_per_mwh, selected_years, params_changed, data_changed, 
+            strategy_changed_to_target
+        )
+    
+    with main_tab2:
+        # Battery arbitrage optimization tab
+        if BATTERY_MODULE_AVAILABLE:
+            # Prepare data with timestamp if not already present
+            data_with_ts = data_content.copy()
+            if 'timestamp' not in data_with_ts.columns:
+                from datetime import timedelta
+                import pandas as pd
+                data_with_ts['timestamp'] = pd.to_datetime(data_with_ts['Date']) + pd.to_timedelta(data_with_ts['Heure'], unit='h')
+            render_battery_arbitrage_tab(data_with_ts, electrolyser_power, pv_energy_data)
+        else:
+            st.error("🔋 Battery Arbitrage module not available. Please ensure all battery optimization files are present.")
+            st.info("Required files: battery_config.py, battery_optimizer.py, battery_visualization.py, battery_integration.py")
+
+
+def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, avg_service_ratio,
+                          electrolyser_power, electrolyser_specific_consumption, derived_params,
+                          monthly_ch4_production, target_prices, pv_price, ppa_price, pv_params,
+                          pv_energy_data, electrolyzer_econ, methanation_econ, site_co2_econ,
+                          go_enabled, go_cost_per_mwh, selected_years, params_changed, data_changed,
+                          strategy_changed_to_target):
+    """Render the main LCOE analysis section (original dashboard content)"""
+    
     # Create analysis plots
     st.markdown("#### 📈 Average Monthly Price Analysis")
     fig_price = create_monthly_price_analysis_plot(data_content)
@@ -196,13 +241,13 @@ def main():
         </style>
         """, unsafe_allow_html=True)
         st.markdown('<div class="green-button">', unsafe_allow_html=True)
-        manual_refresh = st.button("Run Simulation", help="Force refresh the simulation")
+        manual_refresh_btn = st.button("Run Simulation", help="Force refresh the simulation")
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        manual_refresh = False
+        manual_refresh_btn = False
 
     # Run simulation
-    run_simulation = params_changed or data_changed or manual_refresh or 'simulation_run' not in st.session_state or strategy_changed_to_target
+    run_simulation = params_changed or data_changed or manual_refresh_btn or 'simulation_run' not in st.session_state or strategy_changed_to_target
     
     if run_simulation:
         if data_content.empty:
