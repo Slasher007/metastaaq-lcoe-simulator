@@ -894,7 +894,7 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
         # Style the dataframe
         def style_breakdown_rows(row):
             if row.name in [0, 6, 12, 18]:  # Bold rows (category headers and total)
-                return ['background-color: #e8f4f8; font-weight: bold'] * len(row)
+                return ['background-color: #1f77b4; color: white; font-weight: bold'] * len(row)
             elif row.name in [5, 11, 17]:  # Empty separator rows
                 return ['background-color: white; height: 5px'] * len(row)
             else:

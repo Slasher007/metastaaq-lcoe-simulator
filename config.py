@@ -215,6 +215,29 @@ CUSTOM_CSS = """
         border-radius: 0.5rem;
         border-left: 4px solid #1f77b4;
     }
+    /* Enhanced table header styling */
+    .stDataFrame thead tr th {
+        background-color: #1f77b4 !important;
+        color: white !important;
+        font-weight: bold !important;
+        padding: 12px 8px !important;
+        text-align: center !important;
+    }
+    /* For st.table() headers */
+    table thead tr th {
+        background-color: #1f77b4 !important;
+        color: white !important;
+        font-weight: bold !important;
+        padding: 12px 8px !important;
+        text-align: center !important;
+    }
+    /* Table body styling for better readability */
+    .stDataFrame tbody tr:hover {
+        background-color: #f5f5f5 !important;
+    }
+    table tbody tr:hover {
+        background-color: #f5f5f5 !important;
+    }
 </style>
 """
 
