@@ -1331,49 +1331,140 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
             else:
                 st.info("No Maintenance breakdown available")
         
-        # Electricity breakdown for methanation
+        # Electricity breakdown for methanation with chart
         st.markdown("#### ⚡ Methanation Electricity Cost")
-        st.info(f"Total methanation electricity: **{lcoc_results['methanation_electricity_mwh']:.1f} MWhe/year**  \n"
-                f"Average electricity cost: **{lcoc_results['avg_electricity_cost_per_mwh']:.2f} €/MWh**  \n"
-                f"Total electricity cost: **{lcoc_results['methanation_electricity_cost']:,.0f} €/year**")
         
-        # Component Costs Summary
+        col_info, col_chart = st.columns([1, 1])
+        
+        with col_info:
+            st.info(f"**Total methanation electricity:** {lcoc_results['methanation_electricity_mwh']:.1f} MWhe/year\n\n"
+                    f"**Average electricity cost:** {lcoc_results['avg_electricity_cost_per_mwh']:.2f} €/MWh\n\n"
+                    f"**Total electricity cost:** {lcoc_results['methanation_electricity_cost']:,.0f} €/year")
+        
+        with col_chart:
+            # Create bar chart for electricity breakdown
+            fig_elec, ax_elec = plt.subplots(figsize=(6, 4))
+            
+            categories = ['Consumption\n(MWhe)', 'Unit Cost\n(€/MWh)', 'Total Cost\n(€/year)']
+            values = [
+                lcoc_results['methanation_electricity_mwh'],
+                lcoc_results['avg_electricity_cost_per_mwh'],
+                lcoc_results['methanation_electricity_cost']
+            ]
+            colors = ['#4ECDC4', '#FF6B6B', '#FFD93D']
+            
+            bars = ax_elec.bar(categories, values, color=colors, edgecolor='black', linewidth=1.5, alpha=0.8)
+            
+            # Add value labels on bars
+            for bar, val in zip(bars, values):
+                height = bar.get_height()
+                ax_elec.text(bar.get_x() + bar.get_width()/2., height,
+                           f'{val:,.1f}' if val < 1000 else f'{val:,.0f}',
+                           ha='center', va='bottom', fontsize=10, fontweight='bold')
+            
+            ax_elec.set_ylabel('Value', fontsize=10, fontweight='bold')
+            ax_elec.set_title('Methanation Electricity Metrics', fontsize=12, fontweight='bold', pad=15)
+            ax_elec.grid(axis='y', alpha=0.3, linestyle='--')
+            ax_elec.set_axisbelow(True)
+            
+            plt.tight_layout()
+            st.pyplot(fig_elec)
+            plt.close()
+        
+        # Component Costs Summary with Charts
         st.markdown("#### 💰 Annual Costs by Component")
         
-        # Electrolyzer costs
-        st.markdown("##### ⚡ Electrolyser Costs")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("**CapEx (annualized)**", f"{electrolyzer_costs.get('capex_annual', 0):,.0f} €/year")
-        with col2:
-            st.metric("**OpEx**", f"{electrolyzer_costs.get('opex_annual', 0):,.0f} €/year")
-        with col3:
-            st.metric("**Maintenance**", f"{electrolyzer_costs.get('maintenance_annual', 0):,.0f} €/year")
-        st.metric("**Total Electrolyser Annual Cost**", f"{electrolyzer_annual:,.0f} €/year")
-        st.metric("**Electrolyser Cost per kg CH₄**", f"{electrolyzer_per_kg:.3f} €/kg CH₄")
+        # Create comprehensive cost comparison chart
+        components = []
+        capex_values = []
+        opex_values = []
+        maintenance_values = []
+        total_values = []
+        cost_per_kg_values = []
         
-        # Methanation costs
-        st.markdown("##### 🔥 Methanation Costs")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("**CapEx (annualized)**", f"{methanation_costs.get('capex_annual', 0):,.0f} €/year")
-        with col2:
-            st.metric("**OpEx**", f"{methanation_costs.get('opex_annual', 0):,.0f} €/year")
-        with col3:
-            st.metric("**Maintenance**", f"{methanation_costs.get('maintenance_annual', 0):,.0f} €/year")
-        st.metric("**Total Methanation Annual Cost**", f"{methanation_annual:,.0f} €/year")
-        st.metric("**Methanation Cost per kg CH₄**", f"{methanation_per_kg:.3f} €/kg CH₄")
+        # Electrolyzer
+        components.append('Electrolyser')
+        capex_values.append(electrolyzer_costs.get('capex_annual', 0))
+        opex_values.append(electrolyzer_costs.get('opex_annual', 0))
+        maintenance_values.append(electrolyzer_costs.get('maintenance_annual', 0))
+        total_values.append(electrolyzer_annual)
+        cost_per_kg_values.append(electrolyzer_per_kg)
         
-        # Site & CO2 costs
+        # Methanation
+        components.append('Methanation')
+        capex_values.append(methanation_costs.get('capex_annual', 0))
+        opex_values.append(methanation_costs.get('opex_annual', 0))
+        maintenance_values.append(methanation_costs.get('maintenance_annual', 0))
+        total_values.append(methanation_annual)
+        cost_per_kg_values.append(methanation_per_kg)
+        
+        # Site & CO2
         if site_co2_annual > 0:
-            st.markdown("##### 🏭 Site & CO₂ Supply Costs")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("**CapEx (annualized)**", f"{site_co2_costs.get('capex_annual', 0):,.0f} €/year")
-            with col2:
-                st.metric("**OpEx**", f"{site_co2_costs.get('opex_annual', 0):,.0f} €/year")
-            with col3:
-                st.metric("**Maintenance**", f"{site_co2_costs.get('maintenance_annual', 0):,.0f} €/year")
-            
-            st.metric("**Total Site & CO₂ Annual Cost**", f"{site_co2_annual:,.0f} €/year")
-            st.metric("**Site & CO₂ Cost per kg CH₄**", f"{site_co2_per_kg:.3f} €/kg CH₄")
+            components.append('Site & CO₂')
+            capex_values.append(site_co2_costs.get('capex_annual', 0))
+            opex_values.append(site_co2_costs.get('opex_annual', 0))
+            maintenance_values.append(site_co2_costs.get('maintenance_annual', 0))
+            total_values.append(site_co2_annual)
+            cost_per_kg_values.append(site_co2_per_kg)
+        
+        # Create stacked bar chart for cost breakdown
+        fig_costs, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        
+        # Chart 1: Stacked bar chart showing CapEx, OpEx, Maintenance
+        x_pos = np.arange(len(components))
+        bar_width = 0.6
+        
+        p1 = ax1.bar(x_pos, capex_values, bar_width, label='CapEx', color='#1f77b4', edgecolor='black', linewidth=1.2)
+        p2 = ax1.bar(x_pos, opex_values, bar_width, bottom=capex_values, label='OpEx', color='#ff7f0e', edgecolor='black', linewidth=1.2)
+        p3 = ax1.bar(x_pos, maintenance_values, bar_width, 
+                     bottom=np.array(capex_values) + np.array(opex_values),
+                     label='Maintenance', color='#2ca02c', edgecolor='black', linewidth=1.2)
+        
+        # Add total value labels on top of stacked bars
+        for i, (total, comp) in enumerate(zip(total_values, components)):
+            ax1.text(i, total, f'€{total:,.0f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+        
+        ax1.set_ylabel('Annual Cost (€/year)', fontsize=11, fontweight='bold')
+        ax1.set_title('Annual Cost Breakdown by Component', fontsize=13, fontweight='bold', pad=15)
+        ax1.set_xticks(x_pos)
+        ax1.set_xticklabels(components, fontsize=10, fontweight='bold')
+        ax1.legend(loc='upper left', fontsize=10)
+        ax1.grid(axis='y', alpha=0.3, linestyle='--')
+        ax1.set_axisbelow(True)
+        ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
+        
+        # Chart 2: Cost per kg CH4
+        bars2 = ax2.bar(x_pos, cost_per_kg_values, bar_width, color=['#4ECDC4', '#FF6B6B', '#FFD93D'][:len(components)],
+                       edgecolor='black', linewidth=1.2, alpha=0.85)
+        
+        # Add value labels
+        for i, (bar, val) in enumerate(zip(bars2, cost_per_kg_values)):
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height,
+                   f'{val:.3f} €',
+                   ha='center', va='bottom', fontsize=10, fontweight='bold')
+        
+        ax2.set_ylabel('Cost (€/kg CH₄)', fontsize=11, fontweight='bold')
+        ax2.set_title('Cost per kg CH₄ by Component', fontsize=13, fontweight='bold', pad=15)
+        ax2.set_xticks(x_pos)
+        ax2.set_xticklabels(components, fontsize=10, fontweight='bold')
+        ax2.grid(axis='y', alpha=0.3, linestyle='--')
+        ax2.set_axisbelow(True)
+        
+        plt.tight_layout()
+        st.pyplot(fig_costs)
+        plt.close()
+        
+        # Summary table
+        st.markdown("##### 📋 Cost Summary Table")
+        summary_data = {
+            'Component': components,
+            'CapEx (€/year)': [f"{v:,.0f}" for v in capex_values],
+            'OpEx (€/year)': [f"{v:,.0f}" for v in opex_values],
+            'Maintenance (€/year)': [f"{v:,.0f}" for v in maintenance_values],
+            'Total (€/year)': [f"{v:,.0f}" for v in total_values],
+            'Cost (€/kg CH₄)': [f"{v:.3f}" for v in cost_per_kg_values]
+        }
+        
+        df_summary = pd.DataFrame(summary_data)
+        st.table(df_summary)
