@@ -311,7 +311,7 @@ def display_pv_economics_summary(estimated_power_mwp, estimated_power_kwp, batte
 def display_lcoh_results(lcoh_results, avg_service_ratio=None, go_enabled=False, go_cost_per_mwh=0.0):
     """Display LCOH calculation results"""
     st.markdown("---")
-    st.markdown("### 💧 LCOH (Levelized Cost of Hydrogen) Analysis")
+    st.markdown("### 💧 Electrolyser Analysis")
     
     # Main metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -672,6 +672,11 @@ def display_methanation_analysis(methanation_econ, ch4_flowrate, puissance_insta
     st.markdown("---")
     st.markdown("### 🔥 Methanation Unit Analysis")
     
+    # Calculate CH4 yearly production
+    ch4_density = 0.7168  # kg/Nm³ CH₄
+    ch4_production_kg_year = ch4_flowrate * avg_service_ratio * 8760 * ch4_density
+    ch4_production_tonnes_year = ch4_production_kg_year / 1000
+    
     # Main metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -683,8 +688,8 @@ def display_methanation_analysis(methanation_econ, ch4_flowrate, puissance_insta
         st.metric("**Annual Electricity**", f"{annual_consumption_mwh:.1f} MWhe/year",
                  help=f"Calculated: {puissance_instantanee_kw:.1f} kW × {avg_service_ratio:.1%} × 8760 h / 1000")
     with col4:
-        st.metric("**Annual Elec. Cost**", f"{annual_consumption_mwh * avg_electricity_cost:,.0f} €/year",
-                 help=f"Calculated: {annual_consumption_mwh:.1f} MWh × {avg_electricity_cost:.2f} €/MWh")
+        st.metric("**CH₄ Production**", f"{ch4_production_tonnes_year:.1f} T/year",
+                 help=f"Calculated: {ch4_flowrate:.0f} Nm³/h × {avg_service_ratio:.1%} × 8760 h × {ch4_density} kg/Nm³ = {ch4_production_kg_year:,.0f} kg/year ({ch4_production_tonnes_year:.1f} T/year)")
     
     # Detailed breakdown
     with st.expander("📊 Methanation Cost Breakdown", expanded=True):
@@ -703,6 +708,8 @@ def display_methanation_analysis(methanation_econ, ch4_flowrate, puissance_insta
         
         # Lifetime costs
         lifetime_capex = capex_total
+        lifetime_electricity = electricity_cost_annual * project_lifetime
+        lifetime_others_opex = others_opex_annual * project_lifetime
         lifetime_opex = opex_annual * project_lifetime
         lifetime_maintenance = maintenance_annual * project_lifetime
         lifetime_total = lifetime_capex + lifetime_opex + lifetime_maintenance
@@ -711,11 +718,11 @@ def display_methanation_analysis(methanation_econ, ch4_flowrate, puissance_insta
         breakdown_data = {
             'Component': [
                 'CapEx',
-                'OpEx (Electricity + Others)',
+                'OpEx',
                 'Maintenance',
                 '**TOTAL**'
             ],
-            'Annual Cost (€/year)': [
+            'Annual Cost (€)': [
                 f"{capex_annual:,.0f}",
                 f"{opex_annual:,.0f}",
                 f"{maintenance_annual:,.0f}",
@@ -747,139 +754,199 @@ def display_methanation_analysis(methanation_econ, ch4_flowrate, puissance_insta
             # Create pie chart
             pie_labels = ['CapEx', 'OpEx', 'Maintenance']
             pie_values = [capex_annual, opex_annual, maintenance_annual]
-            pie_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
             
             fig_pie, ax_pie = plt.subplots(figsize=(7, 7))
+            colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+            
             wedges, texts, autotexts = ax_pie.pie(
-                pie_values, 
+                pie_values,
                 labels=pie_labels,
                 autopct='%1.1f%%',
                 startangle=90,
-                colors=pie_colors,
-                textprops={'fontsize': 12, 'weight': 'bold'}
+                colors=colors,
+                pctdistance=0.85,
+                explode=[0.05, 0.05, 0.05]
             )
             
-            # Make percentage text white and bold
+            # Enhance text
             for autotext in autotexts:
                 autotext.set_color('white')
-                autotext.set_fontsize(14)
-                autotext.set_weight('bold')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(9)
             
-            ax_pie.set_title('Methanation Cost Distribution', fontsize=14, weight='bold', pad=20)
+            for text in texts:
+                text.set_fontsize(10)
+                text.set_fontweight('bold')
+            
+            # Create title with average service ratio if available
+            title = 'Methanation Cost Breakdown'
+            if avg_service_ratio is not None:
+                title += f'\nService Ratio: {avg_service_ratio:.1%}'
+            ax_pie.set_title(title, fontsize=12, fontweight='bold', pad=20)
+            
+            ax_pie.axis('equal')
+            
+            plt.tight_layout()
             st.pyplot(fig_pie)
             plt.close()
-    
-    # Detailed CapEx Components
-    with st.expander("🏗️ CapEx Components Breakdown", expanded=False):
-        capex_components = methanation_econ.get('capex_components', {})
         
-        if capex_components:
-            capex_data = {
-                'Component': [],
-                'Cost (€)': [],
-                'Percentage': []
-            }
-            
-            total_capex = sum(capex_components.values())
-            
-            for component, cost in capex_components.items():
-                capex_data['Component'].append(component.replace('_', ' ').title())
-                capex_data['Cost (€)'].append(f"{cost:,.0f}")
-                capex_data['Percentage'].append(f"{(cost/total_capex*100):.1f}%" if total_capex > 0 else "0%")
-            
-            # Add total row
-            capex_data['Component'].append('**TOTAL**')
-            capex_data['Cost (€)'].append(f"**{total_capex:,.0f}**")
-            capex_data['Percentage'].append("**100.0%**")
-            
-            df_capex = pd.DataFrame(capex_data)
-            st.table(df_capex)
-            
-            # CapEx bar chart
-            if total_capex > 0:
-                fig_capex, ax_capex = plt.subplots(figsize=(10, 6))
-                components = [k.replace('_', ' ').title() for k in capex_components.keys()]
-                values = list(capex_components.values())
-                
-                bars = ax_capex.barh(components, values, color='#FF6B6B')
-                ax_capex.set_xlabel('Cost (€)', fontsize=12, weight='bold')
-                ax_capex.set_title('Methanation CapEx Components', fontsize=14, weight='bold')
-                ax_capex.grid(axis='x', alpha=0.3)
-                
-                # Add value labels
-                for i, (bar, value) in enumerate(zip(bars, values)):
-                    ax_capex.text(value, i, f' {value:,.0f} €', va='center', fontsize=10, weight='bold')
-                
-                plt.tight_layout()
-                st.pyplot(fig_capex)
-                plt.close()
-        else:
-            st.info("No CapEx components breakdown available")
-    
-    # Maintenance Components
-    with st.expander("🔧 Maintenance Breakdown", expanded=False):
+        # Detailed Cost Breakdown Bar Charts
+        st.markdown("#### 📊 Detailed Cost Breakdown")
+        
+        # Get CapEx and Maintenance components
+        capex_components = methanation_econ.get('capex_components', {})
         maintenance_breakdown = methanation_econ.get('maintenance_breakdown', {})
         
-        if maintenance_breakdown:
-            maint_data = {
-                'Component': [],
-                'Annual Cost (€/year)': [],
-                'Percentage': []
+        # Create 3 columns for 3 charts
+        col1, col2, col3 = st.columns(3)
+        
+        # --- 1. CapEx Breakdown Chart ---
+        with col1:
+            st.markdown("##### CapEx Components")
+            if capex_components:
+                # Get components
+                capex_data = {
+                    'Methanation Unit': capex_components.get('methanation_unit', 0),
+                    'Purification': capex_components.get('purification_unit', 0),
+                    'Compressor': capex_components.get('compressor', 0),
+                    'CH₄ Storage': capex_components.get('ch4_storage', 0),
+                    'Grid Injection': capex_components.get('grid_injection', 0),
+                    'Others': capex_components.get('others', 0)
+                }
+                
+                # Filter out zero values
+                capex_data = {k: v for k, v in capex_data.items() if v > 0}
+                
+                if capex_data:
+                    # Create figure
+                    fig1, ax1 = plt.subplots(figsize=(6, 5))
+                    
+                    components = list(capex_data.keys())
+                    values = list(capex_data.values())
+                    colors = plt.cm.Blues(np.linspace(0.4, 0.9, len(components)))
+                    
+                    bars = ax1.barh(components, values, color=colors, edgecolor='black', linewidth=1.2)
+                    
+                    # Add value labels
+                    for i, (bar, val) in enumerate(zip(bars, values)):
+                        width = bar.get_width()
+                        ax1.text(width, bar.get_y() + bar.get_height()/2,
+                               f' €{val:,.0f}',
+                               ha='left', va='center', fontsize=8, fontweight='bold')
+                    
+                    ax1.set_xlabel('Cost (€)', fontsize=10, fontweight='bold')
+                    title1 = f'Total: €{sum(values):,.0f}'
+                    if avg_service_ratio is not None:
+                        title1 += f'\nService Ratio: {avg_service_ratio:.1%}'
+                    ax1.set_title(title1, fontsize=11, fontweight='bold', pad=10)
+                    ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
+                    ax1.grid(axis='x', alpha=0.3, linestyle='--')
+                    ax1.set_axisbelow(True)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig1)
+                    plt.close()
+            else:
+                st.info("No CapEx breakdown available")
+        
+        # --- 2. OpEx Breakdown Chart ---
+        with col2:
+            st.markdown("##### OpEx Components")
+            opex_data = {
+                'Electricity': lifetime_electricity,
+                'Others': lifetime_others_opex
             }
             
-            total_maint = sum(maintenance_breakdown.values())
+            # Filter out zero values
+            opex_data = {k: v for k, v in opex_data.items() if v > 0}
             
-            for component, cost in maintenance_breakdown.items():
-                maint_data['Component'].append(component.replace('_', ' ').title())
-                maint_data['Annual Cost (€/year)'].append(f"{cost:,.0f}")
-                maint_data['Percentage'].append(f"{(cost/total_maint*100):.1f}%" if total_maint > 0 else "0%")
-            
-            # Add total row
-            maint_data['Component'].append('**TOTAL**')
-            maint_data['Annual Cost (€/year)'].append(f"**{total_maint:,.0f}**")
-            maint_data['Percentage'].append("**100.0%**")
-            
-            df_maint = pd.DataFrame(maint_data)
-            st.table(df_maint)
-        else:
-            st.info("No maintenance breakdown available")
-    
-    # Electricity Consumption Details
-    with st.expander("⚡ Electricity Consumption Details", expanded=False):
-        elec_consumption = methanation_econ.get('electricity_consumption', {})
+            if opex_data:
+                # Create figure
+                fig2, ax2 = plt.subplots(figsize=(6, 5))
+                
+                components = list(opex_data.keys())
+                values = list(opex_data.values())
+                colors = plt.cm.Oranges(np.linspace(0.4, 0.9, len(components)))
+                
+                bars = ax2.barh(components, values, color=colors, edgecolor='black', linewidth=1.2)
+                
+                # Add value labels
+                for i, (bar, val) in enumerate(zip(bars, values)):
+                    width = bar.get_width()
+                    ax2.text(width, bar.get_y() + bar.get_height()/2,
+                           f' €{val:,.0f}',
+                           ha='left', va='center', fontsize=8, fontweight='bold')
+                
+                ax2.set_xlabel('Cost (€)', fontsize=10, fontweight='bold')
+                title2 = f'Total: €{sum(values):,.0f}'
+                if avg_service_ratio is not None:
+                    title2 += f'\nService Ratio: {avg_service_ratio:.1%}'
+                ax2.set_title(title2, fontsize=11, fontweight='bold', pad=10)
+                ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
+                ax2.grid(axis='x', alpha=0.3, linestyle='--')
+                ax2.set_axisbelow(True)
+                
+                plt.tight_layout()
+                st.pyplot(fig2)
+                plt.close()
+            else:
+                st.info("No OpEx breakdown available")
         
-        st.markdown("#### Power Calculation")
+        # --- 3. Maintenance Breakdown Chart ---
+        with col3:
+            st.markdown("##### Maintenance Components")
+            if maintenance_breakdown:
+                maintenance_data = {
+                    'Methanation Unit': maintenance_breakdown.get('methanation_unit', 0) * project_lifetime,
+                    'Purification': maintenance_breakdown.get('purification_unit', 0) * project_lifetime,
+                    'Compressor': maintenance_breakdown.get('compressor', 0) * project_lifetime,
+                    'CH₄ Storage': maintenance_breakdown.get('ch4_storage', 0) * project_lifetime,
+                    'Grid Injection': maintenance_breakdown.get('grid_injection', 0) * project_lifetime,
+                    'Others': maintenance_breakdown.get('others', 0) * project_lifetime
+                }
+                
+                # Filter out zero values
+                maintenance_data = {k: v for k, v in maintenance_data.items() if v > 0}
+                
+                if maintenance_data:
+                    # Create figure
+                    fig3, ax3 = plt.subplots(figsize=(6, 5))
+                    
+                    components = list(maintenance_data.keys())
+                    values = list(maintenance_data.values())
+                    colors = plt.cm.Greens(np.linspace(0.4, 0.9, len(components)))
+                    
+                    bars = ax3.barh(components, values, color=colors, edgecolor='black', linewidth=1.2)
+                    
+                    # Add value labels
+                    for i, (bar, val) in enumerate(zip(bars, values)):
+                        width = bar.get_width()
+                        ax3.text(width, bar.get_y() + bar.get_height()/2,
+                               f' €{val:,.0f}',
+                               ha='left', va='center', fontsize=8, fontweight='bold')
+                    
+                    ax3.set_xlabel('Cost (€)', fontsize=10, fontweight='bold')
+                    title3 = f'Total: €{sum(values):,.0f}'
+                    if avg_service_ratio is not None:
+                        title3 += f'\nService Ratio: {avg_service_ratio:.1%}'
+                    ax3.set_title(title3, fontsize=11, fontweight='bold', pad=10)
+                    ax3.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x/1e6:.1f}M' if x >= 1e6 else f'{x/1e3:.0f}K'))
+                    ax3.grid(axis='x', alpha=0.3, linestyle='--')
+                    ax3.set_axisbelow(True)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig3)
+                    plt.close()
+            else:
+                st.info("No Maintenance breakdown available")
+        
+        # Electricity breakdown for methanation
+        st.markdown("#### ⚡ Methanation Electricity Cost")
         st.info(f"**Formula:** Puissance instantanée = Débit CH₄ × Cons Spec CH₄\n\n"
                 f"**Calculation:** {ch4_flowrate:.0f} Nm³/h × {methanation_econ.get('cons_spec_ch4', 0.7)} kWh/Nm³ = {puissance_instantanee_kw:.1f} kW\n\n"
-                f"**Annual Consumption:** {puissance_instantanee_kw:.1f} kW × {avg_service_ratio:.1%} × 8760 h / 1000 = {annual_consumption_mwh:.1f} MWhe/year")
-        
-        if elec_consumption:
-            st.markdown("#### Consumption by Component")
-            elec_data = {
-                'Component': [],
-                'Consumption (MWhe/year)': [],
-                'Cost (€/year)': [],
-                'Percentage': []
-            }
-            
-            total_consumption = elec_consumption.get('total', 0)
-            total_cost = total_consumption * avg_electricity_cost
-            
-            for component, consumption in elec_consumption.items():
-                if component != 'total':
-                    elec_data['Component'].append(component.replace('_', ' ').title())
-                    elec_data['Consumption (MWhe/year)'].append(f"{consumption:.1f}")
-                    elec_data['Cost (€/year)'].append(f"{consumption * avg_electricity_cost:,.0f}")
-                    elec_data['Percentage'].append(f"{(consumption/total_consumption*100):.1f}%" if total_consumption > 0 else "0%")
-            
-            # Add total row
-            elec_data['Component'].append('**TOTAL**')
-            elec_data['Consumption (MWhe/year)'].append(f"**{total_consumption:.1f}**")
-            elec_data['Cost (€/year)'].append(f"**{total_cost:,.0f}**")
-            elec_data['Percentage'].append("**100.0%**")
-            
-            df_elec = pd.DataFrame(elec_data)
-            st.table(df_elec)
+                f"**Annual Consumption:** {puissance_instantanee_kw:.1f} kW × {avg_service_ratio:.1%} × 8760 h / 1000 = {annual_consumption_mwh:.1f} MWhe/year\n\n"
+                f"**Total Electricity Cost:** {annual_consumption_mwh:.1f} MWh × {avg_electricity_cost:.2f} €/MWh = **{electricity_cost_annual:,.0f} €/year**")
+    
 
 
 def display_lcoc_results(lcoc_results, avg_service_ratio=None):
