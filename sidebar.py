@@ -519,7 +519,7 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
                 # Display calculated value with tooltip
                 st.metric(
                     "🔄 Unité de méthanation (auto-calculated)",
-                    f"{elec_methanation_unit_estimated:.1f} MWh/year",
+                    f"{elec_methanation_unit_estimated:.1f} MWhe/year",
                     help=f"**Calculation Details:**\n\n"
                          f"**Step 1: CH₄ Flow Rate**\n"
                          f"• H₂ flow rate = {electrolyser_power} MW × 1000 / {electrolyser_specific_consumption} kWh/Nm³ = {h2_flowrate:.0f} Nm³/h\n"
@@ -527,7 +527,7 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
                          f"**Step 2: Instantaneous Power**\n"
                          f"• Puissance = {ch4_flowrate:.0f} Nm³/h × {cons_spec_ch4} kWh/Nm³ = {puissance_instantanee_kw:.1f} kW\n\n"
                          f"**Step 3: Annual Consumption**\n"
-                         f"• Consumption = {puissance_instantanee_kw:.1f} kW × {estimated_service_ratio:.0%} × 8760 h / 1000 = {elec_methanation_unit_estimated:.1f} MWh/year\n\n"
+                         f"• Consumption = {puissance_instantanee_kw:.1f} kW × {estimated_service_ratio:.0%} × 8760 h / 1000 = {elec_methanation_unit_estimated:.1f} MWhe/year\n\n"
                          f"_Estimated with {estimated_service_ratio:.0%} service ratio. Final value calculated with actual service ratio in results._"
                 )
                 

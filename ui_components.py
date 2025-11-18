@@ -255,9 +255,9 @@ def display_calculated_parameters(h2_flowrate, ch4_flowrate, avg_service_ratio, 
         )
         st.sidebar.metric(
             "Annual Elec. Consumption", 
-            f"{annual_consumption_mwh:.1f} MWh/year",
+            f"{annual_consumption_mwh:.1f} MWhe/year",
             help=f"**Formula:** Puissance instantanée × Service Ratio × 8760 h / 1000\n\n"
-                 f"**Calculation:** {puissance_instantanee_kw:.1f} kW × {avg_service_ratio:.1%} × 8760 h / 1000 = {annual_consumption_mwh:.1f} MWh/year"
+                 f"**Calculation:** {puissance_instantanee_kw:.1f} kW × {avg_service_ratio:.1%} × 8760 h / 1000 = {annual_consumption_mwh:.1f} MWhe/year"
         )
 
 
@@ -692,8 +692,8 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
             service = avg_service_ratio if avg_service_ratio else 0
             elec_help = (f"**Calculation:**\n\n"
                         f"1. Puissance instantanée = {ch4_flow:.0f} Nm³/h × {cons_spec} kWh/Nm³ = {p_inst:.1f} kW\n\n"
-                        f"2. Annual consumption = {p_inst:.1f} kW × {service:.1%} (service ratio) × 8760 h / 1000 = {lcoc_results['methanation_electricity_mwh']:.1f} MWh/year")
-        st.metric("**Methanation Elec.**", f"{lcoc_results['methanation_electricity_mwh']:.1f} MWh/year", help=elec_help)
+                        f"2. Annual consumption = {p_inst:.1f} kW × {service:.1%} (service ratio) × 8760 h / 1000 = {lcoc_results['methanation_electricity_mwh']:.1f} MWhe/year")
+        st.metric("**Methanation Elec.**", f"{lcoc_results['methanation_electricity_mwh']:.1f} MWhe/year", help=elec_help)
     with col6:
         st.metric("**Avg. Elec. Cost**", f"{lcoc_results['avg_electricity_cost_per_mwh']:.2f} €/MWh")
     
@@ -1039,7 +1039,7 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
         
         # Electricity breakdown for methanation
         st.markdown("#### ⚡ Methanation Electricity Cost")
-        st.info(f"Total methanation electricity: **{lcoc_results['methanation_electricity_mwh']:.1f} MWh/year**  \n"
+        st.info(f"Total methanation electricity: **{lcoc_results['methanation_electricity_mwh']:.1f} MWhe/year**  \n"
                 f"Average electricity cost: **{lcoc_results['avg_electricity_cost_per_mwh']:.2f} €/MWh**  \n"
                 f"Total electricity cost: **{lcoc_results['methanation_electricity_cost']:,.0f} €/year**")
         
