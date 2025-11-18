@@ -27,7 +27,7 @@ from ui_components import (
     display_parameter_change_info, display_strategy_info, display_metrics_section,
     display_monthly_ch4_production, display_calculated_parameters, display_pv_economics_summary,
     create_loading_spinner, display_error_message, display_warning_message, 
-    display_info_message, display_success_message, display_lcoh_results, display_lcoc_results
+    display_info_message, display_success_message, display_lcoh_results, display_methanation_analysis, display_lcoc_results
 )
 from sidebar import (
     setup_sidebar_header, load_data_file, create_year_selection, create_electrolyzer_parameters,
@@ -718,18 +718,28 @@ def main():
                         
                         display_lcoh_results(lcoh_results, avg_service_ratio, go_enabled, go_cost_per_mwh)
                         
-                        # Calculate and display LCOC (Levelized Cost of CH4)
+                        # Display Methanation Unit Analysis
                         # Use the average electricity cost from LCOH calculation
                         avg_electricity_cost = electricity_costs_for_lcoh.get('avg_electricity_cost', 0)
                         
-                        # Update methanation electricity consumption based on calculated power
-                        # Puissance instantanée (kW) = Débit CH₄ (Nm³/h) × Cons Spec (kWh/Nm³)
+                        # Calculate methanation metrics for display
                         cons_spec_ch4 = methanation_econ.get('cons_spec_ch4', 0.7)
-                        ch4_flowrate = derived_params['ch4_flowrate']  # Nm³/h
+                        ch4_flowrate = derived_params['ch4_flowrate']
                         puissance_instantanee_kw = ch4_flowrate * cons_spec_ch4
+                        annual_consumption_mwh = (puissance_instantanee_kw * avg_service_ratio * 8760) / 1000
                         
-                        # Annual consumption (MWhe/year) = Puissance instantanée × Service Ratio × 8760 h / 1000
-                        elec_methanation_calculated = (puissance_instantanee_kw * avg_service_ratio * 8760) / 1000
+                        display_methanation_analysis(
+                            methanation_econ,
+                            ch4_flowrate,
+                            puissance_instantanee_kw,
+                            annual_consumption_mwh,
+                            avg_electricity_cost,
+                            avg_service_ratio
+                        )
+                        
+                        # Calculate and display LCOC (Levelized Cost of CH4)
+                        # Update methanation electricity consumption based on calculated power (already calculated above)
+                        elec_methanation_calculated = annual_consumption_mwh
                         
                         # Update methanation_econ with calculated electricity consumption
                         methanation_econ['electricity_consumption']['methanation_unit'] = elec_methanation_calculated
