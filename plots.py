@@ -99,6 +99,45 @@ def create_price_distribution_box_plot(data_content):
     return fig_box
 
 
+def create_price_distribution_by_hour_box_plot(data_content):
+    """Create box plot showing price distribution by hour of day"""
+    fig_box_hour, ax_box_hour = plt.subplots(figsize=(12, 6))
+
+    # Create box plot for price distribution by hour
+    box_data = []
+    box_labels = []
+
+    for hour in range(24):
+        # Get all prices for this hour across all days/months/years
+        hour_data = data_content[data_content['Heure'] == hour]['Prix']
+        if len(hour_data) > 0:
+            box_data.append(hour_data)
+            box_labels.append(str(hour))
+
+    # Create the box plot
+    bp = ax_box_hour.boxplot(box_data, labels=box_labels, patch_artist=True)
+
+    # Color the boxes with different colors
+    colors = plt.cm.Set3(range(len(box_data)))
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.7)
+
+    # Customize the plot
+    ax_box_hour.set_title('Electricity Price Distribution by Hour', fontweight='bold', fontsize=14)
+    ax_box_hour.set_xlabel('Hour')
+    ax_box_hour.set_ylabel('Price (€/MWh)')
+    ax_box_hour.grid(True, alpha=0.3)
+
+    # Add statistics text box
+    stats_text = f"Dataset: {len(data_content)} data points\nYears: {sorted(data_content['Year'].unique())}"
+    ax_box_hour.text(0.02, 0.98, stats_text, transform=ax_box_hour.transAxes, 
+               verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
+    plt.tight_layout()
+    return fig_box_hour
+
+
 def create_service_ratios_chart(monthly_service_ratios):
     """Create bar chart for monthly service ratios"""
     fig_service, ax_service = plt.subplots(figsize=(12, 4))

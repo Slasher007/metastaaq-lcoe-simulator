@@ -35,7 +35,7 @@ from sidebar import (
     create_price_parameters, create_pv_installation_parameters, get_current_parameters
 )
 from plots import (
-    create_monthly_price_analysis_plot, create_price_distribution_box_plot,
+    create_monthly_price_analysis_plot, create_price_distribution_box_plot, create_price_distribution_by_hour_box_plot,
     create_service_ratios_chart, create_operating_hours_chart, create_energy_coverage_chart,
     create_energy_distribution_pie_chart, create_consecutive_slots_distributions, create_consecutive_slots_heatmap
 )
@@ -170,6 +170,10 @@ def main():
     st.markdown("#### 📦 Price Distribution by Month (Box Plot)")
     fig_box = create_price_distribution_box_plot(data_content)
     st.pyplot(fig_box)
+    
+    st.markdown("#### ⏰ Price Distribution by Hour (Box Plot)")
+    fig_box_hour = create_price_distribution_by_hour_box_plot(data_content)
+    st.pyplot(fig_box_hour)
     
     if strategy_type == "Service Ratio-Based":
         st.markdown("#### 📅 Current Monthly Service Ratios")
