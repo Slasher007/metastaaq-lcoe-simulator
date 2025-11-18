@@ -685,10 +685,10 @@ def display_methanation_analysis(methanation_econ, ch4_flowrate, puissance_insta
         st.metric("**Puissance Instantanée**", f"{puissance_instantanee_kw:.1f} kW",
                  help=f"Calculated: {ch4_flowrate:.0f} Nm³/h × {methanation_econ.get('cons_spec_ch4', 0.7)} kWh/Nm³")
     with col3:
-        st.metric("**Annual Electricity**", f"{annual_consumption_mwh:.1f} MWhe/year",
+        st.metric("**Annual Electricity**", f"{annual_consumption_mwh:.1f} MWhe",
                  help=f"Calculated: {puissance_instantanee_kw:.1f} kW × {avg_service_ratio:.1%} × 8760 h / 1000")
     with col4:
-        st.metric("**CH₄ Production**", f"{ch4_production_tonnes_year:.1f} T/year",
+        st.metric("**Annual CH₄ Production**", f"{ch4_production_tonnes_year:.1f} T",
                  help=f"Calculated: {ch4_flowrate:.0f} Nm³/h × {avg_service_ratio:.1%} × 8760 h × {ch4_density} kg/Nm³ = {ch4_production_kg_year:,.0f} kg/year ({ch4_production_tonnes_year:.1f} T/year)")
     
     # Detailed breakdown
@@ -714,6 +714,12 @@ def display_methanation_analysis(methanation_econ, ch4_flowrate, puissance_insta
         lifetime_maintenance = maintenance_annual * project_lifetime
         lifetime_total = lifetime_capex + lifetime_opex + lifetime_maintenance
         
+        # Calculate cost per kg CH4
+        capex_per_kg = capex_annual / ch4_production_kg_year if ch4_production_kg_year > 0 else 0
+        opex_per_kg = opex_annual / ch4_production_kg_year if ch4_production_kg_year > 0 else 0
+        maintenance_per_kg = maintenance_annual / ch4_production_kg_year if ch4_production_kg_year > 0 else 0
+        total_per_kg = total_annual / ch4_production_kg_year if ch4_production_kg_year > 0 else 0
+        
         # Create breakdown dataframe
         breakdown_data = {
             'Component': [
@@ -721,6 +727,12 @@ def display_methanation_analysis(methanation_econ, ch4_flowrate, puissance_insta
                 'OpEx',
                 'Maintenance',
                 '**TOTAL**'
+            ],
+            'Cost (€/kg CH₄)': [
+                f"{capex_per_kg:.3f}",
+                f"{opex_per_kg:.3f}",
+                f"{maintenance_per_kg:.3f}",
+                f"**{total_per_kg:.3f}**"
             ],
             'Annual Cost (€)': [
                 f"{capex_annual:,.0f}",
