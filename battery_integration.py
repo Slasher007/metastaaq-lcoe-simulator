@@ -405,7 +405,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         # Use tabs for time windows - all bound to session state
         tw_tab1, tw_tab2, tw_tab3, tw_tab4 = st.tabs([
-            "🌞 PV Charging", "💰 Arbitrage", "⚡ Spot Charging", "🔋 Electrolyser"
+            "🌞 PV Charging", "💰 Sell to grid", "⚡ Grid Charging", "🔋 Supply to Electrolyser"
         ])
         
         with tw_tab1:
