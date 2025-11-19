@@ -8,7 +8,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
-    NIGHT_CHARGE_STRATEGY, PENALTY_PARAMS, is_hour_in_window, get_window_duration
+    PENALTY_PARAMS, is_hour_in_window, get_window_duration
 )
 
 
@@ -36,7 +36,11 @@ class BatteryOptimizer:
         self.battery_params = battery_params or DEFAULT_BATTERY_PARAMS.copy()
         self.time_windows = time_windows or DEFAULT_TIME_WINDOWS.copy()
         self.electrolyser_params = electrolyser_params or DEFAULT_ELECTROLYSER_PARAMS.copy()
-        self.night_charge_strategy = night_charge_strategy or NIGHT_CHARGE_STRATEGY.copy()
+        # Default night charging strategy if none is provided
+        self.night_charge_strategy = night_charge_strategy or {
+            "mode": "always_charge",
+            "price_threshold": 50.0,
+        }
         self.penalty_params = penalty_params or PENALTY_PARAMS.copy()
         
         # Calculate effective energy limits based on DoD
@@ -360,9 +364,23 @@ class BatteryOptimizer:
         total_battery_to_ely = df['battery_to_ely_mw'].sum()
         
         # Economics
-        total_revenue = df['revenue_arbitrage'].sum()
-        total_cost = df['cost_charging'].sum()
+        # Arbitrage revenue from selling to grid
+        total_revenue_arbitrage = df['revenue_arbitrage'].sum()
+        # Grid charging cost (battery charged from grid)
+        total_cost_charging = df['cost_charging'].sum()
+        # Penalties (e.g. electrolyser shortages)
         total_penalties = df['cost_penalties'].sum()
+
+        # Additional simplified economics to match dashboard "Financial Flows":
+        # - Treat PV charging as having a cost equal to spot price at PV-charging hours
+        # - Treat battery supply to electrolyser as an avoided grid cost (value)
+        total_pv_cost = (df['pv_to_battery_mw'] * df['spot_price_eur_mwh']).sum()
+        total_ely_value = (df['battery_to_ely_mw'] * df['spot_price_eur_mwh']).sum()
+
+        # Aggregated revenue and cost consistent with Operational Windows analysis
+        total_revenue = total_revenue_arbitrage + total_ely_value
+        total_cost = total_cost_charging + total_pv_cost
+
         net_profit = total_revenue - total_cost - total_penalties
         
         # Hydrogen production
@@ -400,6 +418,10 @@ class BatteryOptimizer:
             # Economics
             'total_revenue_eur': total_revenue,
             'total_cost_eur': total_cost,
+            'total_revenue_arbitrage_eur': total_revenue_arbitrage,
+            'total_cost_charging_eur': total_cost_charging,
+            'total_pv_cost_eur': total_pv_cost,
+            'total_ely_value_eur': total_ely_value,
             'total_penalties_eur': total_penalties,
             'net_profit_eur': net_profit,
             'avg_arbitrage_price_eur_mwh': df[df['battery_to_grid_mw'] > 0]['spot_price_eur_mwh'].mean() if (df['battery_to_grid_mw'] > 0).any() else 0,

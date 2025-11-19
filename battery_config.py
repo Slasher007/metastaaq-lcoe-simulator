@@ -5,17 +5,18 @@ Parametric time windows and battery parameters for PV-Battery-Electrolyser optim
 
 # Battery Technical Parameters
 DEFAULT_BATTERY_PARAMS = {
-    # Energy capacity
-    "E_bat_max": 10.0,  # MWh - Maximum battery energy capacity
+    # Energy capacity (aligned with battery_integration default UI)
+    "E_bat_max": 20.0,  # MWh - Maximum battery energy capacity
     
     # Power limits
     "P_charge_max": 5.0,  # MW - Maximum charge power
     "P_discharge_max": 5.0,  # MW - Maximum discharge power
     
-    # Efficiency
-    "eta_charge": 0.96,  # Charging efficiency (one-way)
-    "eta_discharge": 0.96,  # Discharging efficiency (one-way)
-    "eta_rt": 0.92,  # Round-trip efficiency (typically 0.90-0.95 for Li-ion)
+    # Efficiency (one-way and round-trip)
+    # Note: battery_integration recomputes eta_charge/eta_discharge from eta_rt
+    "eta_charge": 1.0,  # Charging efficiency (one-way)
+    "eta_discharge": 1.0,  # Discharging efficiency (one-way)
+    "eta_rt": 1.0,  # Round-trip efficiency (UI default; losses modeled via economics, not physics)
     
     # State of Charge (SoC) constraints
     "SoC_min": 0.10,  # Minimum SoC (10% = 10% DoD protection)
@@ -23,35 +24,30 @@ DEFAULT_BATTERY_PARAMS = {
     "SoC_initial": 0.50,  # Initial SoC on Jan 1st 00:00 (50%)
     
     # Depth of Discharge
-    "DoD_max": 0.90,  # Maximum allowed depth of discharge (90%)
+    "DoD_max": 1.00,  # Maximum allowed depth of discharge (100%)
     
     # Self-discharge
     "self_discharge_rate": 0.0001,  # Per hour (0.01% per hour = 2.4% per day for Li-ion)
 }
 
 # Parametric Time Windows (hours in 24h format)
+# Defaults aligned with battery_integration operational windows (non-overlapping)
 DEFAULT_TIME_WINDOWS = {
     # 1. PV-priority charging window
     "pv_charge_start": 10,  # 10:00 - Start PV charging
     "pv_charge_end": 16,    # 16:00 - End PV charging
     
     # 2. Evening arbitrage discharge window
-    "arbitrage_discharge_start": 16,  # 16:00 - Start selling to grid
-    "arbitrage_discharge_end": 23,    # 23:00 - End selling to grid
+    "arbitrage_discharge_start": 17,  # 17:00 - Start selling to grid
+    "arbitrage_discharge_end": 22,    # 22:00 - End selling to grid
     
     # 3. Spot charging window (grid charging at spot prices)
     "night_charge_start": 23,  # 23:00 - Start spot grid charging
-    "night_charge_end": 5,     # 05:00 - End spot grid charging
+    "night_charge_end": 4,     # 04:00 - End spot grid charging (wraps midnight)
     
     # 4. Morning electrolyser supply window
     "electrolyser_start": 5,  # 05:00 - Start electrolyser operation
-    "electrolyser_end": 10,   # 10:00 - End electrolyser operation
-}
-
-# Spot charging strategy (grid charging at spot market prices)
-NIGHT_CHARGE_STRATEGY = {
-    "mode": "always_charge",  # Options: "always_charge", "price_threshold"
-    "price_threshold": 50.0,  # €/MWh - Only charge if price below this (if mode = "price_threshold")
+    "electrolyser_end": 9,    # 09:00 - End electrolyser operation
 }
 
 # Electrolyser Parameters for Battery Supply
@@ -64,10 +60,11 @@ DEFAULT_ELECTROLYSER_PARAMS = {
 }
 
 # Penalty Parameters
+# Set all penalties to zero to effectively disable penalty-based costs
 PENALTY_PARAMS = {
-    "electrolyser_shortage_penalty": 10000.0,  # €/MWh - Heavy penalty for not meeting electrolyser demand
-    "soc_violation_penalty": 5000.0,  # €/MWh - Penalty for SoC constraint violations
-    "curtailment_cost": 0.0,  # €/MWh - Cost of PV curtailment (typically zero, but can model opportunity cost)
+    "electrolyser_shortage_penalty": 0.0,  # €/MWh - no shortage penalty
+    "soc_violation_penalty": 0.0,         # €/MWh - no SoC violation penalty
+    "curtailment_cost": 0.0,             # €/MWh - no PV curtailment cost
 }
 
 # Parameter Ranges for Sensitivity Analysis
@@ -150,12 +147,15 @@ def is_hour_in_window(hour, start_hour, end_hour):
     Returns:
         bool: True if hour is in window
     """
+    # Use inclusive bounds [start_hour, end_hour] for window membership.
+    # For normal windows (e.g., 10:00–16:00) this means hours 10,11,12,13,14,15,16.
+    # For wrap-around windows (e.g., 23:00–04:00) this means 23,0,1,2,3,4.
     if start_hour <= end_hour:
-        # Normal window (e.g., 10:00-16:00)
-        return start_hour <= hour < end_hour
+        # Normal window
+        return start_hour <= hour <= end_hour
     else:
-        # Window wraps around midnight (e.g., 23:00-05:00)
-        return hour >= start_hour or hour < end_hour
+        # Window wraps around midnight
+        return hour >= start_hour or hour <= end_hour
 
 
 def calculate_max_hydrogen_production(battery_params, electrolyser_params, time_windows):

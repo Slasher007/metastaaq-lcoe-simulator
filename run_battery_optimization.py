@@ -12,7 +12,7 @@ import os
 
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
-    NIGHT_CHARGE_STRATEGY, validate_time_windows
+    validate_time_windows
 )
 from battery_optimizer import BatteryOptimizer, distribute_monthly_pv_to_hourly, generate_typical_pv_profile
 from battery_visualization import create_comprehensive_report
@@ -200,7 +200,10 @@ Examples:
         battery_params=battery_params,
         time_windows=time_windows,
         electrolyser_params=electrolyser_params,
-        night_charge_strategy=NIGHT_CHARGE_STRATEGY
+        night_charge_strategy={
+            "mode": "always_charge",
+            "price_threshold": 50.0,
+        }
     )
     
     df_results, summary = optimizer.simulate_year(pv_profile, spot_prices, timestamps)

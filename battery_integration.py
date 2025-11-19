@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
-    NIGHT_CHARGE_STRATEGY, validate_time_windows
+    validate_time_windows
 )
 from battery_optimizer import BatteryOptimizer, distribute_monthly_pv_to_hourly_from_dataframe
 from battery_visualization import (
@@ -52,7 +52,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     data_content['DayOfWeek'] = data_content['Date'].dt.day_name()
 
     # Filter first week
-    data_content = data_content[data_content['Week'] == 1]
+    mask = data_content['Week'] == 1 # & data_content['Jours'] == 'Tuesday'
+    data_content = data_content[mask]
     
     # Get available options
     available_years = sorted(data_content['Annee'].unique())
@@ -362,7 +363,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         # Battery parameters with session state keys
         st.number_input(
             "Energy Capacity (MWh)", 
-            min_value=5.0, max_value=50.0, value=10.0, step=1.0,
+            min_value=5.0, max_value=50.0, value=20.0, step=1.0,
             help="Maximum battery energy storage capacity",
             key='bat_capacity'
         )
@@ -505,11 +506,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         time_windows['electrolyser_start'] = st.session_state.get('ely_start', 5)
         time_windows['electrolyser_end'] = st.session_state.get('ely_end', 9)
         
-        night_strategy = NIGHT_CHARGE_STRATEGY.copy()
+        # Night charging strategy from UI (no global config constant)
         charge_mode = st.session_state.get('night_mode', 'Always Charge')
-        night_strategy['mode'] = 'always_charge' if charge_mode == "Always Charge" else 'price_threshold'
-        if night_strategy['mode'] == 'price_threshold':
-            night_strategy['price_threshold'] = st.session_state.get('night_price', 50.0)
+        night_strategy = {
+            "mode": 'always_charge' if charge_mode == "Always Charge" else 'price_threshold',
+            "price_threshold": st.session_state.get('night_price', 50.0),
+        }
         
         electrolyser_params = DEFAULT_ELECTROLYSER_PARAMS.copy()
         electrolyser_params['P_ely'] = electrolyser_power
@@ -573,16 +575,16 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         with col2:
             st.metric(
-                "Revenue",
+                "Revenue (Sell + Ely)",
                 f"{summary['total_revenue_eur']:,.0f} €",
-                delta=f"Sell: {summary['avg_arbitrage_price_eur_mwh']:.1f} €/MWh"
+                delta=f"Sell: {summary['total_revenue_arbitrage_eur']:,.0f} €, Ely: {summary['total_ely_value_eur']:,.0f} €"
             )
         
         with col3:
             st.metric(
-                "Grid Cost",
+                "Charging Cost (Grid + PV)",
                 f"{summary['total_cost_eur']:,.0f} €",
-                delta=f"Buy: {summary['avg_charging_price_eur_mwh']:.1f} €/MWh"
+                delta=f"Grid: {summary['total_cost_charging_eur']:,.0f} €, PV: {summary['total_pv_cost_eur']:,.0f} €"
             )
         
         with col4:
@@ -601,10 +603,11 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         # Detailed results tabs
         st.markdown("---")
-        res_tab1, res_tab2, res_tab3, res_tab4 = st.tabs([
+        res_tab1, res_tab2, res_tab3, res_tab4, res_tab5 = st.tabs([
             "📈 SoC & Power Flows",
             "💰 Economics",
             "⚡ H₂ Production",
+            "📊 Op. Windows",
             "📋 Summary"
         ])
         
@@ -788,6 +791,163 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 st.metric("Shortage Hours", f"{summary['ely_shortage_hours']:.0f}")
         
         with res_tab4:
+            st.markdown("#### Operational Windows Analysis")
+            
+            # Window name mapping (no explicit idle window)
+            window_map = {
+                'pv_charge': 'PV Charging',
+                'arbitrage_discharge': 'Sell to Grid',
+                'night_charge': 'Grid Charging',
+                'electrolyser': 'Supply to Electrolyser',
+                'idle': None  # treat idle as undefined for this analysis
+            }
+            
+            # Create working dataframe and drop idle/undefined windows
+            df_win = df_results.copy()
+            df_win['window_name'] = df_win['window_type'].map(window_map)
+            df_win = df_win[df_win['window_name'].notna()]
+            
+            # Calculate 'Value' of Electrolyser supply (Avoided Grid Cost)
+            # Value = Energy supplied * Spot Price at that hour
+            df_win['ely_value_eur'] = df_win['battery_to_ely_mw'] * df_win['spot_price_eur_mwh']
+            
+            # For simplicity, treat PV charging energy as having a cost equal to spot price
+            # This approximates the case where the electrolyser effectively uses grid-priced power
+            df_win['pv_cost_eur'] = df_win['pv_to_battery_mw'] * df_win['spot_price_eur_mwh']
+            
+            # Group statistics
+            win_stats = df_win.groupby('window_name').agg({
+                'grid_to_battery_mw': 'sum',      # Energy In (Grid)
+                'pv_to_battery_mw': 'sum',        # Energy In (PV)
+                'battery_to_grid_mw': 'sum',      # Energy Out (Grid)
+                'battery_to_ely_mw': 'sum',       # Energy Out (Ely)
+                'revenue_arbitrage': 'sum',       # Revenue
+                'cost_charging': 'sum',           # Cost
+                'cost_penalties': 'sum',          # Penalties
+                'pv_cost_eur': 'sum',             # PV charging valued at spot price
+                'ely_value_eur': 'sum'            # Compensation Value
+            })
+            
+            # Ensure specific order of windows (no Idle)
+            order = ['PV Charging', 'Sell to Grid', 'Grid Charging', 'Supply to Electrolyser']
+            win_stats = win_stats.reindex([w for w in order if w in win_stats.index]).fillna(0)
+            
+            # --- Chart 1: Energy Flows ---
+            st.markdown("##### ⚡ Energy Flows by Operational Window (MWh)")
+            fig_win_energy, ax = plt.subplots(figsize=(12, 6))
+            
+            # Plot Inflows (Positive)
+            ax.bar(win_stats.index, win_stats['grid_to_battery_mw'], label='Grid Input', color='green', alpha=0.6)
+            ax.bar(win_stats.index, win_stats['pv_to_battery_mw'], bottom=win_stats['grid_to_battery_mw'], label='PV Input', color='gold', alpha=0.6)
+            
+            # Plot Outflows (Negative)
+            out_grid = -win_stats['battery_to_grid_mw']
+            out_ely = -win_stats['battery_to_ely_mw']
+            
+            ax.bar(win_stats.index, out_grid, label='Grid Output', color='blue', alpha=0.6)
+            ax.bar(win_stats.index, out_ely, bottom=out_grid, label='Electrolyser Output', color='purple', alpha=0.6)
+            
+            ax.axhline(0, color='black', linewidth=0.8)
+            ax.set_ylabel('Energy (MWh)', fontweight='bold')
+            ax.set_title('Energy Flux by Operational Window', fontweight='bold')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            st.pyplot(fig_win_energy)
+            plt.close(fig_win_energy)
+            
+            # --- Chart 2: Financial Flows ---
+            st.markdown("##### 💶 Financial Flows (Revenue vs Cost Sources)")
+            fig_win_cash, ax = plt.subplots(figsize=(12, 6))
+
+            # Price-based financial view per window (1 MW equivalent):
+            # Sum spot prices in each window and classify as revenue or cost
+            df_price = df_results[['window_type', 'spot_price_eur_mwh']].copy()
+            df_price['window_name'] = df_price['window_type'].map(window_map)
+            df_price = df_price[df_price['window_name'].notna()]
+
+            price_by_window = df_price.groupby('window_name')['spot_price_eur_mwh'] \
+                                      .sum().reindex(order).fillna(0.0)
+
+            revenue_windows = ['Sell to Grid', 'Supply to Electrolyser']
+            cost_windows = ['Grid Charging', 'PV Charging']
+
+            revenue_series = price_by_window.where(price_by_window.index.isin(revenue_windows), 0.0)
+            cost_series = -price_by_window.where(price_by_window.index.isin(cost_windows), 0.0)
+
+            ax.bar(price_by_window.index, revenue_series,
+                   label='Revenue (Sell to Grid + Supply to Electrolyser)', color='green', alpha=0.7)
+            ax.bar(price_by_window.index, cost_series,
+                   label='Cost (Grid Charging + PV Charging)', color='red', alpha=0.7)
+
+            ax.axhline(0, color='black', linewidth=0.8)
+            ax.set_ylabel('Amount (€ for 1 MW-equivalent)', fontweight='bold')
+            ax.set_title('Financial Flows by Operational Window (Price-Based)', fontweight='bold')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+            # Add labels
+            for i, (name, val) in enumerate(revenue_series.items()):
+                if val > 0:
+                    ax.text(i, val, f"+{val:,.2f}€", ha='center', va='bottom', fontsize=9)
+            for i, (name, val) in enumerate(cost_series.items()):
+                if val < 0:
+                    ax.text(i, val, f"{val:,.2f}€", ha='center', va='top', fontsize=9)
+            
+            st.pyplot(fig_win_cash)
+            plt.close(fig_win_cash)
+            
+            # Metrics row (price-based summary)
+            total_revenue_price = revenue_series.sum()
+            total_cost_price = -cost_series.sum()
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Total Revenue (price-based)", f"{total_revenue_price:,.2f} €")
+            c2.metric("Total Cost (price-based)", f"{total_cost_price:,.2f} €")
+            c3.metric("Net (price-based)", f"{(total_revenue_price - total_cost_price):,.2f} €")
+            c4.metric("Windows", ", ".join([w for w in price_by_window.index if price_by_window[w] != 0]))
+
+            # --- Chart 3: Selected Hours & Spot Prices per Operational Window ---
+            st.markdown("##### ⏰ Selected Hours and Spot Prices by Operational Window")
+            df_hours = df_results[['hour_of_day', 'spot_price_eur_mwh', 'window_type']].copy()
+            df_hours['window_name'] = df_hours['window_type'].map(window_map)
+            # Drop idle/undefined windows so only true operational windows are shown
+            df_hours = df_hours[df_hours['window_name'].notna()]
+
+            fig_win_hours, ax = plt.subplots(figsize=(12, 4))
+
+            colors = {
+                'PV Charging': 'gold',
+                'Sell to Grid': 'green',
+                'Grid Charging': 'red',
+                'Supply to Electrolyser': 'purple',
+            }
+
+            for w in order:
+                sub = df_hours[df_hours['window_name'] == w]
+                if sub.empty:
+                    continue
+                ax.scatter(
+                    sub['hour_of_day'],
+                    sub['spot_price_eur_mwh'],
+                    label=w,
+                    alpha=0.7,
+                    s=25,
+                    color=colors.get(w, 'gray'),
+                    edgecolors='none'
+                )
+
+            ax.set_xticks(range(24))
+            ax.set_xlabel('Hour of Day', fontweight='bold')
+            ax.set_ylabel('Spot Price (€/MWh)', fontweight='bold')
+            ax.set_title('Spot Prices at Selected Hours per Operational Window', fontweight='bold')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+
+            plt.tight_layout()
+            st.pyplot(fig_win_hours)
+            plt.close(fig_win_hours)
+
+        with res_tab5:
             st.markdown("#### Complete Summary Statistics")
             
             summary_data = {

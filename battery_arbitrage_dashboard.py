@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 # Import battery modules
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
-    NIGHT_CHARGE_STRATEGY, validate_time_windows, calculate_max_hydrogen_production
+    validate_time_windows, calculate_max_hydrogen_production
 )
 from battery_optimizer import BatteryOptimizer, distribute_monthly_pv_to_hourly
 from battery_visualization import (
@@ -187,14 +187,17 @@ def main():
             help="End of night charging from grid"
         )
         
-        night_strategy = NIGHT_CHARGE_STRATEGY.copy()
+        # Night charging strategy from UI (no global NIGHT_CHARGE_STRATEGY constant)
         charge_mode = st.radio(
             "Night Charging Strategy",
             ["Always Charge", "Price Threshold"],
             index=0,
             help="Always charge or only when price is below threshold"
         )
-        night_strategy['mode'] = 'always_charge' if charge_mode == "Always Charge" else 'price_threshold'
+        night_strategy = {
+            "mode": 'always_charge' if charge_mode == "Always Charge" else 'price_threshold',
+            "price_threshold": 50.0,
+        }
         
         if night_strategy['mode'] == 'price_threshold':
             night_strategy['price_threshold'] = st.number_input(
