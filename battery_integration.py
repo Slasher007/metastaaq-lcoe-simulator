@@ -200,8 +200,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         # Update data_content to use filtered data for the rest of the analysis
         data_content = filtered_data
     else:
-        # Show info message when filters haven't been applied yet
-        st.info("👆 Select your filter criteria above and click '🔄 Apply Filters' to update the analysis")
         # Use original data by default
         filtered_data = data_content
     
@@ -295,7 +293,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     ax_price.set_xlabel('Hour of Day', fontsize=12, fontweight='bold')
     ax_price.set_ylabel('Spot Price (€/MWh)', fontsize=12, fontweight='bold')
-    ax_price.set_title('Electricity Spot Price Distribution by Hour of Day (Scatter Plot)', 
+    ax_price.set_title('Electricity Spot Price Distribution by Hour and Operational Windows', 
                       fontsize=14, fontweight='bold')
     ax_price.grid(True, alpha=0.3, axis='y')
     ax_price.legend(loc='upper left', fontsize=9)
@@ -310,7 +308,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         night_center = (night_end + 1) / 2
     else:
         night_center = (night_start + night_end + 1) / 2
-    ax_price.text(night_center, text_y_position, 'Buy from grid', 
+    ax_price.text(night_center, text_y_position, 'Grid Charging',
                  ha='center', va='top', fontsize=10, fontweight='bold',
                  color='darkred', bbox=dict(boxstyle='round,pad=0.5', 
                  facecolor='white', edgecolor='darkred', alpha=0.8), zorder=5)
@@ -352,16 +350,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     plt.tight_layout()
     st.pyplot(fig_price_hour)
     plt.close(fig_price_hour)
-    
-    # Key insights
-    peak_hours = [i for i, mean in enumerate(means) if mean > np.percentile(means, 75)]
-    low_hours = [i for i, mean in enumerate(means) if mean < np.percentile(means, 25)]
-    
-    col_insight1, col_insight2 = st.columns(2)
-    with col_insight1:
-        st.info(f"**🔴 Peak Price Hours:** {', '.join([f'{h}h' for h in peak_hours])} - Optimal for arbitrage discharge")
-    with col_insight2:
-        st.success(f"**🟢 Low Price Hours:** {', '.join([f'{h}h' for h in low_hours])} - Optimal for grid charging")
     
     st.markdown("---")
     
