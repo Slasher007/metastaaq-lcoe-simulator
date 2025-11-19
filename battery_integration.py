@@ -383,14 +383,14 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         st.slider(
             "Round-trip Efficiency", 
-            min_value=0.80, max_value=0.98, value=0.92, step=0.01,
+            min_value=0.80, max_value=0.98, value=1.00, step=0.01,
             help="Battery round-trip efficiency",
             key='bat_efficiency'
         )
         
         st.slider(
             "Max Depth of Discharge", 
-            min_value=0.80, max_value=1.00, value=0.90, step=0.05,
+            min_value=0.80, max_value=1.00, value=1.00, step=0.05,
             key='bat_dod'
         )
         
