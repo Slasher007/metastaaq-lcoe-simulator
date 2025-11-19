@@ -216,9 +216,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     # Add shaded regions for typical time windows (behind the data)
     ax_price.axvspan(10, 16, alpha=0.15, color='gold', label='PV Charging (10-16h)', zorder=1)
-    ax_price.axvspan(16, 23, alpha=0.15, color='blue', label='Sell to grid (16-23h)', zorder=1)
-    ax_price.axvspan(-0.5, 5, alpha=0.15, color='green', label='Buy from grid (23-05h)', zorder=1)
-    ax_price.axvspan(23, 24.5, alpha=0.15, color='green', zorder=1)
+    ax_price.axvspan(16, 23, alpha=0.15, color='green', label='Sell to grid (16-23h)', zorder=1)
+    ax_price.axvspan(-0.5, 5, alpha=0.15, color='red', label='Buy from grid (23-05h)', zorder=1)
+    ax_price.axvspan(23, 24.5, alpha=0.15, color='red', zorder=1)
     ax_price.axvspan(5, 10, alpha=0.15, color='purple', label='Supply to Electrolyser (05-10h)', zorder=1)
     
     # Prepare data for scatter plot by hour
