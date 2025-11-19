@@ -50,6 +50,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     # Add computed columns
     data_content['Week'] = data_content['Date'].dt.isocalendar().week
     data_content['DayOfWeek'] = data_content['Date'].dt.day_name()
+
+    # Filter first week
+    data_content = data_content[data_content['Week'] == 1]
     
     # Get available options
     available_years = sorted(data_content['Annee'].unique())
@@ -208,48 +211,67 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     st.markdown("### 📊 Spot Price Analysis by Hour (Filtered Data)")
     st.markdown("Understanding hourly price patterns helps optimize time window configuration")
     
-    # Create price distribution by hour box plot
+    # Create price distribution by hour scatter plot
     fig_price_hour, ax_price = plt.subplots(figsize=(14, 6))
     
-    # Prepare data for box plot by hour
-    box_data_hour = []
-    box_labels_hour = []
+    # Add shaded regions for typical time windows (behind the data)
+    ax_price.axvspan(10, 16, alpha=0.15, color='gold', label='PV Charging (10-16h)', zorder=1)
+    ax_price.axvspan(16, 23, alpha=0.15, color='blue', label='Sell to grid (16-23h)', zorder=1)
+    ax_price.axvspan(-0.5, 5, alpha=0.15, color='green', label='Buy from grid (23-05h)', zorder=1)
+    ax_price.axvspan(23, 24.5, alpha=0.15, color='green', zorder=1)
+    ax_price.axvspan(5, 10, alpha=0.15, color='purple', label='Supply to Electrolyser (05-10h)', zorder=1)
+    
+    # Prepare data for scatter plot by hour
+    means = []
+    medians = []
+    colors_gradient = plt.cm.RdYlGn_r(np.linspace(0.2, 0.8, 24))
+    
     for hour in range(24):
         hour_data = data_content[data_content['Heure'] == hour]['Prix']
         if len(hour_data) > 0:
-            box_data_hour.append(hour_data)
-            box_labels_hour.append(f'{hour:02d}h')
+            # Add jitter to x-coordinates to avoid overlapping points
+            x_positions = np.random.normal(hour, 0.15, size=len(hour_data))
+            
+            # Calculate mean for color coding
+            mean_val = np.mean(hour_data)
+            means.append(mean_val)
+            medians.append(np.median(hour_data))
+            
+            # Scatter plot for this hour
+            ax_price.scatter(x_positions, hour_data, alpha=0.3, s=10, 
+                           color='steelblue', edgecolors='none', zorder=2)
     
-    # Create box plot
-    bp = ax_price.boxplot(box_data_hour, labels=box_labels_hour, patch_artist=True,
-                          showmeans=True, meanline=True,
-                          boxprops=dict(facecolor='lightblue', alpha=0.7),
-                          medianprops=dict(color='red', linewidth=2),
-                          meanprops=dict(color='darkgreen', linewidth=2, linestyle='--'),
-                          whiskerprops=dict(linewidth=1.5),
-                          capprops=dict(linewidth=1.5))
-    
-    # Color boxes by typical price level
-    colors_gradient = plt.cm.RdYlGn_r(np.linspace(0.2, 0.8, 24))
-    means = [np.mean(data) for data in box_data_hour]
+    # Color-code the average line by price level
     sorted_means = sorted(means)
-    for i, (patch, mean_val) in enumerate(zip(bp['boxes'], means)):
-        # Color based on price rank (lower price = greener)
+    colors_for_means = []
+    for mean_val in means:
         rank = sorted_means.index(mean_val)
         color_idx = int((rank / len(sorted_means)) * 23)
-        patch.set_facecolor(colors_gradient[color_idx])
-        patch.set_alpha(0.7)
+        colors_for_means.append(colors_gradient[color_idx])
     
-    # Add shaded regions for typical time windows
-    ax_price.axvspan(10, 16, alpha=0.15, color='gold', label='PV Charging (10-16h)')
-    ax_price.axvspan(16, 23, alpha=0.15, color='blue', label='Arbitrage Discharge (16-23h)')
-    ax_price.axvspan(-0.5, 5, alpha=0.15, color='green', label='Spot Charging (23-05h)')
-    ax_price.axvspan(23, 24.5, alpha=0.15, color='green')
-    ax_price.axvspan(5, 10, alpha=0.15, color='purple', label='Electrolyser (05-10h)')
+    # Plot mean line with color-coded segments
+    for i in range(len(means)):
+        if i < len(means) - 1:
+            ax_price.plot([i, i+1], [means[i], means[i+1]], 
+                         color=colors_for_means[i], linewidth=3, zorder=3)
+    # Add marker for means
+    ax_price.scatter(range(24), means, color=colors_for_means, s=100, 
+                    edgecolors='black', linewidths=1.5, zorder=4, 
+                    marker='o', label='Mean Price')
+    
+    # Plot median line
+    ax_price.plot(range(24), medians, color='red', linewidth=2, 
+                 linestyle='--', marker='s', markersize=6, 
+                 label='Median Price', zorder=3)
+    
+    # Set x-axis ticks and labels
+    ax_price.set_xticks(range(24))
+    ax_price.set_xticklabels([f'{h:02d}h' for h in range(24)], rotation=0)
+    ax_price.set_xlim(-0.5, 23.5)
     
     ax_price.set_xlabel('Hour of Day', fontsize=12, fontweight='bold')
     ax_price.set_ylabel('Spot Price (€/MWh)', fontsize=12, fontweight='bold')
-    ax_price.set_title('Electricity Spot Price Distribution by Hour of Day', 
+    ax_price.set_title('Electricity Spot Price Distribution by Hour of Day (Scatter Plot)', 
                       fontsize=14, fontweight='bold')
     ax_price.grid(True, alpha=0.3, axis='y')
     ax_price.legend(loc='upper left', fontsize=9)

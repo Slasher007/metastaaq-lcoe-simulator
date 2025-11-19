@@ -48,6 +48,7 @@ from calculate_lcoh import calculate_lcoh, calculate_lcoc
 
 import os
 import time
+import pandas as pd
 
 # Import battery arbitrage integration
 try:
@@ -70,6 +71,20 @@ def main():
     
     # Load data
     data_content = load_data_file(DEFAULT_DATA_FILE)
+    
+    # Ensure 'Date' is datetime for consistency and to allow .dt accessor
+    #if not pd.api.types.is_datetime64_any_dtype(data_content['Date']):
+    #    data_content['Date'] = pd.to_datetime(data_content['Date'])
+
+    # Add the 'Week_of_Month' column (from 1 to 4)
+    #day_of_month = data_content['Date'].dt.day
+    # Calculate week of month, ensuring it's clipped to a max of 4
+    #data_content['Week'] = ((day_of_month - 1) // 7).clip(upper=3) + 1
+
+    # Apply the original filtering to the DataFrame
+    mask = (data_content['Annee'] == 2024)& (data_content['Mois']=='January') & (data_content['Jours'] == 'Tuesday') #& (data_content['Week']==1)
+    data_content = data_content[mask]
+
     
     # Create sidebar widgets
     selected_years = create_year_selection(data_content)
