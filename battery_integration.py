@@ -484,10 +484,15 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     # Run button
     st.markdown("---")
     
+    # Auto-run optimization on page load if not already run
+    if 'battery_optimization_run' not in st.session_state:
+        st.session_state['battery_optimization_run'] = False
+    
     run_battery_opt = st.button("🚀 Run Battery Optimization", type="primary", use_container_width=True,
                                 help="Run simulation with current configuration")
     
-    if run_battery_opt:
+    # Auto-run on first load or when button is clicked
+    if run_battery_opt or not st.session_state.get('battery_optimization_run', False):
         # Build configuration from session state
         battery_params = DEFAULT_BATTERY_PARAMS.copy()
         battery_params['E_bat_max'] = st.session_state.get('bat_capacity', float(DEFAULT_BATTERY_PARAMS['E_bat_max']))
@@ -606,9 +611,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         # Detailed results tabs
         st.markdown("---")
-        res_tab1, res_tab4, res_tab5 = st.tabs([
-            "📈 SoC & Power Flows",
+        res_tab4, res_tab1, res_tab5 = st.tabs([
             "📊 Op. Windows",
+            "📈 SoC & Power Flows",
             "📋 Summary"
         ])
         
@@ -744,64 +749,24 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             st.pyplot(fig_win_energy)
             plt.close(fig_win_energy)
             
-            # --- Chart 2: Financial Flows ---
-            st.markdown("##### 💶 Financial Flows (Revenue vs Cost Sources)")
-            fig_win_cash, ax = plt.subplots(figsize=(12, 6))
-
-            # Price-based financial view per window (1 MW equivalent):
-            # Sum spot prices in each window and classify as revenue or cost
-            df_price = df_results[['window_type', 'spot_price_eur_mwh']].copy()
-            df_price['window_name'] = df_price['window_type'].map(window_map)
-            df_price = df_price[df_price['window_name'].notna()]
-
-            price_by_window = df_price.groupby('window_name')['spot_price_eur_mwh'] \
-                                      .sum().reindex(order).fillna(0.0)
-
-            revenue_windows = ['Sell to Grid', 'Supply to Electrolyser']
-            cost_windows = ['Grid Charging', 'PV Charging']
-
-            revenue_series = price_by_window.where(price_by_window.index.isin(revenue_windows), 0.0)
-            cost_series = -price_by_window.where(price_by_window.index.isin(cost_windows), 0.0)
-
-            ax.bar(price_by_window.index, revenue_series,
-                   label='Revenue (Sell to Grid + Supply to Electrolyser)', color='green', alpha=0.7)
-            ax.bar(price_by_window.index, cost_series,
-                   label='Cost (Grid Charging + PV Charging)', color='red', alpha=0.7)
-
-            ax.axhline(0, color='black', linewidth=0.8)
-            ax.set_ylabel('Amount (€ for 1 MW-equivalent)', fontweight='bold')
-            ax.set_title('Financial Flows by Operational Window (Price-Based)', fontweight='bold')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-
-            # Add labels
-            for i, (name, val) in enumerate(revenue_series.items()):
-                if val > 0:
-                    ax.text(i, val, f"+{val:,.2f}€", ha='center', va='bottom', fontsize=9)
-            for i, (name, val) in enumerate(cost_series.items()):
-                if val < 0:
-                    ax.text(i, val, f"{val:,.2f}€", ha='center', va='top', fontsize=9)
-            
-            st.pyplot(fig_win_cash)
-            plt.close(fig_win_cash)
-            
-            # Metrics row (price-based summary)
-            total_revenue_price = revenue_series.sum()
-            total_cost_price = -cost_series.sum()
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Total Revenue (price-based)", f"{total_revenue_price:,.2f} €")
-            c2.metric("Total Cost (price-based)", f"{total_cost_price:,.2f} €")
-            c3.metric("Net (price-based)", f"{(total_revenue_price - total_cost_price):,.2f} €")
-            c4.metric("Windows", ", ".join([w for w in price_by_window.index if price_by_window[w] != 0]))
-
-            # --- Chart 2.5: Hourly Power Consumption Cost Analysis ---
+            # --- Chart 2: Hourly Power Consumption Cost Analysis ---
             st.markdown("##### 📉 Hourly Power Consumption Cost Analysis (vs PPA Baseline)")
             
             # Prepare hourly data
             df_hourly_cost = df_results.copy()
             df_hourly_cost['pv_charge_cost'] = df_hourly_cost['pv_to_battery_mw'] * pv_price
             df_hourly_cost['grid_charge_cost'] = df_hourly_cost['grid_to_battery_mw'] * df_hourly_cost['spot_price_eur_mwh']
-            df_hourly_cost['arbitrage_revenue'] = df_hourly_cost['battery_to_grid_mw'] * df_hourly_cost['spot_price_eur_mwh']
+            
+            # Split arbitrage revenue by operation window
+            # We only expect revenue in the arbitrage discharge window, but let's be generic
+            # We want to see the revenue/cost impact of "Selling to Grid" specifically
+            # Since 'battery_to_grid_mw' generates revenue, we track it as negative cost
+            df_hourly_cost['revenue_sell_to_grid'] = df_hourly_cost['battery_to_grid_mw'] * df_hourly_cost['spot_price_eur_mwh']
+            
+            # Supply to Electrolyser: This represents a cost savings compared to PPA
+            # When battery supplies electrolyser, we avoid buying at spot price
+            # The "cost impact" is: Energy supplied * (Spot Price - 0) = negative cost (savings)
+            df_hourly_cost['ely_supply_savings'] = df_hourly_cost['battery_to_ely_mw'] * df_hourly_cost['spot_price_eur_mwh']
             
             # PPA Baseline: Cost if we bought the electrolyser input energy at PPA price
             # The baseline assumes constant electrolyser operation powered by PPA
@@ -812,7 +777,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
                 'pv_charge_cost': 'sum',
                 'grid_charge_cost': 'sum',
-                'arbitrage_revenue': 'sum',
+                'revenue_sell_to_grid': 'sum',
+                'ely_supply_savings': 'sum',
                 'ppa_baseline_cost': 'sum'
             })
             
@@ -822,9 +788,37 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ax.bar(hourly_profile.index, hourly_profile['grid_charge_cost'], label='Grid Charging Cost', color='red', alpha=0.7)
             ax.bar(hourly_profile.index, hourly_profile['pv_charge_cost'], bottom=hourly_profile['grid_charge_cost'], label='PV Charging Cost', color='gold', alpha=0.7)
             
-            # Revenue as negative bars - Restored
-            # In this context "arbitrage revenue" (selling to grid) acts as a negative cost
-            ax.bar(hourly_profile.index, -hourly_profile['arbitrage_revenue'], label='Arbitrage Revenue (Negative Cost)', color='green', alpha=0.7)
+            # Revenue as negative bars - explicitly labeled as "Sell to Grid"
+            ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Sell to Grid', color='green', alpha=0.7)
+            
+            # Supply to Electrolyser savings as negative bars (cost avoided)
+            ax.bar(hourly_profile.index, -hourly_profile['ely_supply_savings'], label='Supply to Electrolyser', color='purple', alpha=0.7)
+            
+            # Add cost labels on each bar (only show if value is significant)
+            for hour in hourly_profile.index:
+                # Grid charging cost (at base)
+                if hourly_profile.loc[hour, 'grid_charge_cost'] > 0:
+                    ax.text(hour, hourly_profile.loc[hour, 'grid_charge_cost'] / 2, 
+                           f"{hourly_profile.loc[hour, 'grid_charge_cost']:.0f}€", 
+                           ha='center', va='center', fontsize=8, color='white', fontweight='bold')
+                
+                # PV charging cost (stacked on top)
+                if hourly_profile.loc[hour, 'pv_charge_cost'] > 0:
+                    ax.text(hour, hourly_profile.loc[hour, 'grid_charge_cost'] + hourly_profile.loc[hour, 'pv_charge_cost'] / 2, 
+                           f"{hourly_profile.loc[hour, 'pv_charge_cost']:.0f}€", 
+                           ha='center', va='center', fontsize=8, color='black', fontweight='bold')
+                
+                # Sell to Grid revenue (negative)
+                if hourly_profile.loc[hour, 'revenue_sell_to_grid'] > 0:
+                    ax.text(hour, -hourly_profile.loc[hour, 'revenue_sell_to_grid'] / 2, 
+                           f"-{hourly_profile.loc[hour, 'revenue_sell_to_grid']:.0f}€", 
+                           ha='center', va='center', fontsize=8, color='white', fontweight='bold')
+                
+                # Supply to Electrolyser savings (negative)
+                if hourly_profile.loc[hour, 'ely_supply_savings'] > 0:
+                    ax.text(hour, -hourly_profile.loc[hour, 'ely_supply_savings'] / 2, 
+                           f"-{hourly_profile.loc[hour, 'ely_supply_savings']:.0f}€", 
+                           ha='center', va='center', fontsize=8, color='white', fontweight='bold')
             
             # PPA Baseline as a line (Constant PPA supply)
             ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA Baseline Cost (Constant {electrolyser_power}MW @ {ppa_price} €/MWh)', color='purple', linewidth=3, linestyle='-', marker='o')
