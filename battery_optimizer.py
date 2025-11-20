@@ -22,7 +22,7 @@ class BatteryOptimizer:
     """
     
     def __init__(self, battery_params=None, time_windows=None, electrolyser_params=None,
-                 night_charge_strategy=None, penalty_params=None, pv_price=0.0):
+                 penalty_params=None, pv_price=0.0):
         """
         Initialize the battery optimizer
         
@@ -30,18 +30,12 @@ class BatteryOptimizer:
             battery_params: Dictionary of battery technical parameters
             time_windows: Dictionary of operational time windows (hours)
             electrolyser_params: Dictionary of electrolyser parameters
-            night_charge_strategy: Dictionary with charging strategy
             penalty_params: Dictionary with penalty parameters
             pv_price: Price of PV electricity [€/MWh]
         """
         self.battery_params = battery_params or DEFAULT_BATTERY_PARAMS.copy()
         self.time_windows = time_windows or DEFAULT_TIME_WINDOWS.copy()
         self.electrolyser_params = electrolyser_params or DEFAULT_ELECTROLYSER_PARAMS.copy()
-        # Default night charging strategy if none is provided
-        self.night_charge_strategy = night_charge_strategy or {
-            "mode": "always_charge",
-            "price_threshold": 50.0,
-        }
         self.penalty_params = penalty_params or PENALTY_PARAMS.copy()
         self.pv_price = pv_price
         
@@ -252,30 +246,22 @@ class BatteryOptimizer:
         """
         Spot grid charging window (default 23:00-05:00)
         - Charge from grid at spot market prices to prepare for electrolyser
-        - Can use price threshold strategy or always charge
+        - Always charge when in this window
         """
         flows = self._init_flows()
         
-        # Check charging strategy
-        should_charge = True
-        if self.night_charge_strategy['mode'] == 'price_threshold':
-            should_charge = spot_price <= self.night_charge_strategy['price_threshold']
+        # Calculate how much battery can accept
+        E_available = self.E_max - E_bat
+        P_charge_limit = self.battery_params["P_charge_max"]
+        eta_charge = self.battery_params["eta_charge"]
         
-        if should_charge:
-            # Calculate how much battery can accept
-            E_available = self.E_max - E_bat
-            P_charge_limit = self.battery_params["P_charge_max"]
-            eta_charge = self.battery_params["eta_charge"]
-            
-            # Charge at maximum rate
-            P_charge = min(P_charge_limit, E_available / eta_charge / 1.0)
-            E_charge = P_charge * 1.0 * eta_charge
-            
-            E_bat_new = E_bat + E_charge
-            
-            flows['grid_to_battery'] = P_charge
-        else:
-            E_bat_new = E_bat
+        # Charge at maximum rate
+        P_charge = min(P_charge_limit, E_available / eta_charge / 1.0)
+        E_charge = P_charge * 1.0 * eta_charge
+        
+        E_bat_new = E_bat + E_charge
+        
+        flows['grid_to_battery'] = P_charge
         
         # No PV during this window typically, but handle it
         flows['pv_curtailed'] = pv_available

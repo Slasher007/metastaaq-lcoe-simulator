@@ -186,24 +186,6 @@ def main():
             "Night Charge End (hour)", 0, 23, DEFAULT_TIME_WINDOWS['night_charge_end'], 1,
             help="End of night charging from grid"
         )
-        
-        # Night charging strategy from UI (no global NIGHT_CHARGE_STRATEGY constant)
-        charge_mode = st.radio(
-            "Night Charging Strategy",
-            ["Always Charge", "Price Threshold"],
-            index=0,
-            help="Always charge or only when price is below threshold"
-        )
-        night_strategy = {
-            "mode": 'always_charge' if charge_mode == "Always Charge" else 'price_threshold',
-            "price_threshold": 50.0,
-        }
-        
-        if night_strategy['mode'] == 'price_threshold':
-            night_strategy['price_threshold'] = st.number_input(
-                "Price Threshold (€/MWh)", 
-                min_value=0.0, max_value=200.0, value=50.0, step=5.0
-            )
     
     with st.sidebar.expander("⚡ Electrolyser Window", expanded=False):
         time_windows['electrolyser_start'] = st.slider(
@@ -297,7 +279,6 @@ def main():
                 battery_params=battery_params,
                 time_windows=time_windows,
                 electrolyser_params=electrolyser_params,
-                night_charge_strategy=night_strategy,
                 pv_price=0.0  # Default to 0 if not integrated with main dashboard pricing
             )
             
@@ -621,7 +602,6 @@ def main():
         
         3. **Night Charging Window** (default 23:00-05:00)
            - Charge battery from grid (at low night prices)
-           - Can use always-charge or price-threshold strategy
         
         4. **Electrolyser Window** (default 05:00-10:00)
            - Battery exclusively powers electrolyser

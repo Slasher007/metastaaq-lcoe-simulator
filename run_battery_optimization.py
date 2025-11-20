@@ -199,11 +199,7 @@ Examples:
     optimizer = BatteryOptimizer(
         battery_params=battery_params,
         time_windows=time_windows,
-        electrolyser_params=electrolyser_params,
-        night_charge_strategy={
-            "mode": "always_charge",
-            "price_threshold": 50.0,
-        }
+        electrolyser_params=electrolyser_params
     )
     
     df_results, summary = optimizer.simulate_year(pv_profile, spot_prices, timestamps)

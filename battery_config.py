@@ -51,7 +51,7 @@ DEFAULT_BATTERY_PARAMS = {
     # State of Charge (SoC) constraints
     "SoC_min": 0.10,  # Minimum SoC (10% = 10% DoD protection)
     "SoC_max": 1.00,  # Maximum SoC (100%)
-    "SoC_initial": 0.50,  # Initial SoC on Jan 1st 00:00 (50%)
+    "SoC_initial": 0.0,  # Initial SoC on Jan 1st 00:00 (50%)
     
     # Depth of Discharge
     "DoD_max": 1.00,  # Maximum allowed depth of discharge (100%)

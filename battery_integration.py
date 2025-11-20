@@ -57,6 +57,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     available_days = [day for day in day_order if day in data_content['DayOfWeek'].unique()]
     
+    # Filter data to only include Tuesday
+    mask = data_content['Jours'] == 'Tuesday'
+    data_content = data_content[mask]
+    
     # Initialize session state for filters if not exists
     if 'filter_years' not in st.session_state:
         st.session_state.filter_years = available_years
@@ -302,19 +306,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                         help="Night charging window end (can be < start for midnight wrap)"
                     )
                 
-                st.radio(
-                    "Strategy",
-                    ["Always Charge", "Price Threshold"],
-                    index=0,
-                    horizontal=True,
-                    key='night_mode'
-                )
-                
-                if st.session_state.get('night_mode', 'Always Charge') == 'Price Threshold':
-                    st.number_input(
-                        "Max Price (€/MWh)", 0.0, 200.0, 50.0, 5.0, key='night_price'
-                    )
-                
                 st.caption("Buy from grid during low prices (can wrap midnight: 23-04 means 23:00-04:00).")
             
             with tw_tab4:
@@ -503,13 +494,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         time_windows['electrolyser_start'] = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
         time_windows['electrolyser_end'] = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
         
-        # Night charging strategy from UI (no global config constant)
-        charge_mode = st.session_state.get('night_mode', 'Always Charge')
-        night_strategy = {
-            "mode": 'always_charge' if charge_mode == "Always Charge" else 'price_threshold',
-            "price_threshold": st.session_state.get('night_price', 50.0),
-        }
-        
         electrolyser_params = DEFAULT_ELECTROLYSER_PARAMS.copy()
         electrolyser_params['P_ely'] = electrolyser_power
         
@@ -535,7 +519,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 battery_params=battery_params,
                 time_windows=time_windows,
                 electrolyser_params=electrolyser_params,
-                night_charge_strategy=night_strategy,
                 pv_price=pv_price
             )
             
