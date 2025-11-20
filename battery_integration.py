@@ -326,8 +326,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                     )
                 st.caption("Discharge battery to supply the electrolyser.")
     
-    st.markdown("---")
-    
     # Price distribution analysis to help configure time windows
     st.markdown("### 📊 Spot Price Analysis by Hour (Filtered Data)")
     st.markdown("Understanding hourly price patterns helps optimize time window configuration")
@@ -475,8 +473,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     plt.close(fig_price_hour)
     
     # Auto-run optimization on page load
-    st.markdown("---")
-    
     if 'battery_optimization_run' not in st.session_state:
         st.session_state['battery_optimization_run'] = False
     
@@ -554,47 +550,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         summary = st.session_state['battery_summary']
         battery_params = st.session_state['battery_params']
         time_windows = st.session_state['battery_time_windows']
-        
-        # Key metrics
-        st.markdown("---")
-        st.markdown("### 📊 Key Performance Indicators")
-        
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
-        with col1:
-            st.metric(
-                "Net Profit",
-                f"{summary['net_profit_eur']:,.0f} €",
-                delta=f"{summary['net_profit_eur']/365:.0f} €/day"
-            )
-        
-        with col2:
-            st.metric(
-                "Revenue (Sell + Ely)",
-                f"{summary['total_revenue_eur']:,.0f} €",
-                delta=f"Sell: {summary['total_revenue_arbitrage_eur']:,.0f} €, Ely: {summary['total_ely_value_eur']:,.0f} €"
-            )
-        
-        with col3:
-            st.metric(
-                "Charging Cost (Grid + PV)",
-                f"{summary['total_cost_eur']:,.0f} €",
-                delta=f"Grid: {summary['total_cost_charging_eur']:,.0f} €, PV: {summary['total_pv_cost_eur']:,.0f} €"
-            )
-        
-        with col4:
-            st.metric(
-                "H₂ Production",
-                f"{summary['total_h2_production_tonnes']:.1f} t",
-                delta=f"{summary['h2_cost_eur_per_kg']:.2f} €/kg"
-            )
-        
-        with col5:
-            st.metric(
-                "Battery Cycles",
-                f"{summary['equivalent_cycles']:.0f}",
-                delta=f"{summary['avg_soc']:.0%} avg SoC"
-            )
         
         # Detailed results tabs
         st.markdown("---")
@@ -712,31 +667,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             order = ['PV Charging', 'Sell to Grid', 'Grid Charging', 'Supply to Electrolyser']
             win_stats = win_stats.reindex([w for w in order if w in win_stats.index]).fillna(0)
             
-            # --- Chart 1: Energy Flows ---
-            st.markdown("##### ⚡ Energy Flows by Operational Window (MWh)")
-            fig_win_energy, ax = plt.subplots(figsize=(12, 6))
-            
-            # Plot Inflows (Positive)
-            ax.bar(win_stats.index, win_stats['grid_to_battery_mw'], label='Grid Input', color='green', alpha=0.6)
-            ax.bar(win_stats.index, win_stats['pv_to_battery_mw'], bottom=win_stats['grid_to_battery_mw'], label='PV Input', color='gold', alpha=0.6)
-            
-            # Plot Outflows (Negative)
-            out_grid = -win_stats['battery_to_grid_mw']
-            out_ely = -win_stats['battery_to_ely_mw']
-            
-            ax.bar(win_stats.index, out_grid, label='Grid Output', color='blue', alpha=0.6)
-            ax.bar(win_stats.index, out_ely, bottom=out_grid, label='Electrolyser Output', color='purple', alpha=0.6)
-            
-            ax.axhline(0, color='black', linewidth=0.8)
-            ax.set_ylabel('Energy (MWh)', fontweight='bold')
-            ax.set_title('Energy Flux by Operational Window', fontweight='bold')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-            
-            st.pyplot(fig_win_energy)
-            plt.close(fig_win_energy)
-            
-            # --- Chart 2: Hourly Power Consumption Cost Analysis ---
+            # --- Chart 1: Hourly Power Consumption Cost Analysis ---
             st.markdown("##### 📉 Hourly Power Consumption Cost Analysis (vs PPA Baseline)")
             
             # Prepare hourly data
@@ -900,6 +831,46 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 ]
             }
             st.table(pd.DataFrame(summary_data))
+        
+        # Key Performance Indicators - moved to bottom
+        st.markdown("### 📊 Key Performance Indicators")
+        
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            st.metric(
+                "Net Profit",
+                f"{summary['net_profit_eur']:,.0f} €",
+                delta=f"{summary['net_profit_eur']/365:.0f} €/day"
+            )
+        
+        with col2:
+            st.metric(
+                "Revenue (Sell + Ely)",
+                f"{summary['total_revenue_eur']:,.0f} €",
+                delta=f"Sell: {summary['total_revenue_arbitrage_eur']:,.0f} €, Ely: {summary['total_ely_value_eur']:,.0f} €"
+            )
+        
+        with col3:
+            st.metric(
+                "Charging Cost (Grid + PV)",
+                f"{summary['total_cost_eur']:,.0f} €",
+                delta=f"Grid: {summary['total_cost_charging_eur']:,.0f} €, PV: {summary['total_pv_cost_eur']:,.0f} €"
+            )
+        
+        with col4:
+            st.metric(
+                "H₂ Production",
+                f"{summary['total_h2_production_tonnes']:.1f} t",
+                delta=f"{summary['h2_cost_eur_per_kg']:.2f} €/kg"
+            )
+        
+        with col5:
+            st.metric(
+                "Battery Cycles",
+                f"{summary['equivalent_cycles']:.0f}",
+                delta=f"{summary['avg_soc']:.0%} avg SoC"
+            )
     
     else:
         st.info("👆 Configure battery parameters and time windows above, then click '🚀 Run Battery Optimization' to start the simulation")
