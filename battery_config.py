@@ -7,7 +7,7 @@ Parametric time windows and battery parameters for PV-Battery-Electrolyser optim
 # Defaults aligned with battery_integration operational windows (non-overlapping)
 DEFAULT_TIME_WINDOWS = {
     # 1. PV-priority charging window
-    "pv_charge_start": 10,  # 10:00 - Start PV charging
+    "pv_charge_start": 11,  # 10:00 - Start PV charging
     "pv_charge_end": 16,    # 16:00 - End PV charging
     
     # 2. Evening arbitrage discharge window
@@ -16,11 +16,11 @@ DEFAULT_TIME_WINDOWS = {
     
     # 3. Spot charging window (grid charging at spot prices)
     "night_charge_start": 23,  # 23:00 - Start spot grid charging
-    "night_charge_end": 4,     # 04:00 - End spot grid charging (wraps midnight)
+    "night_charge_end": 5,     # 04:00 - End spot grid charging (wraps midnight)
     
     # 4. Morning electrolyser supply window
-    "electrolyser_start": 5,  # 05:00 - Start electrolyser operation
-    "electrolyser_end": 9,    # 09:00 - End electrolyser operation
+    "electrolyser_start": 6,  # 05:00 - Start electrolyser operation
+    "electrolyser_end": 10,    # 09:00 - End electrolyser operation
 }
 
 # Electrolyser Parameters for Battery Supply
