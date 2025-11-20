@@ -297,7 +297,8 @@ def main():
                 battery_params=battery_params,
                 time_windows=time_windows,
                 electrolyser_params=electrolyser_params,
-                night_charge_strategy=night_strategy
+                night_charge_strategy=night_strategy,
+                pv_price=0.0  # Default to 0 if not integrated with main dashboard pricing
             )
             
             # Run simulation

@@ -20,7 +20,7 @@ from battery_visualization import (
 )
 
 
-def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_data):
+def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_data, pv_price=0.0, ppa_price=0.0):
     """
     Render the battery arbitrage optimization tab in the main dashboard
     
@@ -28,6 +28,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         data_content: DataFrame with spot price data
         electrolyser_power: Electrolyser power from main dashboard (MW)
         pv_energy_data: PV energy data dict from main dashboard
+        pv_price: PV electricity price (€/MWh)
+        ppa_price: PPA electricity price (€/MWh) for baseline comparison
     """
     st.markdown("## 🔋 Battery Energy Storage & Arbitrage Optimization")
     st.markdown("""
@@ -538,7 +540,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 battery_params=battery_params,
                 time_windows=time_windows,
                 electrolyser_params=electrolyser_params,
-                night_charge_strategy=night_strategy
+                night_charge_strategy=night_strategy,
+                pv_price=pv_price
             )
             
             # Run simulation with hours instead of timestamps
@@ -603,10 +606,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         # Detailed results tabs
         st.markdown("---")
-        res_tab1, res_tab2, res_tab3, res_tab4, res_tab5 = st.tabs([
+        res_tab1, res_tab4, res_tab5 = st.tabs([
             "📈 SoC & Power Flows",
-            "💰 Economics",
-            "⚡ H₂ Production",
             "📊 Op. Windows",
             "📋 Summary"
         ])
@@ -676,120 +677,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             st.pyplot(fig_power_simple)
             plt.close(fig_power_simple)
         
-        with res_tab2:
-            st.markdown("#### Economics Breakdown")
-            
-            # Simple monthly cashflow chart
-            fig_cash, ax = plt.subplots(figsize=(12, 6))
-            
-            # Group by month (assuming sequential hourly data)
-            hours_per_month = []
-            month_labels = []
-            revenue_monthly = []
-            cost_monthly = []
-            net_monthly = []
-            
-            current_month_hours = 0
-            current_revenue = 0
-            current_cost = 0
-            month_idx = 0
-            
-            for i in range(len(df_results)):
-                current_revenue += df_results.iloc[i]['revenue_arbitrage']
-                current_cost += df_results.iloc[i]['cost_charging']
-                current_month_hours += 1
-                
-                # Approximate month boundaries (every ~730 hours)
-                if current_month_hours >= 730 or i == len(df_results) - 1:
-                    revenue_monthly.append(current_revenue)
-                    cost_monthly.append(current_cost)
-                    net_monthly.append(current_revenue - current_cost)
-                    month_labels.append(f'M{month_idx+1}')
-                    current_month_hours = 0
-                    current_revenue = 0
-                    current_cost = 0
-                    month_idx += 1
-            
-            x_pos = np.arange(len(month_labels))
-            width = 0.6
-            
-            ax.bar(x_pos, revenue_monthly, width, color='green', alpha=0.7, label='Revenue')
-            ax.bar(x_pos, [-c for c in cost_monthly], width, color='red', alpha=0.7, label='Cost')
-            ax.plot(x_pos, net_monthly, color='blue', linewidth=2.5, marker='o', markersize=8, label='Net', zorder=10)
-            
-            ax.set_xticks(x_pos)
-            ax.set_xticklabels(month_labels)
-            ax.set_xlabel('Month', fontweight='bold')
-            ax.set_ylabel('Cashflow (€)', fontweight='bold')
-            ax.set_title('Monthly Cashflow Breakdown', fontweight='bold')
-            ax.legend()
-            ax.grid(True, alpha=0.3, axis='y')
-            ax.axhline(y=0, color='black', linewidth=1)
-            
-            plt.tight_layout()
-            st.pyplot(fig_cash)
-            plt.close(fig_cash)
-            
-            # Monthly table - simple grouping by ~730 hours
-            st.markdown("#### Monthly Breakdown")
-            monthly_data = []
-            month_idx = 0
-            for i in range(0, len(df_results), 730):
-                month_df = df_results.iloc[i:i+730]
-                monthly_data.append({
-                    'Month': f'Month {month_idx+1}',
-                    'Revenue (€)': month_df['revenue_arbitrage'].sum(),
-                    'Cost (€)': month_df['cost_charging'].sum(),
-                    'Net (€)': month_df['net_cashflow'].sum(),
-                    'Discharged (MWh)': month_df['battery_to_grid_mw'].sum(),
-                    'Charged (MWh)': month_df['grid_to_battery_mw'].sum()
-                })
-                month_idx += 1
-            
-            df_monthly_summary = pd.DataFrame(monthly_data)
-            st.dataframe(df_monthly_summary.style.format({
-                'Revenue (€)': '{:,.0f}',
-                'Cost (€)': '{:,.0f}',
-                'Net (€)': '{:,.0f}',
-                'Discharged (MWh)': '{:.1f}',
-                'Charged (MWh)': '{:.1f}'
-            }), use_container_width=True)
-        
-        with res_tab3:
-            st.markdown("#### Hydrogen Production")
-            
-            # Simple H2 production chart
-            fig_h2, ax = plt.subplots(figsize=(12, 6))
-            
-            # Group by day (every 24 hours)
-            daily_h2 = []
-            for day in range(0, len(df_results), 24):
-                day_total = df_results.iloc[day:day+24]['ely_h2_production_kg'].sum()
-                daily_h2.append(day_total)
-            
-            ax.bar(range(len(daily_h2)), daily_h2, color='purple', alpha=0.7)
-            ax.set_xlabel('Day', fontweight='bold')
-            ax.set_ylabel('H₂ Production (kg/day)', fontweight='bold')
-            ax.set_title('Daily Hydrogen Production', fontweight='bold')
-            ax.grid(True, alpha=0.3, axis='y')
-            
-            # Add target line
-            target_h2 = (electrolyser_params['P_ely'] * 1000 * 5) / electrolyser_params['specific_consumption']
-            ax.axhline(y=target_h2, color='red', linestyle='--', linewidth=2, label=f'Target ({target_h2:.1f} kg/day)')
-            ax.legend()
-            
-            plt.tight_layout()
-            st.pyplot(fig_h2)
-            plt.close(fig_h2)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Operating Hours", f"{summary['ely_operating_hours']:.0f}")
-            with col2:
-                st.metric("Capacity Factor", f"{summary['ely_capacity_factor']:.1%}")
-            with col3:
-                st.metric("Shortage Hours", f"{summary['ely_shortage_hours']:.0f}")
-        
         with res_tab4:
             st.markdown("#### Operational Windows Analysis")
             
@@ -813,7 +700,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # For simplicity, treat PV charging energy as having a cost equal to spot price
             # This approximates the case where the electrolyser effectively uses grid-priced power
-            df_win['pv_cost_eur'] = df_win['pv_to_battery_mw'] * df_win['spot_price_eur_mwh']
+            # UPDATE: PV Charging cost is now fixed by PV Price (€/MWh)
+            df_win['pv_cost_eur'] = df_win['pv_to_battery_mw'] * pv_price
             
             # Group statistics
             win_stats = df_win.groupby('window_name').agg({
@@ -905,6 +793,52 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             c2.metric("Total Cost (price-based)", f"{total_cost_price:,.2f} €")
             c3.metric("Net (price-based)", f"{(total_revenue_price - total_cost_price):,.2f} €")
             c4.metric("Windows", ", ".join([w for w in price_by_window.index if price_by_window[w] != 0]))
+
+            # --- Chart 2.5: Hourly Power Consumption Cost Analysis ---
+            st.markdown("##### 📉 Hourly Power Consumption Cost Analysis (vs PPA Baseline)")
+            
+            # Prepare hourly data
+            df_hourly_cost = df_results.copy()
+            df_hourly_cost['pv_charge_cost'] = df_hourly_cost['pv_to_battery_mw'] * pv_price
+            df_hourly_cost['grid_charge_cost'] = df_hourly_cost['grid_to_battery_mw'] * df_hourly_cost['spot_price_eur_mwh']
+            df_hourly_cost['arbitrage_revenue'] = df_hourly_cost['battery_to_grid_mw'] * df_hourly_cost['spot_price_eur_mwh']
+            
+            # PPA Baseline: Cost if we bought the electrolyser input energy at PPA price
+            # The baseline assumes constant electrolyser operation powered by PPA
+            # So we use the full electrolyser power capacity for PPA baseline calculation
+            df_hourly_cost['ppa_baseline_cost'] = electrolyser_power * ppa_price
+            
+            # Group by hour of day
+            hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
+                'pv_charge_cost': 'sum',
+                'grid_charge_cost': 'sum',
+                'arbitrage_revenue': 'sum',
+                'ppa_baseline_cost': 'sum'
+            })
+            
+            fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
+            
+            # Stacked bars for System Costs
+            ax.bar(hourly_profile.index, hourly_profile['grid_charge_cost'], label='Grid Charging Cost', color='red', alpha=0.7)
+            ax.bar(hourly_profile.index, hourly_profile['pv_charge_cost'], bottom=hourly_profile['grid_charge_cost'], label='PV Charging Cost', color='gold', alpha=0.7)
+            
+            # Revenue as negative bars - Restored
+            # In this context "arbitrage revenue" (selling to grid) acts as a negative cost
+            ax.bar(hourly_profile.index, -hourly_profile['arbitrage_revenue'], label='Arbitrage Revenue (Negative Cost)', color='green', alpha=0.7)
+            
+            # PPA Baseline as a line (Constant PPA supply)
+            ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA Baseline Cost (Constant {electrolyser_power}MW @ {ppa_price} €/MWh)', color='purple', linewidth=3, linestyle='-', marker='o')
+            
+            ax.set_xticks(range(24))
+            ax.set_xlabel('Hour of Day', fontweight='bold')
+            ax.set_ylabel('Total Cumulated Cost (€)', fontweight='bold')
+            ax.set_title('Total Hourly Power Consumption Cost Profile vs Constant PPA Baseline', fontweight='bold')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            ax.axhline(0, color='black', linewidth=0.8)
+            
+            st.pyplot(fig_hourly_cost)
+            plt.close(fig_hourly_cost)
 
             # --- Chart 3: Selected Hours & Spot Prices per Operational Window ---
             st.markdown("##### ⏰ Selected Hours and Spot Prices by Operational Window")

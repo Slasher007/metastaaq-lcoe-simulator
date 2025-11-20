@@ -22,7 +22,7 @@ class BatteryOptimizer:
     """
     
     def __init__(self, battery_params=None, time_windows=None, electrolyser_params=None,
-                 night_charge_strategy=None, penalty_params=None):
+                 night_charge_strategy=None, penalty_params=None, pv_price=0.0):
         """
         Initialize the battery optimizer
         
@@ -32,6 +32,7 @@ class BatteryOptimizer:
             electrolyser_params: Dictionary of electrolyser parameters
             night_charge_strategy: Dictionary with charging strategy
             penalty_params: Dictionary with penalty parameters
+            pv_price: Price of PV electricity [€/MWh]
         """
         self.battery_params = battery_params or DEFAULT_BATTERY_PARAMS.copy()
         self.time_windows = time_windows or DEFAULT_TIME_WINDOWS.copy()
@@ -42,6 +43,7 @@ class BatteryOptimizer:
             "price_threshold": 50.0,
         }
         self.penalty_params = penalty_params or PENALTY_PARAMS.copy()
+        self.pv_price = pv_price
         
         # Calculate effective energy limits based on DoD
         self.E_min = self.battery_params["E_bat_max"] * self.battery_params["SoC_min"]
@@ -372,9 +374,9 @@ class BatteryOptimizer:
         total_penalties = df['cost_penalties'].sum()
 
         # Additional simplified economics to match dashboard "Financial Flows":
-        # - Treat PV charging as having a cost equal to spot price at PV-charging hours
+        # - Treat PV charging as having a cost equal to PV Price (€/MWh)
         # - Treat battery supply to electrolyser as an avoided grid cost (value)
-        total_pv_cost = (df['pv_to_battery_mw'] * df['spot_price_eur_mwh']).sum()
+        total_pv_cost = (df['pv_to_battery_mw'] * self.pv_price).sum()
         total_ely_value = (df['battery_to_ely_mw'] * df['spot_price_eur_mwh']).sum()
 
         # Aggregated revenue and cost consistent with Operational Windows analysis

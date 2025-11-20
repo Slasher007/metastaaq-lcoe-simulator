@@ -214,7 +214,7 @@ def main():
                 data_with_ts['timestamp'] = pd.to_datetime(data_with_ts['Date']) + pd.to_timedelta(data_with_ts['Heure'], unit='h')
             
             # Battery tab has its own configuration management - no auto-updates from main dashboard
-            render_battery_arbitrage_tab(data_with_ts, electrolyser_power, pv_energy_data)
+            render_battery_arbitrage_tab(data_with_ts, electrolyser_power, pv_energy_data, pv_price, ppa_price)
         else:
             st.error("🔋 Battery Arbitrage module not available. Please ensure all battery optimization files are present.")
             st.info("Required files: battery_config.py, battery_optimizer.py, battery_visualization.py, battery_integration.py")
