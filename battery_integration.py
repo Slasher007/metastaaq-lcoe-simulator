@@ -207,11 +207,16 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with col1:
             st.subheader("⚙️ Battery Configuration")
             
+            # Calculate default capacity based on electrolyser power and PV window
+            # Capacity = Power * Duration
+            default_pv_duration = DEFAULT_TIME_WINDOWS['pv_charge_end'] - DEFAULT_TIME_WINDOWS['pv_charge_start']
+            default_capacity = float(electrolyser_power * default_pv_duration)
+            
             # Battery parameters with session state keys
             st.number_input(
                 "Energy Capacity (MWh)", 
-                min_value=1.0, max_value=50.0, value=float(DEFAULT_BATTERY_PARAMS['E_bat_max']), step=0.5,
-                help="Maximum battery energy storage capacity",
+                min_value=1.0, max_value=50.0, value=default_capacity, step=0.5,
+                help=f"Maximum battery energy storage capacity (Default: {electrolyser_power} MW × {default_pv_duration}h = {default_capacity} MWh)",
                 key='bat_capacity'
             )
             

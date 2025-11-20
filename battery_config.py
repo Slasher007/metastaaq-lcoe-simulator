@@ -25,7 +25,7 @@ DEFAULT_TIME_WINDOWS = {
 
 # Electrolyser Parameters for Battery Supply
 DEFAULT_ELECTROLYSER_PARAMS = {
-    "P_ely": 5.0,  # MW - Fixed power consumption when ON
+    "P_ely": 1.0,  # MW - Fixed power consumption when ON
     "specific_consumption": 4.8,  # kWh/kg H2 (typical alkaline: 4.5-5.5, PEM: 4.3-5.0)
     "min_load_ratio": 0.3,  # Minimum load ratio (30% of rated power)
     "startup_energy": 0.0,  # MWh - Energy required for startup (can be 0)
