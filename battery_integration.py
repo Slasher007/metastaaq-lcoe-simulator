@@ -210,22 +210,22 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # Battery parameters with session state keys
             st.number_input(
                 "Energy Capacity (MWh)", 
-                min_value=5.0, max_value=50.0, value=float(DEFAULT_BATTERY_PARAMS['E_bat_max']), step=1.0,
+                min_value=1.0, max_value=50.0, value=float(DEFAULT_BATTERY_PARAMS['E_bat_max']), step=0.5,
                 help="Maximum battery energy storage capacity",
                 key='bat_capacity'
             )
             
             st.number_input(
                 "Charge Power (MW)", 
-                min_value=2.0, max_value=25.0, value=float(DEFAULT_BATTERY_PARAMS['P_charge_max']), step=1.0,
-                help="Maximum charging power",
+                min_value=0.5, max_value=25.0, value=float(electrolyser_power), step=0.5,
+                help="Maximum charging power (default: electrolyser power)",
                 key='bat_charge_power'
             )
             
             st.number_input(
                 "Discharge Power (MW)", 
-                min_value=2.0, max_value=25.0, value=float(DEFAULT_BATTERY_PARAMS['P_discharge_max']), step=1.0,
-                help="Maximum discharging power",
+                min_value=0.5, max_value=25.0, value=float(electrolyser_power), step=0.5,
+                help="Maximum discharging power (default: electrolyser power)",
                 key='bat_discharge_power'
             )
             

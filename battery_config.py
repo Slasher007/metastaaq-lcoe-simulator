@@ -38,9 +38,9 @@ DEFAULT_BATTERY_PARAMS = {
     # Calculated as P_ely * PV charging window duration (6 hours)
     "E_bat_max": DEFAULT_ELECTROLYSER_PARAMS["P_ely"] * (DEFAULT_TIME_WINDOWS["pv_charge_end"] - DEFAULT_TIME_WINDOWS["pv_charge_start"]),
     
-    # Power limits
-    "P_charge_max": 5.0,  # MW - Maximum charge power
-    "P_discharge_max": 5.0,  # MW - Maximum discharge power
+    # Power limits (based on electrolyser power)
+    "P_charge_max": DEFAULT_ELECTROLYSER_PARAMS["P_ely"],  # MW - Maximum charge power (equals electrolyser power)
+    "P_discharge_max": DEFAULT_ELECTROLYSER_PARAMS["P_ely"],  # MW - Maximum discharge power (equals electrolyser power)
     
     # Efficiency (one-way and round-trip)
     # Note: battery_integration recomputes eta_charge/eta_discharge from eta_rt
