@@ -449,7 +449,8 @@ class BatteryOptimizer:
             'revenue_per_mwh_discharged': total_revenue / total_battery_to_grid if total_battery_to_grid > 0 else 0,
             'cost_per_mwh_charged': total_cost / total_grid_to_battery if total_grid_to_battery > 0 else 0,
             'net_profit_per_cycle': net_profit / equivalent_cycles if equivalent_cycles > 0 else 0,
-            'h2_cost_eur_per_kg': (total_cost - total_revenue + total_penalties) / total_h2_kg if total_h2_kg > 0 else 0,
+            # Define H2 cost as pure production cost (charging costs only), not net of arbitrage revenue
+            'h2_cost_eur_per_kg': (total_cost / total_h2_kg) if total_h2_kg > 0 else 0,
         }
         
         return summary

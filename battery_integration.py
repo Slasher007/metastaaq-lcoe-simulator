@@ -215,14 +215,14 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     # Add shaded regions for operational time windows (behind the data)
     # Get time windows from session state or use defaults (configured to avoid overlap)
-    pv_start = st.session_state.get('pv_start', 10)
-    pv_end = st.session_state.get('pv_end', 16)
-    arb_start = st.session_state.get('arb_start', 17)
-    arb_end = st.session_state.get('arb_end', 22)
-    night_start = st.session_state.get('night_start', 23)
-    night_end = st.session_state.get('night_end', 4)
-    ely_start = st.session_state.get('ely_start', 5)
-    ely_end = st.session_state.get('ely_end', 9)
+    pv_start = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
+    pv_end = st.session_state.get('pv_end', DEFAULT_TIME_WINDOWS['pv_charge_end'])
+    arb_start = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['arbitrage_discharge_start'])
+    arb_end = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['arbitrage_discharge_end'])
+    night_start = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['night_charge_start'])
+    night_end = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['night_charge_end'])
+    ely_start = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
+    ely_end = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
     
     # PV Charging window [start, end] inclusive -> shade [start-0.5, end+0.5]
     ax_price.axvspan(pv_start - 0.5, pv_end + 0.5, alpha=0.15, color='gold', zorder=1)
@@ -363,35 +363,35 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         # Battery parameters with session state keys
         st.number_input(
             "Energy Capacity (MWh)", 
-            min_value=5.0, max_value=50.0, value=20.0, step=1.0,
+            min_value=5.0, max_value=50.0, value=float(DEFAULT_BATTERY_PARAMS['E_bat_max']), step=1.0,
             help="Maximum battery energy storage capacity",
             key='bat_capacity'
         )
         
         st.number_input(
             "Charge Power (MW)", 
-            min_value=2.0, max_value=25.0, value=5.0, step=1.0,
+            min_value=2.0, max_value=25.0, value=float(DEFAULT_BATTERY_PARAMS['P_charge_max']), step=1.0,
             help="Maximum charging power",
             key='bat_charge_power'
         )
         
         st.number_input(
             "Discharge Power (MW)", 
-            min_value=2.0, max_value=25.0, value=5.0, step=1.0,
+            min_value=2.0, max_value=25.0, value=float(DEFAULT_BATTERY_PARAMS['P_discharge_max']), step=1.0,
             help="Maximum discharging power",
             key='bat_discharge_power'
         )
         
         st.slider(
             "Round-trip Efficiency", 
-            min_value=0.80, max_value=0.98, value=1.00, step=0.01,
+            min_value=0.80, max_value=1.00, value=float(DEFAULT_BATTERY_PARAMS['eta_rt']), step=0.01,
             help="Battery round-trip efficiency",
             key='bat_efficiency'
         )
         
         st.slider(
             "Max Depth of Discharge", 
-            min_value=0.80, max_value=1.00, value=1.00, step=0.05,
+            min_value=0.80, max_value=1.00, value=float(DEFAULT_BATTERY_PARAMS['DoD_max']), step=0.05,
             key='bat_dod'
         )
         
@@ -413,12 +413,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             col_a, col_b = st.columns(2)
             with col_a:
                 st.number_input(
-                    "Start Hour", 0, 23, 10, 1, key='pv_start',
+                    "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_start'], 1, key='pv_start',
                     help="PV charging window start (e.g., 10 = 10:00)"
                 )
             with col_b:
                 st.number_input(
-                    "End Hour", 0, 23, 16, 1, key='pv_end',
+                    "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_end'], 1, key='pv_end',
                     help="PV charging window end"
                 )
             st.caption("All PV production charges the battery. Excess PV is curtailed.")
@@ -427,12 +427,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             col_a, col_b = st.columns(2)
             with col_a:
                 st.number_input(
-                    "Start Hour", 0, 23, 17, 1, key='arb_start',
+                    "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['arbitrage_discharge_start'], 1, key='arb_start',
                     help="Arbitrage discharge window start"
                 )
             with col_b:
                 st.number_input(
-                    "End Hour", 0, 23, 22, 1, key='arb_end',
+                    "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['arbitrage_discharge_end'], 1, key='arb_end',
                     help="Arbitrage discharge window end"
                 )
             st.caption("Discharge battery to grid at max power to sell energy.")
@@ -441,12 +441,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             col_a, col_b = st.columns(2)
             with col_a:
                 st.number_input(
-                    "Start Hour", 0, 23, 23, 1, key='night_start',
+                    "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['night_charge_start'], 1, key='night_start',
                     help="Spot charging window start"
                 )
             with col_b:
                 st.number_input(
-                    "End Hour", 0, 23, 4, 1, key='night_end',
+                    "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['night_charge_end'], 1, key='night_end',
                     help="Spot charging window end"
                 )
             
@@ -469,12 +469,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             col_a, col_b = st.columns(2)
             with col_a:
                 st.number_input(
-                    "Start Hour", 0, 23, 5, 1, key='ely_start',
+                    "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_start'], 1, key='ely_start',
                     help="Electrolyser operation window start"
                 )
             with col_b:
                 st.number_input(
-                    "End Hour", 0, 23, 9, 1, key='ely_end',
+                    "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_end'], 1, key='ely_end',
                     help="Electrolyser operation window end"
                 )
             st.caption("Battery exclusively powers electrolyser (no grid purchase).")
@@ -488,23 +488,23 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     if run_battery_opt:
         # Build configuration from session state
         battery_params = DEFAULT_BATTERY_PARAMS.copy()
-        battery_params['E_bat_max'] = st.session_state.get('bat_capacity', 10.0)
-        battery_params['P_charge_max'] = st.session_state.get('bat_charge_power', 5.0)
-        battery_params['P_discharge_max'] = st.session_state.get('bat_discharge_power', 5.0)
-        battery_params['eta_rt'] = st.session_state.get('bat_efficiency', 0.92)
+        battery_params['E_bat_max'] = st.session_state.get('bat_capacity', float(DEFAULT_BATTERY_PARAMS['E_bat_max']))
+        battery_params['P_charge_max'] = st.session_state.get('bat_charge_power', float(DEFAULT_BATTERY_PARAMS['P_charge_max']))
+        battery_params['P_discharge_max'] = st.session_state.get('bat_discharge_power', float(DEFAULT_BATTERY_PARAMS['P_discharge_max']))
+        battery_params['eta_rt'] = st.session_state.get('bat_efficiency', float(DEFAULT_BATTERY_PARAMS['eta_rt']))
         battery_params['eta_charge'] = np.sqrt(battery_params['eta_rt'])
         battery_params['eta_discharge'] = np.sqrt(battery_params['eta_rt'])
-        battery_params['DoD_max'] = st.session_state.get('bat_dod', 0.90)
+        battery_params['DoD_max'] = st.session_state.get('bat_dod', float(DEFAULT_BATTERY_PARAMS['DoD_max']))
         
         time_windows = DEFAULT_TIME_WINDOWS.copy()
-        time_windows['pv_charge_start'] = st.session_state.get('pv_start', 10)
-        time_windows['pv_charge_end'] = st.session_state.get('pv_end', 16)
-        time_windows['arbitrage_discharge_start'] = st.session_state.get('arb_start', 17)
-        time_windows['arbitrage_discharge_end'] = st.session_state.get('arb_end', 22)
-        time_windows['night_charge_start'] = st.session_state.get('night_start', 23)
-        time_windows['night_charge_end'] = st.session_state.get('night_end', 4)
-        time_windows['electrolyser_start'] = st.session_state.get('ely_start', 5)
-        time_windows['electrolyser_end'] = st.session_state.get('ely_end', 9)
+        time_windows['pv_charge_start'] = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
+        time_windows['pv_charge_end'] = st.session_state.get('pv_end', DEFAULT_TIME_WINDOWS['pv_charge_end'])
+        time_windows['arbitrage_discharge_start'] = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['arbitrage_discharge_start'])
+        time_windows['arbitrage_discharge_end'] = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['arbitrage_discharge_end'])
+        time_windows['night_charge_start'] = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['night_charge_start'])
+        time_windows['night_charge_end'] = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['night_charge_end'])
+        time_windows['electrolyser_start'] = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
+        time_windows['electrolyser_end'] = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
         
         # Night charging strategy from UI (no global config constant)
         charge_mode = st.session_state.get('night_mode', 'Always Charge')

@@ -3,33 +3,6 @@ Battery Energy Storage System (BESS) Configuration
 Parametric time windows and battery parameters for PV-Battery-Electrolyser optimization
 """
 
-# Battery Technical Parameters
-DEFAULT_BATTERY_PARAMS = {
-    # Energy capacity (aligned with battery_integration default UI)
-    "E_bat_max": 20.0,  # MWh - Maximum battery energy capacity
-    
-    # Power limits
-    "P_charge_max": 5.0,  # MW - Maximum charge power
-    "P_discharge_max": 5.0,  # MW - Maximum discharge power
-    
-    # Efficiency (one-way and round-trip)
-    # Note: battery_integration recomputes eta_charge/eta_discharge from eta_rt
-    "eta_charge": 1.0,  # Charging efficiency (one-way)
-    "eta_discharge": 1.0,  # Discharging efficiency (one-way)
-    "eta_rt": 1.0,  # Round-trip efficiency (UI default; losses modeled via economics, not physics)
-    
-    # State of Charge (SoC) constraints
-    "SoC_min": 0.10,  # Minimum SoC (10% = 10% DoD protection)
-    "SoC_max": 1.00,  # Maximum SoC (100%)
-    "SoC_initial": 0.50,  # Initial SoC on Jan 1st 00:00 (50%)
-    
-    # Depth of Discharge
-    "DoD_max": 1.00,  # Maximum allowed depth of discharge (100%)
-    
-    # Self-discharge
-    "self_discharge_rate": 0.0001,  # Per hour (0.01% per hour = 2.4% per day for Li-ion)
-}
-
 # Parametric Time Windows (hours in 24h format)
 # Defaults aligned with battery_integration operational windows (non-overlapping)
 DEFAULT_TIME_WINDOWS = {
@@ -57,6 +30,34 @@ DEFAULT_ELECTROLYSER_PARAMS = {
     "min_load_ratio": 0.3,  # Minimum load ratio (30% of rated power)
     "startup_energy": 0.0,  # MWh - Energy required for startup (can be 0)
     "priority": "battery_only",  # Options: "battery_only", "battery_first_grid_backup"
+}
+
+# Battery Technical Parameters
+DEFAULT_BATTERY_PARAMS = {
+    # Energy capacity (aligned with battery_integration default UI)
+    # Calculated as P_ely * PV charging window duration (6 hours)
+    "E_bat_max": DEFAULT_ELECTROLYSER_PARAMS["P_ely"] * (DEFAULT_TIME_WINDOWS["pv_charge_end"] - DEFAULT_TIME_WINDOWS["pv_charge_start"]),
+    
+    # Power limits
+    "P_charge_max": 5.0,  # MW - Maximum charge power
+    "P_discharge_max": 5.0,  # MW - Maximum discharge power
+    
+    # Efficiency (one-way and round-trip)
+    # Note: battery_integration recomputes eta_charge/eta_discharge from eta_rt
+    "eta_charge": 1.0,  # Charging efficiency (one-way)
+    "eta_discharge": 1.0,  # Discharging efficiency (one-way)
+    "eta_rt": 1.0,  # Round-trip efficiency (UI default; losses modeled via economics, not physics)
+    
+    # State of Charge (SoC) constraints
+    "SoC_min": 0.10,  # Minimum SoC (10% = 10% DoD protection)
+    "SoC_max": 1.00,  # Maximum SoC (100%)
+    "SoC_initial": 0.50,  # Initial SoC on Jan 1st 00:00 (50%)
+    
+    # Depth of Discharge
+    "DoD_max": 1.00,  # Maximum allowed depth of discharge (100%)
+    
+    # Self-discharge
+    "self_discharge_rate": 0.0001,  # Per hour (0.01% per hour = 2.4% per day for Li-ion)
 }
 
 # Penalty Parameters
@@ -196,4 +197,3 @@ def calculate_max_hydrogen_production(battery_params, electrolyser_params, time_
         "electrolyser_duration_hours": ely_duration,
         "capacity_utilization": min(1.0, available_energy_mwh / required_energy_mwh) if required_energy_mwh > 0 else 0
     }
-

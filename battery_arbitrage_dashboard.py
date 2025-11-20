@@ -113,25 +113,25 @@ def main():
     
     battery_params['E_bat_max'] = st.sidebar.slider(
         "Energy Capacity (MWh)", 
-        min_value=5.0, max_value=50.0, value=10.0, step=1.0,
+        min_value=5.0, max_value=50.0, value=float(DEFAULT_BATTERY_PARAMS['E_bat_max']), step=1.0,
         help="Maximum battery energy storage capacity"
     )
     
     battery_params['P_charge_max'] = st.sidebar.slider(
         "Charge Power (MW)", 
-        min_value=2.0, max_value=25.0, value=5.0, step=1.0,
+        min_value=2.0, max_value=25.0, value=float(DEFAULT_BATTERY_PARAMS['P_charge_max']), step=1.0,
         help="Maximum charging power"
     )
     
     battery_params['P_discharge_max'] = st.sidebar.slider(
         "Discharge Power (MW)", 
-        min_value=2.0, max_value=25.0, value=5.0, step=1.0,
+        min_value=2.0, max_value=25.0, value=float(DEFAULT_BATTERY_PARAMS['P_discharge_max']), step=1.0,
         help="Maximum discharging power"
     )
     
     battery_params['eta_rt'] = st.sidebar.slider(
         "Round-trip Efficiency", 
-        min_value=0.80, max_value=0.98, value=0.92, step=0.01,
+        min_value=0.80, max_value=1.00, value=float(DEFAULT_BATTERY_PARAMS['eta_rt']), step=0.01,
         help="Battery round-trip efficiency (charge + discharge losses)"
     )
     
@@ -141,13 +141,13 @@ def main():
     
     battery_params['DoD_max'] = st.sidebar.slider(
         "Max Depth of Discharge", 
-        min_value=0.80, max_value=1.00, value=0.90, step=0.05,
+        min_value=0.80, max_value=1.00, value=float(DEFAULT_BATTERY_PARAMS['DoD_max']), step=0.05,
         help="Maximum allowed depth of discharge"
     )
     
     battery_params['SoC_initial'] = st.sidebar.slider(
         "Initial SoC (Jan 1)", 
-        min_value=0.1, max_value=1.0, value=0.5, step=0.05,
+        min_value=0.1, max_value=1.0, value=float(DEFAULT_BATTERY_PARAMS['SoC_initial']), step=0.05,
         help="Initial state of charge on January 1st at 00:00"
     )
     
@@ -159,31 +159,31 @@ def main():
     
     with st.sidebar.expander("🌞 PV Charging Window", expanded=False):
         time_windows['pv_charge_start'] = st.slider(
-            "PV Charge Start (hour)", 0, 23, 10, 1,
+            "PV Charge Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_start'], 1,
             help="Start of PV-priority charging"
         )
         time_windows['pv_charge_end'] = st.slider(
-            "PV Charge End (hour)", 0, 23, 16, 1,
+            "PV Charge End (hour)", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_end'], 1,
             help="End of PV-priority charging"
         )
     
     with st.sidebar.expander("💰 Arbitrage Discharge Window", expanded=False):
         time_windows['arbitrage_discharge_start'] = st.slider(
-            "Arbitrage Start (hour)", 0, 23, 16, 1,
+            "Arbitrage Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS['arbitrage_discharge_start'], 1,
             help="Start of evening arbitrage discharge"
         )
         time_windows['arbitrage_discharge_end'] = st.slider(
-            "Arbitrage End (hour)", 0, 23, 23, 1,
+            "Arbitrage End (hour)", 0, 23, DEFAULT_TIME_WINDOWS['arbitrage_discharge_end'], 1,
             help="End of evening arbitrage discharge"
         )
     
     with st.sidebar.expander("🌙 Night Charging Window", expanded=False):
         time_windows['night_charge_start'] = st.slider(
-            "Night Charge Start (hour)", 0, 23, 23, 1,
+            "Night Charge Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS['night_charge_start'], 1,
             help="Start of night charging from grid"
         )
         time_windows['night_charge_end'] = st.slider(
-            "Night Charge End (hour)", 0, 23, 5, 1,
+            "Night Charge End (hour)", 0, 23, DEFAULT_TIME_WINDOWS['night_charge_end'], 1,
             help="End of night charging from grid"
         )
         
@@ -207,11 +207,11 @@ def main():
     
     with st.sidebar.expander("⚡ Electrolyser Window", expanded=False):
         time_windows['electrolyser_start'] = st.slider(
-            "Electrolyser Start (hour)", 0, 23, 5, 1,
+            "Electrolyser Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_start'], 1,
             help="Start of electrolyser operation"
         )
         time_windows['electrolyser_end'] = st.slider(
-            "Electrolyser End (hour)", 0, 23, 10, 1,
+            "Electrolyser End (hour)", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_end'], 1,
             help="End of electrolyser operation"
         )
     
@@ -226,19 +226,19 @@ def main():
     
     electrolyser_params['P_ely'] = st.sidebar.slider(
         "Electrolyser Power (MW)", 
-        min_value=1.0, max_value=15.0, value=5.0, step=0.5,
+        min_value=1.0, max_value=15.0, value=float(DEFAULT_ELECTROLYSER_PARAMS['P_ely']), step=0.5,
         help="Fixed power consumption when electrolyser is ON"
     )
     
     electrolyser_params['specific_consumption'] = st.sidebar.number_input(
         "Specific Consumption (kWh/kg H₂)", 
-        min_value=4.0, max_value=6.0, value=4.8, step=0.1,
+        min_value=4.0, max_value=6.0, value=float(DEFAULT_ELECTROLYSER_PARAMS['specific_consumption']), step=0.1,
         help="Energy required to produce 1 kg of hydrogen"
     )
     
     electrolyser_params['min_load_ratio'] = st.sidebar.slider(
         "Minimum Load Ratio", 
-        min_value=0.0, max_value=0.5, value=0.3, step=0.05,
+        min_value=0.0, max_value=0.5, value=float(DEFAULT_ELECTROLYSER_PARAMS['min_load_ratio']), step=0.05,
         help="Minimum operating load as fraction of rated power"
     )
     
