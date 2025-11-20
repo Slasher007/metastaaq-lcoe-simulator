@@ -90,11 +90,21 @@ def plot_power_flows(df_results, time_window_days=7, start_day=0, save_path=None
     
     # Plot 1: Charging and Discharging
     ax1 = axes[0]
-    ax1.fill_between(df_window['timestamp'], 0, df_window['pv_to_battery_mw'], 
+    
+    # Separate charging by source based on window
+    # Create temporary series for plotting
+    pv_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'pv_charge' else 0, axis=1)
+    grid_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'night_charge' else 0, axis=1)
+    
+    # Separate discharging by destination
+    grid_discharge = df_window.apply(lambda x: x['battery_discharge_mw'] if x['window_type'] == 'arbitrage_discharge' else 0, axis=1)
+    # ely_discharge is handled in Plot 2
+    
+    ax1.fill_between(df_window['timestamp'], 0, pv_charge, 
                      color='gold', alpha=0.7, label='PV to Battery')
-    ax1.fill_between(df_window['timestamp'], 0, df_window['grid_to_battery_mw'], 
+    ax1.fill_between(df_window['timestamp'], 0, grid_charge, 
                      color='green', alpha=0.7, label='Grid to Battery')
-    ax1.fill_between(df_window['timestamp'], 0, -df_window['battery_to_grid_mw'], 
+    ax1.fill_between(df_window['timestamp'], 0, -grid_discharge, 
                      color='blue', alpha=0.7, label='Battery to Grid (Arbitrage)')
     ax1.set_ylabel('Power (MW)', fontsize=11, fontweight='bold')
     ax1.set_title('Battery Charging and Discharging', fontsize=12, fontweight='bold')
@@ -104,7 +114,11 @@ def plot_power_flows(df_results, time_window_days=7, start_day=0, save_path=None
     
     # Plot 2: Electrolyser Operation
     ax2 = axes[1]
-    ax2.fill_between(df_window['timestamp'], 0, df_window['battery_to_ely_mw'], 
+    
+    # Electrolyser supply from battery
+    ely_discharge = df_window.apply(lambda x: x['battery_discharge_mw'] if x['window_type'] == 'electrolyser' else 0, axis=1)
+    
+    ax2.fill_between(df_window['timestamp'], 0, ely_discharge, 
                      color='purple', alpha=0.7, label='Battery to Electrolyser')
     ax2.fill_between(df_window['timestamp'], 0, -df_window['ely_shortage_mw'], 
                      color='red', alpha=0.5, label='Electrolyser Shortage')
@@ -378,6 +392,12 @@ def plot_hydrogen_production(df_results, electrolyser_params, save_path=None):
     
     # Aggregate by day
     df_daily = df_results.copy()
+    
+    # Reconstruct ely_power_mw for aggregation
+    df_daily['ely_power_mw'] = df_daily.apply(
+        lambda row: row['battery_discharge_mw'] if row['window_type'] == 'electrolyser' else 0, axis=1
+    )
+    
     df_daily['date'] = df_daily['timestamp'].dt.date
     df_daily_agg = df_daily.groupby('date').agg({
         'ely_h2_production_kg': 'sum',
@@ -405,6 +425,12 @@ def plot_hydrogen_production(df_results, electrolyser_params, save_path=None):
     # Plot 2: Electrolyser capacity factor
     ax2 = axes[1]
     df_monthly = df_results.copy()
+    
+    # Reconstruct ely_power_mw
+    df_monthly['ely_power_mw'] = df_monthly.apply(
+        lambda row: row['battery_discharge_mw'] if row['window_type'] == 'electrolyser' else 0, axis=1
+    )
+    
     df_monthly['month'] = df_monthly['timestamp'].dt.to_period('M')
     df_monthly_agg = df_monthly.groupby('month').agg({
         'ely_power_mw': 'mean',

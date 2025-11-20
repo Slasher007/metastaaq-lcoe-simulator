@@ -576,11 +576,17 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             fig_power_simple, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
             
             # Charging/Discharging
-            axes[0].fill_between(range(len(df_window)), 0, df_window['pv_to_battery_mw'], 
+            # Reconstruct separate flows for plotting
+            pv_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'pv_charge' else 0, axis=1)
+            grid_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'night_charge' else 0, axis=1)
+            grid_discharge = df_window.apply(lambda x: x['battery_discharge_mw'] if x['window_type'] == 'arbitrage_discharge' else 0, axis=1)
+            ely_discharge = df_window.apply(lambda x: x['battery_discharge_mw'] if x['window_type'] == 'electrolyser' else 0, axis=1)
+
+            axes[0].fill_between(range(len(df_window)), 0, pv_charge, 
                                 color='gold', alpha=0.7, label='PV to Battery')
-            axes[0].fill_between(range(len(df_window)), 0, df_window['grid_to_battery_mw'], 
+            axes[0].fill_between(range(len(df_window)), 0, grid_charge, 
                                 color='green', alpha=0.7, label='Grid to Battery')
-            axes[0].fill_between(range(len(df_window)), 0, -df_window['battery_to_grid_mw'], 
+            axes[0].fill_between(range(len(df_window)), 0, -grid_discharge, 
                                 color='blue', alpha=0.7, label='Battery to Grid')
             axes[0].set_ylabel('Power (MW)', fontweight='bold')
             axes[0].set_title('Battery Charging/Discharging', fontweight='bold')
@@ -588,7 +594,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             axes[0].grid(True, alpha=0.3)
             
             # Electrolyser
-            axes[1].fill_between(range(len(df_window)), 0, df_window['battery_to_ely_mw'], 
+            axes[1].fill_between(range(len(df_window)), 0, ely_discharge, 
                                 color='purple', alpha=0.7, label='Battery to Electrolyser')
             axes[1].fill_between(range(len(df_window)), 0, -df_window['ely_shortage_mw'], 
                                 color='red', alpha=0.5, label='Shortage')
@@ -631,25 +637,36 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # Calculate 'Value' of Electrolyser supply (Avoided Grid Cost)
             # Value = Energy supplied * Spot Price at that hour
-            df_win['ely_value_eur'] = df_win['battery_to_ely_mw'] * df_win['spot_price_eur_mwh']
+            # Only counts when window is 'electrolyser'
+            df_win['ely_value_eur'] = df_win.apply(
+                lambda x: x['battery_discharge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'electrolyser' else 0, 
+                axis=1
+            )
             
             # For simplicity, treat PV charging energy as having a cost equal to spot price
             # This approximates the case where the electrolyser effectively uses grid-priced power
             # UPDATE: PV Charging cost is now fixed by PV Price (€/MWh)
-            df_win['pv_cost_eur'] = df_win['pv_to_battery_mw'] * pv_price
+            df_win['pv_cost_eur'] = df_win.apply(
+                lambda x: x['battery_charge_mw'] * pv_price if x['window_type'] == 'pv_charge' else 0,
+                axis=1
+            )
             
             # Group statistics
+            # Note: since we group by window_name, we can just sum charge/discharge columns
+            # The window name ensures we are summing the right type of flow
             win_stats = df_win.groupby('window_name').agg({
-                'grid_to_battery_mw': 'sum',      # Energy In (Grid)
-                'pv_to_battery_mw': 'sum',        # Energy In (PV)
-                'battery_to_grid_mw': 'sum',      # Energy Out (Grid)
-                'battery_to_ely_mw': 'sum',       # Energy Out (Ely)
+                'battery_charge_mw': 'sum',       # Energy In (PV or Grid)
+                'battery_discharge_mw': 'sum',    # Energy Out (Grid or Ely)
                 'revenue_arbitrage': 'sum',       # Revenue
                 'cost_charging': 'sum',           # Cost
                 'cost_penalties': 'sum',          # Penalties
                 'pv_cost_eur': 'sum',             # PV charging valued at spot price
                 'ely_value_eur': 'sum'            # Compensation Value
             })
+            
+            # Rename columns to match expected structure for readability
+            # Note: This is a bit of a hack, but maps the generic columns to specific ones based on the row (window)
+            # But simpler is just to rely on the row index.
             
             # Ensure specific order of windows (no Idle)
             order = ['PV Charging', 'Sell to Grid', 'Grid Charging', 'Supply to Electrolyser']
@@ -660,19 +677,29 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # Prepare hourly data
             df_hourly_cost = df_results.copy()
-            df_hourly_cost['pv_charge_cost'] = df_hourly_cost['pv_to_battery_mw'] * pv_price
-            df_hourly_cost['grid_charge_cost'] = df_hourly_cost['grid_to_battery_mw'] * df_hourly_cost['spot_price_eur_mwh']
+            
+            # Calculate costs based on window type
+            df_hourly_cost['pv_charge_cost'] = df_hourly_cost.apply(
+                lambda x: x['battery_charge_mw'] * pv_price if x['window_type'] == 'pv_charge' else 0, axis=1
+            )
+            df_hourly_cost['grid_charge_cost'] = df_hourly_cost.apply(
+                lambda x: x['battery_charge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'night_charge' else 0, axis=1
+            )
             
             # Split arbitrage revenue by operation window
             # We only expect revenue in the arbitrage discharge window, but let's be generic
             # We want to see the revenue/cost impact of "Selling to Grid" specifically
-            # Since 'battery_to_grid_mw' generates revenue, we track it as negative cost
-            df_hourly_cost['revenue_sell_to_grid'] = df_hourly_cost['battery_to_grid_mw'] * df_hourly_cost['spot_price_eur_mwh']
+            # Since 'battery_discharge_mw' generates revenue in arbitrage window
+            df_hourly_cost['revenue_sell_to_grid'] = df_hourly_cost.apply(
+                lambda x: x['battery_discharge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'arbitrage_discharge' else 0, axis=1
+            )
             
             # Supply to Electrolyser: This represents a cost savings compared to PPA
             # When battery supplies electrolyser, we avoid buying at spot price
             # The "cost impact" is: Energy supplied * (Spot Price - 0) = negative cost (savings)
-            df_hourly_cost['ely_supply_savings'] = df_hourly_cost['battery_to_ely_mw'] * df_hourly_cost['spot_price_eur_mwh']
+            df_hourly_cost['ely_supply_savings'] = df_hourly_cost.apply(
+                lambda x: x['battery_discharge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'electrolyser' else 0, axis=1
+            )
             
             # PPA Baseline: Cost if we bought the electrolyser input energy at PPA price
             # The baseline assumes constant electrolyser operation powered by PPA

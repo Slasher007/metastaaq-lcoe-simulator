@@ -68,14 +68,11 @@ class BatteryOptimizer:
             'energy_stored_mwh': np.zeros(n_hours),
             
             # Power flows [MW] (positive = charging, negative = discharging)
-            'pv_to_battery_mw': np.zeros(n_hours),
-            'grid_to_battery_mw': np.zeros(n_hours),
-            'battery_to_grid_mw': np.zeros(n_hours),
-            'battery_to_ely_mw': np.zeros(n_hours),
+            'battery_charge_mw': np.zeros(n_hours),
+            'battery_discharge_mw': np.zeros(n_hours),
             'pv_curtailed_mw': np.zeros(n_hours),
             
             # Electrolyser
-            'ely_power_mw': np.zeros(n_hours),
             'ely_h2_production_kg': np.zeros(n_hours),
             'ely_shortage_mw': np.zeros(n_hours),
             
@@ -129,21 +126,26 @@ class BatteryOptimizer:
             results['energy_stored_mwh'][t] = E_bat
             results['soc'][t] = E_bat / self.battery_params["E_bat_max"]
             
-            results['pv_to_battery_mw'][t] = flows['pv_to_battery']
-            results['grid_to_battery_mw'][t] = flows['grid_to_battery']
-            results['battery_to_grid_mw'][t] = flows['battery_to_grid']
-            results['battery_to_ely_mw'][t] = flows['battery_to_ely']
+            results['battery_charge_mw'][t] = flows['battery_charge']
+            results['battery_discharge_mw'][t] = flows['battery_discharge']
             results['pv_curtailed_mw'][t] = flows['pv_curtailed']
-            results['ely_power_mw'][t] = flows['ely_power']
             results['ely_shortage_mw'][t] = flows['ely_shortage']
             
             # Calculate economics
             # Revenue from selling to grid (arbitrage)
-            revenue = flows['battery_to_grid'] * spot_price
+            # Only applies if window is arbitrage_discharge
+            if window_type == 'arbitrage_discharge':
+                revenue = flows['battery_discharge'] * spot_price
+            else:
+                revenue = 0.0
             results['revenue_arbitrage'][t] = revenue
             
             # Cost of buying from grid
-            cost_grid = flows['grid_to_battery'] * spot_price
+            # Only applies if window is night_charge (grid charging)
+            if window_type == 'night_charge':
+                cost_grid = flows['battery_charge'] * spot_price
+            else:
+                cost_grid = 0.0
             results['cost_charging'][t] = cost_grid
             
             # Penalties
@@ -154,8 +156,11 @@ class BatteryOptimizer:
             results['net_cashflow'][t] = revenue - cost_grid - penalty_cost
             
             # Hydrogen production
-            if flows['ely_power'] > 0:
-                h2_kg = (flows['ely_power'] * 1000) / self.electrolyser_params['specific_consumption']
+            # If electrolyser window, power comes from battery discharge
+            if window_type == 'electrolyser' and flows['battery_discharge'] > 0:
+                # Power supplied to electrolyser = battery discharge
+                P_ely_actual = flows['battery_discharge']
+                h2_kg = (P_ely_actual * 1000) / self.electrolyser_params['specific_consumption']
                 results['ely_h2_production_kg'][t] = h2_kg
         
         # Convert to DataFrame
@@ -208,7 +213,7 @@ class BatteryOptimizer:
         # Curtail excess PV
         pv_curtailed = max(0, pv_available - P_pv_to_bat)
         
-        flows['pv_to_battery'] = P_pv_to_bat
+        flows['battery_charge'] = P_pv_to_bat
         flows['pv_curtailed'] = pv_curtailed
         
         return E_bat_new, flows
@@ -237,7 +242,7 @@ class BatteryOptimizer:
         # Curtail PV during this window (rule: only arbitrage in evening)
         pv_curtailed = pv_available
         
-        flows['battery_to_grid'] = P_discharge
+        flows['battery_discharge'] = P_discharge
         flows['pv_curtailed'] = pv_curtailed
         
         return E_bat_new, flows
@@ -261,7 +266,7 @@ class BatteryOptimizer:
         
         E_bat_new = E_bat + E_charge
         
-        flows['grid_to_battery'] = P_charge
+        flows['battery_charge'] = P_charge
         
         # No PV during this window typically, but handle it
         flows['pv_curtailed'] = pv_available
@@ -313,8 +318,7 @@ class BatteryOptimizer:
         else:
             E_bat_new = E_bat
         
-        flows['battery_to_ely'] = P_ely_actual
-        flows['ely_power'] = P_ely_actual
+        flows['battery_discharge'] = P_ely_actual
         flows['ely_shortage'] = P_shortage
         
         # Curtail any PV during electrolyser window (could be modified to charge battery)
@@ -331,12 +335,9 @@ class BatteryOptimizer:
     def _init_flows(self):
         """Initialize power flow dictionary"""
         return {
-            'pv_to_battery': 0.0,
-            'grid_to_battery': 0.0,
-            'battery_to_grid': 0.0,
-            'battery_to_ely': 0.0,
+            'battery_charge': 0.0,
+            'battery_discharge': 0.0,
             'pv_curtailed': 0.0,
-            'ely_power': 0.0,
             'ely_shortage': 0.0,
         }
     
@@ -345,11 +346,24 @@ class BatteryOptimizer:
         
         # Energy flows (MWh)
         total_pv_available = df['pv_available_mw'].sum()
-        total_pv_to_battery = df['pv_to_battery_mw'].sum()
+        
+        # PV Charging: only when window is 'pv_charge'
+        df_pv_charge = df[df['window_type'] == 'pv_charge']
+        total_pv_to_battery = df_pv_charge['battery_charge_mw'].sum()
+        
+        # Grid Charging: only when window is 'night_charge'
+        df_grid_charge = df[df['window_type'] == 'night_charge']
+        total_grid_to_battery = df_grid_charge['battery_charge_mw'].sum()
+        
+        # Grid Discharge: only when window is 'arbitrage_discharge'
+        df_grid_discharge = df[df['window_type'] == 'arbitrage_discharge']
+        total_battery_to_grid = df_grid_discharge['battery_discharge_mw'].sum()
+        
+        # Ely Discharge: only when window is 'electrolyser'
+        df_ely_discharge = df[df['window_type'] == 'electrolyser']
+        total_battery_to_ely = df_ely_discharge['battery_discharge_mw'].sum()
+        
         total_pv_curtailed = df['pv_curtailed_mw'].sum()
-        total_grid_to_battery = df['grid_to_battery_mw'].sum()
-        total_battery_to_grid = df['battery_to_grid_mw'].sum()
-        total_battery_to_ely = df['battery_to_ely_mw'].sum()
         
         # Economics
         # Arbitrage revenue from selling to grid
@@ -362,8 +376,8 @@ class BatteryOptimizer:
         # Additional simplified economics to match dashboard "Financial Flows":
         # - Treat PV charging as having a cost equal to PV Price (€/MWh)
         # - Treat battery supply to electrolyser as an avoided grid cost (value)
-        total_pv_cost = (df['pv_to_battery_mw'] * self.pv_price).sum()
-        total_ely_value = (df['battery_to_ely_mw'] * df['spot_price_eur_mwh']).sum()
+        total_pv_cost = (df_pv_charge['battery_charge_mw'] * self.pv_price).sum()
+        total_ely_value = (df_ely_discharge['battery_discharge_mw'] * df_ely_discharge['spot_price_eur_mwh']).sum()
 
         # Aggregated revenue and cost consistent with Operational Windows analysis
         total_revenue = total_revenue_arbitrage + total_ely_value
@@ -382,13 +396,17 @@ class BatteryOptimizer:
         
         # Estimate battery cycles (full equivalent cycles)
         # Sum of absolute energy throughput / (2 * capacity)
-        energy_throughput = df['battery_to_grid_mw'].sum() + df['battery_to_ely_mw'].sum()
+        energy_throughput = total_battery_to_grid + total_battery_to_ely
         equivalent_cycles = energy_throughput / self.battery_params["E_bat_max"]
         
         # Electrolyser statistics
-        ely_hours = (df['ely_power_mw'] > 0).sum()
+        # Re-derive ely_power from discharge
+        ely_power_series = df.apply(
+            lambda row: row['battery_discharge_mw'] if row['window_type'] == 'electrolyser' else 0, axis=1
+        )
+        ely_hours = (ely_power_series > 0).sum()
         ely_shortage_hours = (df['ely_shortage_mw'] > 0).sum()
-        ely_capacity_factor = df['ely_power_mw'].sum() / (self.electrolyser_params["P_ely"] * len(df))
+        ely_capacity_factor = ely_power_series.sum() / (self.electrolyser_params["P_ely"] * len(df))
         
         # Window statistics
         window_counts = df['window_type'].value_counts().to_dict()
@@ -412,8 +430,8 @@ class BatteryOptimizer:
             'total_ely_value_eur': total_ely_value,
             'total_penalties_eur': total_penalties,
             'net_profit_eur': net_profit,
-            'avg_arbitrage_price_eur_mwh': df[df['battery_to_grid_mw'] > 0]['spot_price_eur_mwh'].mean() if (df['battery_to_grid_mw'] > 0).any() else 0,
-            'avg_charging_price_eur_mwh': df[df['grid_to_battery_mw'] > 0]['spot_price_eur_mwh'].mean() if (df['grid_to_battery_mw'] > 0).any() else 0,
+            'avg_arbitrage_price_eur_mwh': df_grid_discharge[df_grid_discharge['battery_discharge_mw'] > 0]['spot_price_eur_mwh'].mean() if (df_grid_discharge['battery_discharge_mw'] > 0).any() else 0,
+            'avg_charging_price_eur_mwh': df_grid_charge[df_grid_charge['battery_charge_mw'] > 0]['spot_price_eur_mwh'].mean() if (df_grid_charge['battery_charge_mw'] > 0).any() else 0,
             
             # Hydrogen production
             'total_h2_production_kg': total_h2_kg,
