@@ -137,6 +137,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         if apply_filters_btn:
             st.session_state.filters_applied = True
+            st.session_state.battery_optimization_run = False
             st.session_state.filter_config = {
                 'years': st.session_state.filter_years,
                 'months': st.session_state.filter_months,
@@ -283,12 +284,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
-                        "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['arbitrage_discharge_start'], 1, key='arb_start',
+                        "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['sell_to_grid_start'], 1, key='arb_start',
                         help="Arbitrage discharge start"
                     )
                 with col_b:
                     st.number_input(
-                        "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['arbitrage_discharge_end'], 1, key='arb_end',
+                        "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['sell_to_grid_end'], 1, key='arb_end',
                         help="Arbitrage discharge end"
                     )
                 st.caption("Sell stored battery energy to the grid at high prices.")
@@ -297,12 +298,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
-                        "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['night_charge_start'], 1, key='night_start',
+                        "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['grid_charging_start'], 1, key='night_start',
                         help="Night charging window start"
                     )
                 with col_b:
                     st.number_input(
-                        "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['night_charge_end'], 1, key='night_end',
+                        "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['grid_charging_end'], 1, key='night_end',
                         help="Night charging window end (can be < start for midnight wrap)"
                     )
                 
@@ -322,10 +323,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                     )
                 st.caption("Discharge battery to supply the electrolyser.")
     
-    # Price distribution analysis to help configure time windows
-    st.markdown("### 📊 Spot Price Analysis by Hour (Filtered Data)")
-    st.markdown("Understanding hourly price patterns helps optimize time window configuration")
-    
     # Create price distribution by hour scatter plot
     fig_price_hour, ax_price = plt.subplots(figsize=(14, 6))
     
@@ -333,10 +330,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     # Get time windows from session state or use defaults (configured to avoid overlap)
     pv_start = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
     pv_end = st.session_state.get('pv_end', DEFAULT_TIME_WINDOWS['pv_charge_end'])
-    arb_start = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['arbitrage_discharge_start'])
-    arb_end = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['arbitrage_discharge_end'])
-    night_start = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['night_charge_start'])
-    night_end = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['night_charge_end'])
+    arb_start = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['sell_to_grid_start'])
+    arb_end = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['sell_to_grid_end'])
+    night_start = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['grid_charging_start'])
+    night_end = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['grid_charging_end'])
     ely_start = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
     ely_end = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
     
@@ -487,10 +484,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         time_windows = DEFAULT_TIME_WINDOWS.copy()
         time_windows['pv_charge_start'] = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
         time_windows['pv_charge_end'] = st.session_state.get('pv_end', DEFAULT_TIME_WINDOWS['pv_charge_end'])
-        time_windows['arbitrage_discharge_start'] = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['arbitrage_discharge_start'])
-        time_windows['arbitrage_discharge_end'] = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['arbitrage_discharge_end'])
-        time_windows['night_charge_start'] = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['night_charge_start'])
-        time_windows['night_charge_end'] = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['night_charge_end'])
+        time_windows['sell_to_grid_start'] = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['sell_to_grid_start'])
+        time_windows['sell_to_grid_end'] = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['sell_to_grid_end'])
+        time_windows['grid_charging_start'] = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['grid_charging_start'])
+        time_windows['grid_charging_end'] = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['grid_charging_end'])
         time_windows['electrolyser_start'] = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
         time_windows['electrolyser_end'] = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
         
@@ -624,13 +621,14 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # Window name mapping (no explicit idle window)
             window_map = {
                 'pv_charge': 'PV Charging',
-                'arbitrage_discharge': 'Sell to Grid',
-                'night_charge': 'Grid Charging',
+                'sell_to_grid': 'Sell to Grid',
+                'grid_charging': 'Grid Charging',
                 'electrolyser': 'Supply to Electrolyser',
                 'idle': None  # treat idle as undefined for this analysis
             }
             
             # Create working dataframe and drop idle/undefined windows
+            print(df_results)
             df_win = df_results.copy()
             df_win['window_name'] = df_win['window_type'].map(window_map)
             df_win = df_win[df_win['window_name'].notna()]
@@ -683,7 +681,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 lambda x: x['battery_charge_mw'] * pv_price if x['window_type'] == 'pv_charge' else 0, axis=1
             )
             df_hourly_cost['grid_charge_cost'] = df_hourly_cost.apply(
-                lambda x: x['battery_charge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'night_charge' else 0, axis=1
+                lambda x: x['battery_charge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'grid_charging' else 0, axis=1
             )
             
             # Split arbitrage revenue by operation window
@@ -691,7 +689,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # We want to see the revenue/cost impact of "Selling to Grid" specifically
             # Since 'battery_discharge_mw' generates revenue in arbitrage window
             df_hourly_cost['revenue_sell_to_grid'] = df_hourly_cost.apply(
-                lambda x: x['battery_discharge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'arbitrage_discharge' else 0, axis=1
+                lambda x: x['battery_discharge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'sell_to_grid' else 0, axis=1
             )
             
             # Supply to Electrolyser: This represents a cost savings compared to PPA
@@ -722,7 +720,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ax.bar(hourly_profile.index, hourly_profile['pv_charge_cost'], bottom=hourly_profile['grid_charge_cost'], label='PV Charging Cost', color='gold', alpha=0.7)
             
             # Revenue as negative bars - explicitly labeled as "Sell to Grid"
-            ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Sell to Grid', color='green', alpha=0.7)
+            ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Sell to Grid Revenue', color='green', alpha=0.7)
             
             # Supply to Electrolyser savings as negative bars (cost avoided)
             ax.bar(hourly_profile.index, -hourly_profile['ely_supply_savings'], label='Supply to Electrolyser', color='purple', alpha=0.7)

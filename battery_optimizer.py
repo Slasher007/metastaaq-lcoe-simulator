@@ -60,7 +60,7 @@ class BatteryOptimizer:
         # Initialize results arrays
         results = {
             'hour_of_day': hours_of_day,
-            'pv_available_mw': pv_profile_mw,
+            'pv_available_mw': pv_profile_mw.copy(),
             'spot_price_eur_mwh': spot_prices_eur_mwh,
             
             # Battery state
@@ -98,7 +98,7 @@ class BatteryOptimizer:
             spot_price = spot_prices_eur_mwh[t]
             
             # Apply self-discharge
-            E_bat *= (1 - self.battery_params["self_discharge_rate"])
+            #E_bat *= (1 - self.battery_params["self_discharge_rate"])
             
             # Determine operational window
             window_type = self._get_window_type(hour_of_day)
@@ -106,20 +106,26 @@ class BatteryOptimizer:
             
             # Apply operational rules based on window
             if window_type == "pv_charge":
-                E_bat, flows = self._pv_charge_window(E_bat, pv_available, spot_price)
+                # Check if this is the last hour of the PV charging window
+                is_last_hour = (hour_of_day == self.time_windows["pv_charge_end"])
+                E_bat, flows = self._pv_charge_window(E_bat, pv_available, spot_price, is_last_hour)
                 
-            elif window_type == "arbitrage_discharge":
-                E_bat, flows = self._arbitrage_discharge_window(E_bat, pv_available, spot_price)
+            elif window_type == "sell_to_grid":
+                E_bat, flows = self._sell_to_grid_window(E_bat, pv_available, spot_price)
                 
-            elif window_type == "night_charge":
-                E_bat, flows = self._night_charge_window(E_bat, pv_available, spot_price)
+            elif window_type == "grid_charging":
+                E_bat, flows = self._grid_charging_window(E_bat, pv_available, spot_price)
+                # Increment PV available with grid charging power as requested
+                results['pv_available_mw'][t] += flows['battery_charge']
                 
             elif window_type == "electrolyser":
                 E_bat, flows = self._electrolyser_window(E_bat, pv_available, spot_price)
             
             else:
-                # No specific window - idle
-                flows = self._idle_state(pv_available)
+                # Should not happen if windows cover 24 hours
+                # Default to idle behavior (no flows)
+                flows = self._init_flows()
+                flows['pv_curtailed'] = pv_available
             
             # Store results
             E_bat = np.clip(E_bat, self.E_min, self.E_max)
@@ -133,16 +139,16 @@ class BatteryOptimizer:
             
             # Calculate economics
             # Revenue from selling to grid (arbitrage)
-            # Only applies if window is arbitrage_discharge
-            if window_type == 'arbitrage_discharge':
+            # Only applies if window is sell_to_grid
+            if window_type == 'sell_to_grid':
                 revenue = flows['battery_discharge'] * spot_price
             else:
                 revenue = 0.0
             results['revenue_arbitrage'][t] = revenue
             
             # Cost of buying from grid
-            # Only applies if window is night_charge (grid charging)
-            if window_type == 'night_charge':
+            # Only applies if window is grid_charging
+            if window_type == 'grid_charging':
                 cost_grid = flows['battery_charge'] * spot_price
             else:
                 cost_grid = 0.0
@@ -179,19 +185,19 @@ class BatteryOptimizer:
             return "electrolyser"
         elif is_hour_in_window(hour, tw["pv_charge_start"], tw["pv_charge_end"]):
             return "pv_charge"
-        elif is_hour_in_window(hour, tw["arbitrage_discharge_start"], tw["arbitrage_discharge_end"]):
-            return "arbitrage_discharge"
-        elif is_hour_in_window(hour, tw["night_charge_start"], tw["night_charge_end"]):
-            return "night_charge"
+        elif is_hour_in_window(hour, tw["sell_to_grid_start"], tw["sell_to_grid_end"]):
+            return "sell_to_grid"
+        elif is_hour_in_window(hour, tw["grid_charging_start"], tw["grid_charging_end"]):
+            return "grid_charging"
         else:
             return "idle"
     
-    def _pv_charge_window(self, E_bat, pv_available, spot_price):
+    def _pv_charge_window(self, E_bat, pv_available, spot_price, is_last_hour=False):
         """
         PV-priority charging window (default 10:00-16:00)
         - All PV production charges the battery (up to limits)
         - Excess PV is curtailed
-        - No grid interaction
+        - No grid interaction (unless force full charge at end)
         """
         flows = self._init_flows()
         
@@ -216,11 +222,25 @@ class BatteryOptimizer:
         flows['battery_charge'] = P_pv_to_bat
         flows['pv_curtailed'] = pv_curtailed
         
+        # Force fully charged state if this is the last hour of the window
+        if is_last_hour and E_bat_new < self.E_max:
+            # Calculate energy needed to reach full charge
+            E_needed = self.E_max - E_bat_new
+            
+            # We assume this energy is supplied (e.g., from grid or just assumed)
+            # To keep energy balance somewhat consistent in reports, we add it to charge flow
+            # even if it exceeds power limits
+            # Note: We divide by eta_charge to get the input energy required
+            additional_charge_mw = E_needed / eta_charge
+            flows['battery_charge'] += additional_charge_mw
+            
+            E_bat_new = self.E_max
+        
         return E_bat_new, flows
     
-    def _arbitrage_discharge_window(self, E_bat, pv_available, spot_price):
+    def _sell_to_grid_window(self, E_bat, pv_available, spot_price):
         """
-        Evening arbitrage discharge window (default 16:00-23:00)
+        Evening sell to grid window (default 16:00-23:00)
         - Discharge battery to grid at maximum power to sell energy
         - Goal: empty battery to prepare for spot charging
         - PV is curtailed (not sold in this implementation, could be modified)
@@ -247,7 +267,7 @@ class BatteryOptimizer:
         
         return E_bat_new, flows
     
-    def _night_charge_window(self, E_bat, pv_available, spot_price):
+    def _grid_charging_window(self, E_bat, pv_available, spot_price):
         """
         Spot grid charging window (default 23:00-05:00)
         - Charge from grid at spot market prices to prepare for electrolyser
@@ -326,12 +346,6 @@ class BatteryOptimizer:
         
         return E_bat_new, flows
     
-    def _idle_state(self, pv_available):
-        """Idle state - no operations, curtail any PV"""
-        flows = self._init_flows()
-        flows['pv_curtailed'] = pv_available
-        return flows
-    
     def _init_flows(self):
         """Initialize power flow dictionary"""
         return {
@@ -351,12 +365,12 @@ class BatteryOptimizer:
         df_pv_charge = df[df['window_type'] == 'pv_charge']
         total_pv_to_battery = df_pv_charge['battery_charge_mw'].sum()
         
-        # Grid Charging: only when window is 'night_charge'
-        df_grid_charge = df[df['window_type'] == 'night_charge']
+        # Grid Charging: only when window is 'grid_charging'
+        df_grid_charge = df[df['window_type'] == 'grid_charging']
         total_grid_to_battery = df_grid_charge['battery_charge_mw'].sum()
         
-        # Grid Discharge: only when window is 'arbitrage_discharge'
-        df_grid_discharge = df[df['window_type'] == 'arbitrage_discharge']
+        # Grid Discharge: only when window is 'sell_to_grid'
+        df_grid_discharge = df[df['window_type'] == 'sell_to_grid']
         total_battery_to_grid = df_grid_discharge['battery_discharge_mw'].sum()
         
         # Ely Discharge: only when window is 'electrolyser'
@@ -603,7 +617,10 @@ def distribute_monthly_pv_to_hourly_from_dataframe(monthly_pv_mwh, data_df):
             monthly_energy = monthly_pv_mwh[month_name]
             
             # Days in this month
-            days = days_in_month.get(month_name, 30)
+            if days_in_month.get(month_name):
+                days = days_in_month.get(month_name)
+            else:
+                days = 30
             
             # Daily average energy
             daily_energy = monthly_energy / days

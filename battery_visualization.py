@@ -94,10 +94,10 @@ def plot_power_flows(df_results, time_window_days=7, start_day=0, save_path=None
     # Separate charging by source based on window
     # Create temporary series for plotting
     pv_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'pv_charge' else 0, axis=1)
-    grid_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'night_charge' else 0, axis=1)
+    grid_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'grid_charging' else 0, axis=1)
     
     # Separate discharging by destination
-    grid_discharge = df_window.apply(lambda x: x['battery_discharge_mw'] if x['window_type'] == 'arbitrage_discharge' else 0, axis=1)
+    grid_discharge = df_window.apply(lambda x: x['battery_discharge_mw'] if x['window_type'] == 'sell_to_grid' else 0, axis=1)
     # ely_discharge is handled in Plot 2
     
     ax1.fill_between(df_window['timestamp'], 0, pv_charge, 

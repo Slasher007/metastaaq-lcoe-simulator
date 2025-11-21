@@ -183,9 +183,9 @@ def main():
             st.rerun()
 
     # Create main tabs for different analysis sections
-    main_tab1, main_tab2 = st.tabs(["📊 LCOE & Energy Analysis", "🔋 Battery Arbitrage Optimization"])
+    main_tab1, main_tab2 = st.tabs(["🔋 Battery Arbitrage Optimization", "📊 LCOE & Energy Analysis"])
     
-    with main_tab1:
+    with main_tab2:
         # Update last_params only when in LCOE tab
         st.session_state.last_params = current_params.copy()
         st.session_state.last_strategy_type = strategy_type
@@ -203,7 +203,7 @@ def main():
             strategy_changed_to_target
         )
     
-    with main_tab2:
+    with main_tab1:
         # Battery arbitrage optimization tab - independent from main dashboard parameters
         if BATTERY_MODULE_AVAILABLE:
             # Prepare data with timestamp if not already present

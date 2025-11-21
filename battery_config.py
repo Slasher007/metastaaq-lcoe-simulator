@@ -11,12 +11,12 @@ DEFAULT_TIME_WINDOWS = {
     "pv_charge_end": 16,    # 16:00 - End PV charging
     
     # 2. Evening arbitrage discharge window
-    "arbitrage_discharge_start": 17,  # 17:00 - Start selling to grid
-    "arbitrage_discharge_end": 22,    # 22:00 - End selling to grid
+    "sell_to_grid_start": 17,  # 17:00 - Start selling to grid
+    "sell_to_grid_end": 22,    # 22:00 - End selling to grid
     
     # 3. Spot charging window (grid charging at spot prices)
-    "night_charge_start": 23,  # 23:00 - Start spot grid charging
-    "night_charge_end": 5,     # 04:00 - End spot grid charging (wraps midnight)
+    "grid_charging_start": 23,  # 23:00 - Start spot grid charging
+    "grid_charging_end": 5,     # 04:00 - End spot grid charging (wraps midnight)
     
     # 4. Morning electrolyser supply window
     "electrolyser_start": 6,  # 05:00 - Start electrolyser operation
@@ -80,10 +80,10 @@ BATTERY_PARAM_RANGES = {
 TIME_WINDOW_RANGES = {
     "pv_charge_start": {"min": 8, "max": 12, "step": 1, "unit": "hour"},
     "pv_charge_end": {"min": 14, "max": 18, "step": 1, "unit": "hour"},
-    "arbitrage_discharge_start": {"min": 15, "max": 18, "step": 1, "unit": "hour"},
-    "arbitrage_discharge_end": {"min": 22, "max": 24, "step": 1, "unit": "hour"},
-    "night_charge_start": {"min": 22, "max": 24, "step": 1, "unit": "hour"},
-    "night_charge_end": {"min": 4, "max": 7, "step": 1, "unit": "hour"},
+    "sell_to_grid_start": {"min": 15, "max": 18, "step": 1, "unit": "hour"},
+    "sell_to_grid_end": {"min": 22, "max": 24, "step": 1, "unit": "hour"},
+    "grid_charging_start": {"min": 22, "max": 24, "step": 1, "unit": "hour"},
+    "grid_charging_end": {"min": 4, "max": 7, "step": 1, "unit": "hour"},
     "electrolyser_start": {"min": 4, "max": 8, "step": 1, "unit": "hour"},
     "electrolyser_end": {"min": 9, "max": 12, "step": 1, "unit": "hour"},
 }
@@ -109,7 +109,7 @@ def validate_time_windows(time_windows):
     # (allowing some overlap is OK, the optimizer handles priority)
     
     # Spot charging wraps around midnight
-    if tw["night_charge_start"] < tw["night_charge_end"]:
+    if tw["grid_charging_start"] < tw["grid_charging_end"]:
         return False, "Spot charge window should wrap around midnight (start > end)"
     
     # Electrolyser should start when spot charge ends
