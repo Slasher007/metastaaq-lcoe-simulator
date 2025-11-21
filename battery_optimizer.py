@@ -142,6 +142,9 @@ class BatteryOptimizer:
             # Only applies if window is sell_to_grid
             if window_type == 'sell_to_grid':
                 revenue = flows['battery_discharge'] * spot_price
+            elif window_type == 'electrolyser':
+                # Revenue from supplying electrolyser (avoided cost at spot price)
+                revenue = flows['battery_discharge'] * spot_price
             else:
                 revenue = 0.0
             results['revenue_arbitrage'][t] = revenue
