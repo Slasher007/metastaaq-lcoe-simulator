@@ -195,9 +195,9 @@ class BatteryOptimizer:
     def _pv_charge_window(self, E_bat, pv_available, spot_price, is_last_hour=False):
         """
         PV-priority charging window (default 10:00-16:00)
-        - All PV production charges the battery (up to limits)
-        - Excess PV is curtailed
-        - No grid interaction (unless force full charge at end)
+        - Simplified: Charge at constant power (P_charge_max) each hour
+        - PV charge = charge power (constant charging)
+        - No curtailment calculation (simplified)
         """
         flows = self._init_flows()
         
@@ -206,21 +206,17 @@ class BatteryOptimizer:
         P_charge_limit = self.battery_params["P_charge_max"]
         eta_charge = self.battery_params["eta_charge"]
         
-        # Maximum energy that can be charged this hour
-        E_charge_max = min(P_charge_limit * 1.0, E_available)  # 1.0 hour timestep
-        
-        # PV to battery (limited by charge power and available capacity)
-        P_pv_to_bat = min(pv_available, P_charge_limit)
-        E_pv_to_bat = min(P_pv_to_bat * 1.0, E_charge_max)
+        # Simplified: Constant charge power each hour (not dependent on actual PV)
+        # Charge at maximum power or remaining capacity
+        P_charge = min(P_charge_limit, E_available / 1.0)  # 1.0 hour timestep
+        E_charge = P_charge * 1.0
         
         # Apply charging efficiency
-        E_bat_new = E_bat + E_pv_to_bat * eta_charge
+        E_bat_new = E_bat + E_charge * eta_charge
         
-        # Curtail excess PV
-        pv_curtailed = max(0, pv_available - P_pv_to_bat)
-        
-        flows['battery_charge'] = P_pv_to_bat
-        flows['pv_curtailed'] = pv_curtailed
+        # Simplified: No curtailment tracking
+        flows['battery_charge'] = P_charge
+        flows['pv_curtailed'] = 0.0
         
         # Force fully charged state if this is the last hour of the window
         if is_last_hour and E_bat_new < self.E_max:
