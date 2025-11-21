@@ -7,20 +7,20 @@ Parametric time windows and battery parameters for PV-Battery-Electrolyser optim
 # Defaults aligned with battery_integration operational windows (non-overlapping)
 DEFAULT_TIME_WINDOWS = {
     # 1. PV-priority charging window
-    "pv_charge_start": 11,  # 10:00 - Start PV charging
-    "pv_charge_end": 16,    # 16:00 - End PV charging
+    "pv_charge_start": 12,  # 10:00 - Start PV charging
+    "pv_charge_end": 17,    # 16:00 - End PV charging
     
     # 2. Evening arbitrage discharge window
-    "sell_to_grid_start": 17,  # 17:00 - Start selling to grid
-    "sell_to_grid_end": 22,    # 22:00 - End selling to grid
+    "sell_to_grid_start": 18,  # 17:00 - Start selling to grid
+    "sell_to_grid_end": 23,    # 22:00 - End selling to grid
     
     # 3. Spot charging window (grid charging at spot prices)
-    "grid_charging_start": 23,  # 23:00 - Start spot grid charging
+    "grid_charging_start": 0,  # 23:00 - Start spot grid charging
     "grid_charging_end": 5,     # 04:00 - End spot grid charging (wraps midnight)
     
     # 4. Morning electrolyser supply window
     "electrolyser_start": 6,  # 05:00 - Start electrolyser operation
-    "electrolyser_end": 10,    # 09:00 - End electrolyser operation
+    "electrolyser_end": 11,    # 09:00 - End electrolyser operation
 }
 
 # Electrolyser Parameters for Battery Supply
@@ -107,10 +107,6 @@ def validate_time_windows(time_windows):
     
     # Arbitrage discharge should start when PV ends or after
     # (allowing some overlap is OK, the optimizer handles priority)
-    
-    # Spot charging wraps around midnight
-    if tw["grid_charging_start"] < tw["grid_charging_end"]:
-        return False, "Spot charge window should wrap around midnight (start > end)"
     
     # Electrolyser should start when spot charge ends
     if tw["electrolyser_start"] >= tw["electrolyser_end"]:
