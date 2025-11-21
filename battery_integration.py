@@ -601,7 +601,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             axes[1].grid(True, alpha=0.3)
             
             # PV
-            axes[2].fill_between(range(len(df_window)), 0, df_window['pv_available_mw'], 
+            axes[2].fill_between(range(len(df_window)), 0, df_window['pv_profile_mw'], 
                                 color='orange', alpha=0.5, label='PV Available')
             axes[2].fill_between(range(len(df_window)), 0, df_window['pv_curtailed_mw'], 
                                 color='gray', alpha=0.7, label='PV Curtailed')
@@ -628,9 +628,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             }
             
             # Create working dataframe and drop idle/undefined windows
-            print(df_results)
             df_win = df_results.copy()
             df_win['window_name'] = df_win['window_type'].map(window_map)
+            print(df_win[['battery_available_mwh', 'battery_charge_mw', 'battery_discharge_mw', 'spot_price_eur_mwh', 'net_cashflow', 'window_type']])
             df_win = df_win[df_win['window_name'].notna()]
             
             # Calculate 'Value' of Electrolyser supply (Avoided Grid Cost)

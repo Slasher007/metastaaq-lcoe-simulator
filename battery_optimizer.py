@@ -60,7 +60,8 @@ class BatteryOptimizer:
         # Initialize results arrays
         results = {
             'hour_of_day': hours_of_day,
-            'pv_available_mw': pv_profile_mw.copy(),
+            'battery_available_mwh': np.zeros(n_hours),  # Replaces pv_available_mw
+            'pv_profile_mw': pv_profile_mw.copy(),       # Keep raw PV data
             'spot_price_eur_mwh': spot_prices_eur_mwh,
             
             # Battery state
@@ -115,8 +116,6 @@ class BatteryOptimizer:
                 
             elif window_type == "grid_charging":
                 E_bat, flows = self._grid_charging_window(E_bat, pv_available, spot_price)
-                # Increment PV available with grid charging power as requested
-                results['pv_available_mw'][t] += flows['battery_charge']
                 
             elif window_type == "electrolyser":
                 E_bat, flows = self._electrolyser_window(E_bat, pv_available, spot_price)
@@ -130,6 +129,7 @@ class BatteryOptimizer:
             # Store results
             E_bat = np.clip(E_bat, self.E_min, self.E_max)
             results['energy_stored_mwh'][t] = E_bat
+            results['battery_available_mwh'][t] = E_bat  # Track battery energy state
             results['soc'][t] = E_bat / self.battery_params["E_bat_max"]
             
             results['battery_charge_mw'][t] = flows['battery_charge']
@@ -359,7 +359,7 @@ class BatteryOptimizer:
         """Calculate summary statistics from simulation results"""
         
         # Energy flows (MWh)
-        total_pv_available = df['pv_available_mw'].sum()
+        total_pv_available = df['pv_profile_mw'].sum()
         
         # PV Charging: only when window is 'pv_charge'
         df_pv_charge = df[df['window_type'] == 'pv_charge']
@@ -384,6 +384,7 @@ class BatteryOptimizer:
         total_revenue_arbitrage = df['revenue_arbitrage'].sum()
         # Grid charging cost (battery charged from grid)
         total_cost_charging = df['cost_charging'].sum()
+        
         # Penalties (e.g. electrolyser shortages)
         total_penalties = df['cost_penalties'].sum()
 
