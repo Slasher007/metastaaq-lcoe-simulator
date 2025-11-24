@@ -48,6 +48,15 @@ from calculate_lcoh import calculate_lcoh, calculate_lcoc
 
 import os
 import time
+import pandas as pd
+
+# Import battery arbitrage integration
+try:
+    from battery_integration import render_battery_arbitrage_tab
+    BATTERY_MODULE_AVAILABLE = True
+except ImportError:
+    BATTERY_MODULE_AVAILABLE = False
+    print("⚠️ Battery arbitrage module not available. Install required dependencies.")
 
 
 def main():
@@ -62,6 +71,16 @@ def main():
     
     # Load data
     data_content = load_data_file(DEFAULT_DATA_FILE)
+    
+    # Ensure 'Date' is datetime for consistency and to allow .dt accessor
+    #if not pd.api.types.is_datetime64_any_dtype(data_content['Date']):
+    #    data_content['Date'] = pd.to_datetime(data_content['Date'])
+
+    # Add the 'Week_of_Month' column (from 1 to 4)
+    #day_of_month = data_content['Date'].dt.day
+    # Calculate week of month, ensuring it's clipped to a max of 4
+    #data_content['Week'] = ((day_of_month - 1) // 7).clip(upper=3) + 1
+
     
     # Create sidebar widgets
     selected_years = create_year_selection(data_content)
@@ -118,7 +137,7 @@ def main():
     if strategy_type == "Service Ratio-Based":
         display_monthly_ch4_production(monthly_ch4_production, monthly_service_ratios)
     
-    # Parameter change detection
+    # Store current parameters for main LCOE analysis only (not for battery tab)
     if 'last_params' not in st.session_state:
         st.session_state.last_params = {}
     
@@ -130,17 +149,14 @@ def main():
 
     current_params['strategy_type'] = strategy_type
 
+    # Only track parameter changes for main LCOE tab (will be used in tab content)
     params_changed = st.session_state.last_params != current_params
-    st.session_state.last_params = current_params.copy()
-
-    # Display parameter change info
-    display_parameter_change_info(params_changed)
-
+    # Don't update last_params here - let each tab manage its own state
+    
     if 'last_strategy_type' not in st.session_state:
         st.session_state.last_strategy_type = strategy_type
 
     strategy_changed_to_target = (st.session_state.last_strategy_type != strategy_type) and strategy_type == "Target Price-Based"
-    st.session_state.last_strategy_type = strategy_type
 
     auto_refresh = st.sidebar.checkbox("Enable auto-refresh on data changes", value=False, help="Checks for data file changes every 10 seconds and re-runs simulation if changed.")
 
@@ -162,6 +178,52 @@ def main():
             st.session_state.last_check = time.time()
             st.rerun()
 
+    # Create main tabs for different analysis sections
+    main_tab1, main_tab2 = st.tabs(["🔋 Battery Arbitrage Optimization", "📊 LCOE & Energy Analysis"])
+    
+    with main_tab2:
+        # Update last_params only when in LCOE tab
+        st.session_state.last_params = current_params.copy()
+        st.session_state.last_strategy_type = strategy_type
+        
+        # Display parameter change info only in LCOE tab
+        display_parameter_change_info(params_changed)
+        
+        # Original dashboard content goes here
+        _render_main_analysis(
+            data_content, strategy_type, monthly_service_ratios, avg_service_ratio,
+            electrolyser_power, electrolyser_specific_consumption, derived_params,
+            monthly_ch4_production, target_prices, pv_price, ppa_price, pv_params,
+            pv_energy_data, electrolyzer_econ, methanation_econ, site_co2_econ,
+            go_enabled, go_cost_per_mwh, selected_years, params_changed, data_changed, 
+            strategy_changed_to_target
+        )
+    
+    with main_tab1:
+        # Battery arbitrage optimization tab - independent from main dashboard parameters
+        if BATTERY_MODULE_AVAILABLE:
+            # Prepare data with timestamp if not already present
+            data_with_ts = data_content.copy()
+            if 'timestamp' not in data_with_ts.columns:
+                from datetime import timedelta
+                import pandas as pd
+                data_with_ts['timestamp'] = pd.to_datetime(data_with_ts['Date']) + pd.to_timedelta(data_with_ts['Heure'], unit='h')
+            
+            # Battery tab has its own configuration management - no auto-updates from main dashboard
+            render_battery_arbitrage_tab(data_with_ts, electrolyser_power, pv_energy_data, pv_price, ppa_price)
+        else:
+            st.error("🔋 Battery Arbitrage module not available. Please ensure all battery optimization files are present.")
+            st.info("Required files: battery_config.py, battery_optimizer.py, battery_visualization.py, battery_integration.py")
+
+
+def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, avg_service_ratio,
+                          electrolyser_power, electrolyser_specific_consumption, derived_params,
+                          monthly_ch4_production, target_prices, pv_price, ppa_price, pv_params,
+                          pv_energy_data, electrolyzer_econ, methanation_econ, site_co2_econ,
+                          go_enabled, go_cost_per_mwh, selected_years, params_changed, data_changed,
+                          strategy_changed_to_target):
+    """Render the main LCOE analysis section (original dashboard content)"""
+    
     # Create analysis plots
     st.markdown("#### 📈 Average Monthly Price Analysis")
     fig_price = create_monthly_price_analysis_plot(data_content)
@@ -196,13 +258,13 @@ def main():
         </style>
         """, unsafe_allow_html=True)
         st.markdown('<div class="green-button">', unsafe_allow_html=True)
-        manual_refresh = st.button("Run Simulation", help="Force refresh the simulation")
+        manual_refresh_btn = st.button("Run Simulation", help="Force refresh the simulation")
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        manual_refresh = False
+        manual_refresh_btn = False
 
     # Run simulation
-    run_simulation = params_changed or data_changed or manual_refresh or 'simulation_run' not in st.session_state or strategy_changed_to_target
+    run_simulation = params_changed or data_changed or manual_refresh_btn or 'simulation_run' not in st.session_state or strategy_changed_to_target
     
     if run_simulation:
         if data_content.empty:
