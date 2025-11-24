@@ -892,11 +892,11 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         if cash_totals:
             revenue_total = cash_totals['sell_revenue'] + cash_totals['ely_savings']
             cost_total = cash_totals['grid_cost'] + cash_totals['pv_cost'] + cash_totals['battery_cost']
-            net_cash = cash_totals['net_cashflow']
+            net_cash = cost_total - revenue_total
         else:
             revenue_total = summary['total_revenue_eur']
             cost_total = summary['total_cost_eur']
-            net_cash = summary['net_profit_eur']
+            net_cash = cost_total - revenue_total
         
         col_rev, col_cost, col_net = st.columns(3)
         
@@ -925,9 +925,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             _kpi_card("Supply Cost (Grid + PV + Battery)", cost_total, "#fdecea", "#8a1c1c", "-")
         
         with col_net:
-            card_color = "#f4f4f4" if net_cash >= 0 else "#fdecea"
-            card_text = "#000000" if net_cash >= 0 else "#8a1c1c"
-            net_sign = "+" if net_cash >= 0 else "-"
+            card_color = "#fdecea" if net_cash >= 0 else "#e6f4ea"
+            card_text = "#8a1c1c" if net_cash >= 0 else "#1b4332"
+            net_sign = "-" if net_cash >= 0 else "+"
             _kpi_card("Net Cashflow", abs(net_cash), card_color, card_text, net_sign)
         
         # --- Chart 3: Selected Hours & Spot Prices per Operational Window ---
