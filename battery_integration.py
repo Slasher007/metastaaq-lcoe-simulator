@@ -753,10 +753,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ax.bar(hourly_profile.index, hourly_profile['grid_charge_cost'], label='Grid Charging Cost', color='red', alpha=0.7)
             
             # Revenue as negative bars - explicitly labeled as "Sell to Grid"
-            ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Sell to Grid Revenue', color='green', alpha=0.7)
+            ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Sell to Grid (From Battery)', color='green', alpha=0.7)
             
             # Supply to Electrolyser savings as negative bars (cost avoided)
-            ax.bar(hourly_profile.index, -hourly_profile['ely_supply_savings'], label='Supply to Electrolyser', color='purple', alpha=0.7)
+            ax.bar(hourly_profile.index, -hourly_profile['ely_supply_savings'], label='Supply Electrolyser (From Battery)', color='purple', alpha=0.7)
             
             # Add cost labels on each bar (only show if value is significant)
             for hour in hourly_profile.index:
