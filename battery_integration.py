@@ -656,7 +656,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # Create working dataframe and drop idle/undefined windows
             df_win = df_results.copy()
             df_win['window_name'] = df_win['window_type'].map(window_map)
-            print(df_win[['battery_available_mwh', 'battery_charge_mw', 'battery_discharge_mw', 'spot_price_eur_mwh', 'net_cashflow', 'window_type']])
+            #print(df_win[['battery_available_mwh', 'battery_charge_mw', 'battery_discharge_mw', 'spot_price_eur_mwh', 'net_cashflow', 'window_type']])
             df_win = df_win[df_win['window_name'].notna()]
             
             # Calculate 'Value' of Electrolyser supply (Avoided Grid Cost)
@@ -753,6 +753,13 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 'pv_baseline_cost': 'sum',
                 'battery_lcos_cost': 'sum'
             })
+            hourly_profile['net_cashflow'] = (
+                hourly_profile['grid_charge_cost']
+                + hourly_profile['pv_baseline_cost']
+                + hourly_profile['battery_lcos_cost']
+                - hourly_profile['revenue_sell_to_grid']
+                - hourly_profile['ely_supply_savings']
+            )
             grid_supply_series = df_hourly_cost.groupby('hour_of_day')['grid_supply_price'].mean().dropna()
              
             print(df_hourly_cost)
@@ -795,7 +802,16 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             battery_series = hourly_profile['battery_lcos_cost'].replace(0, np.nan)
             battery_label = f'Battery LCOS ({battery_cost_per_mwh:.0f} €/MWh)'
             ax.plot(hourly_profile.index, battery_series, label=battery_label, color='gray', linewidth=2, linestyle='-.', marker='^')
-            ax.plot(grid_supply_series.index, grid_supply_series.values, label='Supply from Grid (Spot Price)', color='blue', linewidth=2, linestyle=':', marker='d')
+            ax.plot(grid_supply_series.index, grid_supply_series.values, label='Supply from Grid', color='blue', linewidth=2, linestyle=':', marker='d')
+            net_series = hourly_profile['net_cashflow']
+            ax.plot(net_series.index, net_series.values, label='Net Cashflow', color='black', linewidth=2.5, linestyle='-', marker='o')
+            ax.fill_between(net_series.index, 0, net_series.values, where=net_series.values>=0, color='red', alpha=0.1)
+            ax.fill_between(net_series.index, 0, net_series.values, where=net_series.values<0, color='green', alpha=0.1)
+            for hour, value in net_series.items():
+                if value != 0:
+                    va = 'bottom' if value >= 0 else 'top'
+                    offset = 3 if value >= 0 else -3
+                    ax.text(hour, value + offset, f"{value:,.0f}€", ha='center', va=va, fontsize=8, color='red', fontweight='bold')
             
             ax.set_xticks(range(24))
             ax.set_xlabel('Hour of Day', fontweight='bold')
