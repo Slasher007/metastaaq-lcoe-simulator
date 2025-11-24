@@ -633,15 +633,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             plt.close(fig_power_simple)
         
         with res_tab4:
-            col_run_left, col_run_right = st.columns([1, 4])
-            with col_run_left:
-                if st.button("🔁 Run Simulation", key="run_simulation_operational", use_container_width=True):
-                    st.session_state['battery_optimization_run'] = False
-                    rerun_fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
-                    if rerun_fn:
-                        rerun_fn()
-                    else:
-                        st.warning("Cannot rerun automatically; please rerun the app manually.")
             st.markdown("#### Operational Windows Analysis")
             
             # Window name mapping (no explicit idle window)
