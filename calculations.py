@@ -71,6 +71,50 @@ def calculate_pv_energy_production(pv_surface_hectares, power_density_mwp_per_ha
     }
 
 
+def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, lat, lon, loss,
+                                 startyear=2020, endyear=2024, pvcalculation=1):
+    """
+    Calculate hourly PV production profile using PVGIS seriescalc API
+    Returns hourly data for use in battery optimizer simulations
+    
+    Args:
+        pv_surface_hectares: Surface area in hectares
+        power_density_mwp_per_ha: Power density in MWp per hectare
+        lat: Latitude
+        lon: Longitude
+        loss: System losses in percentage
+        startyear: Start year for hourly data (default: 2020)
+        endyear: End year for hourly data (default: 2024)
+        pvcalculation: Set to 1 to calculate PV output (default: 1)
+    
+    Returns:
+        DataFrame with columns 'timestamp' and 'pv_mw' for hourly PV production
+    """
+    estimated_power_mwp = pv_surface_hectares * power_density_mwp_per_ha
+    estimated_power_kwp = estimated_power_mwp * 1000
+    
+    # Use seriescalc API for hourly data
+    target = "https://re.jrc.ec.europa.eu/api/seriescalc"
+    params = {
+        'lat': lat,
+        'lon': lon,
+        'peakpower': estimated_power_kwp,
+        'loss': loss,
+        'pvcalculation': pvcalculation,
+        'startyear': startyear,
+        'endyear': endyear,
+        'mountingplace': 'free',
+        'angle': 35,  # Tilt angle in degrees
+        'aspect': 0,  # Azimuth angle (0 = South)
+        'outputformat': 'csv'
+    }
+    pv_hourly_data = PvgisHourlyData(target, params)
+    pv_hourly_data.format_data()
+    hourly_df = pv_hourly_data.get_hourly_pv_dataframe()
+    
+    return hourly_df
+
+
 def calculate_battery_capacity(storage_hours, estimated_power_mwp):
     """Calculate battery capacity based on storage hours and power"""
     battery_capacity_mwh = storage_hours * estimated_power_mwp
@@ -523,3 +567,110 @@ class PvgisData:
             self.monthly_pv[month_name] = E_m
 
         return self.monthly_pv
+
+
+class PvgisHourlyData:
+    """Class to handle hourly PV data from PVGIS seriescalc API"""
+    
+    def __init__(self, target, params):
+        self.target = target
+        self.params = params
+        self.r = requests.get(self.target, params=self.params)
+        
+    def format_data(self):
+        """Parse hourly CSV data from PVGIS seriescalc API"""
+        self.data = self.r.content.decode("utf-8")
+        lines = self.data.splitlines()
+        
+        # Find the header line (usually contains "time" or "Time")
+        header_index = None
+        for i, line in enumerate(lines):
+            if 'time' in line.lower() and ('P' in line or 'power' in line.lower()):
+                header_index = i
+                break
+        
+        if header_index is None:
+            raise ValueError("Could not find header in PVGIS response")
+        
+        # Parse header - try different delimiters
+        header_line = lines[header_index]
+        # Try comma first, then semicolon, then tab
+        if ',' in header_line:
+            delimiter = ','
+        elif ';' in header_line:
+            delimiter = ';'
+        elif '\t' in header_line:
+            delimiter = '\t'
+        else:
+            delimiter = ','
+        
+        headers = [col.strip() for col in header_line.split(delimiter)]
+        
+        # Find the column index for power output (usually 'P' for power in W)
+        power_col_idx = None
+        time_col_idx = None
+        
+        for idx, header in enumerate(headers):
+            header_lower = header.lower()
+            if 'time' in header_lower:
+                time_col_idx = idx
+            elif header == 'P' or header_lower == 'power' or 'pv power' in header_lower:
+                power_col_idx = idx
+        
+        if power_col_idx is None:
+            raise ValueError(f"Could not find power column (P) in PVGIS response. Headers: {headers}")
+        if time_col_idx is None:
+            raise ValueError(f"Could not find time column in PVGIS response. Headers: {headers}")
+        
+        # Parse data lines
+        self.hourly_data = []
+        for line in lines[header_index + 1:]:
+            if not line.strip() or line.strip().startswith('#'):
+                continue
+            
+            parts = line.split(delimiter)
+            if len(parts) > max(time_col_idx, power_col_idx):
+                try:
+                    time_str = parts[time_col_idx].strip()
+                    power_w = float(parts[power_col_idx].strip())
+                    
+                    # Parse timestamp (format: YYYYMMDD:HHMM or YYYY-MM-DD HH:MM)
+                    if ':' in time_str and len(time_str) > 10:
+                        # Format: YYYYMMDD:HHMM
+                        if '-' not in time_str:
+                            date_part, time_part = time_str.split(':')
+                            year = int(date_part[:4])
+                            month = int(date_part[4:6])
+                            day = int(date_part[6:8])
+                            hour = int(time_part[:2])
+                            minute = int(time_part[2:4]) if len(time_part) >= 4 else 0
+                            timestamp = pd.Timestamp(year, month, day, hour, minute)
+                        else:
+                            # Try standard datetime parsing
+                            timestamp = pd.to_datetime(time_str)
+                    else:
+                        # Try to parse as datetime string
+                        timestamp = pd.to_datetime(time_str)
+                    
+                    # Convert power from W to MW (PVGIS returns power in W)
+                    power_mw = power_w / 1000000.0  # W to MW
+                    
+                    self.hourly_data.append({
+                        'timestamp': timestamp,
+                        'pv_mw': power_mw
+                    })
+                except (ValueError, IndexError) as e:
+                    # Skip invalid lines
+                    continue
+        
+        return self.hourly_data
+    
+    def get_hourly_pv_dataframe(self):
+        """Return hourly PV data as a DataFrame with timestamp and pv_mw columns"""
+        if not hasattr(self, 'hourly_data') or not self.hourly_data:
+            self.format_data()
+        
+        df = pd.DataFrame(self.hourly_data)
+        if len(df) > 0:
+            df = df.sort_values('timestamp').reset_index(drop=True)
+        return df

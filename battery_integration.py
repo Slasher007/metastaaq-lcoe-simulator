@@ -15,7 +15,7 @@ from battery_config import (
 )
 
 DEFAULT_BATTERY_COST_EUR_PER_MWH = 300 # €/MWh
-from battery_optimizer import BatteryOptimizer, distribute_monthly_pv_to_hourly_from_dataframe, generate_typical_pv_profile
+from battery_optimizer import BatteryOptimizer, generate_typical_pv_profile, load_pv_profile
 from battery_visualization import (
     plot_soc_profile, plot_power_flows, plot_economics_breakdown,
     plot_yearly_cashflow, plot_hydrogen_production
@@ -521,13 +521,97 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             spot_prices = data_content['Prix'].values
             hours_of_day = data_content['Heure'].values
             
-            # Use typical PV profile
-            pv_profile = generate_typical_pv_profile(hours_of_day, peak_power_mw=battery_params['P_charge_max'])
-            # Prepare PV profile using month names from Mois column
-            # pv_profile = distribute_monthly_pv_to_hourly_from_dataframe(
-            #     pv_energy_data['pv_energy_mwh'],
-            #     data_content
-            # )
+            # Generate realistic PV profile using PVGIS data
+            pv_profile = None
+            pv_params = st.session_state.get('pv_params', None)
+            use_real_pv = False
+            
+            # Check if PV parameters are available and valid
+            if pv_params is not None:
+                # Validate required PV parameters
+                required_params = ['pv_surface_hectares', 'power_density_mwp_per_ha', 'lat', 'lon']
+                missing_params = [p for p in required_params if p not in pv_params or pv_params.get(p) is None]
+                
+                if missing_params:
+                    st.warning(f"⚠️ Missing PV parameters: {', '.join(missing_params)}. Using typical PV profile.")
+                    pv_profile = generate_typical_pv_profile(hours_of_day, peak_power_mw=battery_params['P_charge_max'])
+                else:
+                    try:
+                        # Extract years from data for PVGIS query
+                        available_years = sorted(data_content['Annee'].unique())
+                        startyear = int(min(available_years)) if available_years else 2020
+                        endyear = int(max(available_years)) if available_years else 2024
+                        
+                        # Prepare PV parameters for load_pv_profile
+                        pv_params_dict = {
+                            'pv_surface_hectares': pv_params.get('pv_surface_hectares'),
+                            'power_density_mwp_per_ha': pv_params.get('power_density_mwp_per_ha'),
+                            'lat': pv_params.get('lat'),
+                            'lon': pv_params.get('lon'),
+                            'loss': pv_params.get('loss', 14)
+                        }
+                        
+                        # Validate parameter values
+                        if not all(isinstance(pv_params_dict[k], (int, float)) and pv_params_dict[k] > 0 
+                                  for k in ['pv_surface_hectares', 'power_density_mwp_per_ha', 'lat', 'lon']):
+                            raise ValueError("Invalid PV parameter values")
+                        
+                        # Create proper timestamps from Date and Heure for accurate PV matching
+                        timestamps_for_pv = hours_of_day
+                        if 'Date' in data_content.columns:
+                            try:
+                                # Create proper timestamps by combining Date and Heure
+                                timestamps_for_pv = pd.to_datetime(data_content['Date']) + pd.to_timedelta(data_content['Heure'], unit='h')
+                                st.info(f"🌞 Using date-based timestamps for PV profile matching...")
+                            except Exception as e:
+                                st.warning(f"⚠️ Could not create timestamps from Date column: {e}")
+                                timestamps_for_pv = hours_of_day
+                        else:
+                            st.info(f"ℹ️ No Date column found. Using hour-based matching (may reduce variation)...")
+                        
+                        # Generate realistic PV profile from PVGIS
+                        with st.spinner(f"🌞 Fetching real PV data from PVGIS (years {startyear}-{endyear})..."):
+                            pv_profile = load_pv_profile(
+                                pv_data=None,
+                                timestamps=timestamps_for_pv,
+                                pv_params=pv_params_dict,
+                                startyear=startyear,
+                                endyear=endyear
+                            )
+                        
+                        # Validate PV profile
+                        if pv_profile is None or len(pv_profile) == 0:
+                            raise ValueError("PV profile is empty")
+                        
+                        # Check if profile has variation (not constant)
+                        unique_values = len(np.unique(pv_profile))
+                        pv_min = pv_profile.min()
+                        pv_max = pv_profile.max()
+                        pv_mean = pv_profile.mean()
+                        
+                        if unique_values == 1:
+                            st.warning(f"⚠️ PV profile appears constant ({pv_mean:.2f} MW). This may indicate an issue with PVGIS data.")
+                        else:
+                            use_real_pv = True
+                            st.success(f"✅ Real PV data loaded: {len(pv_profile)} hours, {unique_values} unique values")
+                            st.info(f"📊 PV Profile range: {pv_min:.2f} - {pv_max:.2f} MW (avg: {pv_mean:.2f} MW, total: {pv_profile.sum():.1f} MWh)")
+                            
+                    except Exception as e:
+                        import traceback
+                        error_details = traceback.format_exc()
+                        st.error(f"❌ Error generating real PV profile from PVGIS: {str(e)}")
+                        with st.expander("🔍 Error details"):
+                            st.code(error_details)
+                        st.warning("⚠️ Falling back to typical (constant) PV profile...")
+                        pv_profile = generate_typical_pv_profile(hours_of_day, peak_power_mw=battery_params['P_charge_max'])
+            else:
+                # Fallback to typical profile if PV params not available
+                st.warning("⚠️ PV parameters not available in session state. Using typical (constant) PV profile.")
+                st.info("💡 Tip: Configure PV installation parameters in the main dashboard to use real PV data.")
+                pv_profile = generate_typical_pv_profile(hours_of_day, peak_power_mw=battery_params['P_charge_max'])
+            
+            # Store flag indicating if real PV data was used
+            st.session_state['battery_used_real_pv'] = use_real_pv
             
             # Create optimizer
             optimizer = BatteryOptimizer(
@@ -554,6 +638,13 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         summary = st.session_state['battery_summary']
         battery_params = st.session_state['battery_params']
         time_windows = st.session_state['battery_time_windows']
+        
+        # Show PV data source indicator
+        used_real_pv = st.session_state.get('battery_used_real_pv', False)
+        if used_real_pv:
+            st.success("✅ Using **real PV production data** from PVGIS (location-specific, hourly variation)")
+        else:
+            st.warning("⚠️ Using **typical (constant) PV profile**. Configure PV parameters in main dashboard for real data.")
         
         # Detailed results tabs
         st.markdown("---")
@@ -631,6 +722,52 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             plt.tight_layout()
             st.pyplot(fig_power_simple)
             plt.close(fig_power_simple)
+            
+            # Cumulative Hourly PV Production
+            st.markdown("#### Cumulative Hourly PV Production")
+            st.markdown("Total PV production aggregated by hour of day across the entire year")
+            
+            # Group by hour of day and sum PV production
+            df_results['hour_of_day'] = df_results['hour_of_day'].astype(int)
+            hourly_pv_cumulative = df_results.groupby('hour_of_day')['pv_profile_mw'].sum().reset_index()
+            hourly_pv_cumulative.columns = ['hour', 'cumulative_pv_mwh']
+            
+            # Create barplot
+            fig_pv_cumulative, ax = plt.subplots(figsize=(14, 6))
+            bars = ax.bar(hourly_pv_cumulative['hour'], hourly_pv_cumulative['cumulative_pv_mwh'], 
+                         color='orange', alpha=0.7, edgecolor='darkorange', linewidth=1.5)
+            
+            # Add value labels on top of bars
+            for bar in bars:
+                height = bar.get_height()
+                if height > 0:
+                    ax.text(bar.get_x() + bar.get_width()/2., height,
+                           f'{height:.0f}',
+                           ha='center', va='bottom', fontsize=9, fontweight='bold')
+            
+            ax.set_xlabel('Hour of Day', fontweight='bold', fontsize=12)
+            ax.set_ylabel('Cumulative PV Production (MWh)', fontweight='bold', fontsize=12)
+            ax.set_title('Cumulative Hourly PV Production (Total across entire year)', 
+                        fontweight='bold', fontsize=14)
+            ax.set_xticks(range(24))
+            ax.set_xticklabels([f'{h:02d}:00' for h in range(24)], rotation=45, ha='right')
+            ax.grid(True, alpha=0.3, axis='y')
+            ax.set_axisbelow(True)
+            
+            # Add summary statistics
+            total_pv = hourly_pv_cumulative['cumulative_pv_mwh'].sum()
+            max_hour = hourly_pv_cumulative.loc[hourly_pv_cumulative['cumulative_pv_mwh'].idxmax(), 'hour']
+            max_value = hourly_pv_cumulative['cumulative_pv_mwh'].max()
+            
+            # Add text box with statistics
+            stats_text = f'Total: {total_pv:,.0f} MWh/year\nPeak Hour: {max_hour:02d}:00 ({max_value:,.0f} MWh)'
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
+                   fontsize=10, verticalalignment='top',
+                   bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+            
+            plt.tight_layout()
+            st.pyplot(fig_pv_cumulative)
+            plt.close(fig_pv_cumulative)
         
         with res_tab4:
             
