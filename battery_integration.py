@@ -746,6 +746,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 'pv_baseline_cost': 'sum',
                 'battery_lcos_cost': 'sum'
             })
+            grid_supply_series = df_hourly_cost.groupby('hour_of_day')['spot_price_eur_mwh'].mean()
             
             fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
             
@@ -756,7 +757,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Sell to Grid (From Battery)', color='green', alpha=0.7)
             
             # Supply to Electrolyser savings as negative bars (cost avoided)
-            ax.bar(hourly_profile.index, -hourly_profile['ely_supply_savings'], label='Supply Electrolyser (From Battery)', color='purple', alpha=0.7)
+            ax.bar(hourly_profile.index, -hourly_profile['ely_supply_savings'], label='Supply From Battery', color='purple', alpha=0.7)
             
             # Add cost labels on each bar (only show if value is significant)
             for hour in hourly_profile.index:
@@ -785,6 +786,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             battery_series = hourly_profile['battery_lcos_cost'].replace(0, np.nan)
             battery_label = f'Battery LCOS ({battery_cost_per_mwh:.0f} €/MWh)'
             ax.plot(hourly_profile.index, battery_series, label=battery_label, color='gray', linewidth=2, linestyle='-.', marker='^')
+            ax.plot(grid_supply_series.index, grid_supply_series.values, label='Supply from Grid (Spot Price)', color='blue', linewidth=2, linestyle=':', marker='d')
             
             ax.set_xticks(range(24))
             ax.set_xlabel('Hour of Day', fontweight='bold')
