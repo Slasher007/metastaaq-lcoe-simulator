@@ -743,6 +743,11 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 lambda x: x['spot_price_eur_mwh'] if (ppa_price == 0 or x['spot_price_eur_mwh'] <= ppa_price) else np.nan,
                 axis=1
             )
+
+            scaling_factor = electrolyser_power
+            for col in ['grid_charge_cost', 'revenue_sell_to_grid', 'ely_supply_savings',
+                        'ppa_baseline_cost', 'pv_baseline_cost', 'battery_lcos_cost', 'grid_supply_price']:
+                df_hourly_cost[col] = df_hourly_cost[col] * scaling_factor
             
             # Group by hour of day
             hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
