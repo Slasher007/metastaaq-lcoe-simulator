@@ -633,7 +633,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             plt.close(fig_power_simple)
         
         with res_tab4:
-            st.markdown("#### Operational Windows Analysis")
             
             # Window name mapping (no explicit idle window)
             window_map = {
@@ -875,9 +874,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 ]
             }
             st.table(pd.DataFrame(summary_data))
-        
-        # Key Performance Indicators - simplified cash view
-        st.markdown("### 📊 Key Performance Indicators")
         
         cash_totals = st.session_state.get('battery_cash_totals')
         if cash_totals:
