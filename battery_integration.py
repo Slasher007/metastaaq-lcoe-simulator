@@ -767,13 +767,13 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
             
             # Stacked bars for System Costs
-            ax.bar(hourly_profile.index, hourly_profile['grid_charge_cost'], label='Grid Charging Cost', color='red', alpha=0.7)
+            ax.bar(hourly_profile.index, hourly_profile['grid_charge_cost'], label='Grid to Battery', color='red', alpha=0.7)
             
             # Revenue as negative bars - explicitly labeled as "Sell to Grid"
-            ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Sell to Grid (From Battery)', color='green', alpha=0.7)
+            ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Battery to Grid', color='green', alpha=0.7)
             
             # Supply to Electrolyser savings as negative bars (cost avoided)
-            ax.bar(hourly_profile.index, -hourly_profile['ely_supply_savings'], label='Supply From Battery', color='purple', alpha=0.7)
+            ax.bar(hourly_profile.index, -hourly_profile['ely_supply_savings'], label='Battery to Electrolyser', color='purple', alpha=0.7)
             
             # Add cost labels on each bar (only show if value is significant)
             for hour in hourly_profile.index:
@@ -796,15 +796,15 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                            ha='center', va='center', fontsize=8, color='black', fontweight='bold')
             
             # PPA Baseline as a line (Constant PPA supply)
-            ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA ({ppa_price} €/MWh)', color='orange', linewidth=3, linestyle='-', marker='o')
+            ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA ({ppa_price} €/MWh)', color='orange', linewidth=2, alpha=0.8, linestyle='-', marker='o')
             pv_series = hourly_profile['pv_baseline_cost'].replace(0, np.nan)
-            ax.plot(hourly_profile.index, pv_series, label=f'PV LCOE ({pv_price} €/MWh)', color='gold', linewidth=2, linestyle='--', marker='s')
+            ax.plot(hourly_profile.index, pv_series, label=f'PV LCOE ({pv_price} €/MWh)', color='gold', linewidth=1.5, alpha=0.7, linestyle='--', marker='s')
             battery_series = hourly_profile['battery_lcos_cost'].replace(0, np.nan)
             battery_label = f'Battery LCOS ({battery_cost_per_mwh:.0f} €/MWh)'
-            ax.plot(hourly_profile.index, battery_series, label=battery_label, color='gray', linewidth=2, linestyle='-.', marker='^')
-            ax.plot(grid_supply_series.index, grid_supply_series.values, label='Supply from Grid', color='blue', linewidth=2, linestyle=':', marker='d')
+            ax.plot(hourly_profile.index, battery_series, label=battery_label, color='gray', linewidth=1.5, alpha=0.7, linestyle='-.', marker='^')
+            ax.plot(grid_supply_series.index, grid_supply_series.values, label='Supply from Grid', color='blue', linewidth=1.5, alpha=0.7, linestyle=':', marker='d')
             net_series = hourly_profile['net_cashflow']
-            ax.plot(net_series.index, net_series.values, label='Net Cashflow', color='black', linewidth=2.5, linestyle='-', marker='o')
+            ax.plot(net_series.index, net_series.values, label='Net Cashflow', color='black', linewidth=2, alpha=0.8, linestyle='-', marker='o')
             ax.fill_between(net_series.index, 0, net_series.values, where=net_series.values>=0, color='red', alpha=0.1)
             ax.fill_between(net_series.index, 0, net_series.values, where=net_series.values<0, color='green', alpha=0.1)
             for hour, value in net_series.items():
