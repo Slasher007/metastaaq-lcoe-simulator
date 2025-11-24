@@ -575,8 +575,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # Charging/Discharging
             # Reconstruct separate flows for plotting
             pv_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'pv_charge' else 0, axis=1)
-            grid_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'night_charge' else 0, axis=1)
-            grid_discharge = df_window.apply(lambda x: x['battery_discharge_mw'] if x['window_type'] == 'arbitrage_discharge' else 0, axis=1)
+            grid_charge = df_window.apply(lambda x: x['battery_charge_mw'] if x['window_type'] == 'grid_charging' else 0, axis=1)
+            grid_discharge = df_window.apply(lambda x: x['battery_discharge_mw'] if x['window_type'] == 'sell_to_grid' else 0, axis=1)
             ely_discharge = df_window.apply(lambda x: x['battery_discharge_mw'] if x['window_type'] == 'electrolyser' else 0, axis=1)
 
             axes[0].fill_between(range(len(df_window)), 0, pv_charge, 
