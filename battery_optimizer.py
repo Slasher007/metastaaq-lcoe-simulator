@@ -209,38 +209,31 @@ class BatteryOptimizer:
         P_charge_limit = self.battery_params["P_charge_max"]
         eta_charge = self.battery_params["eta_charge"]
         
-        # Simplified: Constant charge power each hour (not dependent on actual PV)
-        # Charge at maximum power or remaining capacity
-        P_charge = min(P_charge_limit, E_available / 1.0)  # 1.0 hour timestep
-        E_charge = P_charge * 1.0
-        
-        # Apply charging efficiency
-        E_bat_new = E_bat + E_charge * eta_charge
+        # Simplified: Constant charge power each hour (not dependent on actual PV or remaining capacity)
+        # Always charge at P_charge_max unless battery is already full
+        if E_available > 0:
+            P_charge = P_charge_limit  # Constant power
+            E_charge = P_charge * 1.0  # Energy over 1 hour
+            
+            # Apply charging efficiency and cap at max capacity
+            E_bat_new = min(E_bat + E_charge * eta_charge, self.E_max)
+            
+            flows['battery_charge'] = P_charge
+        else:
+            # Battery already full
+            P_charge = 0.0
+            E_bat_new = E_bat
+            flows['battery_charge'] = 0.0
         
         # Simplified: No curtailment tracking
-        flows['battery_charge'] = P_charge
         flows['pv_curtailed'] = 0.0
-        
-        # Force fully charged state if this is the last hour of the window
-        if is_last_hour and E_bat_new < self.E_max:
-            # Calculate energy needed to reach full charge
-            E_needed = self.E_max - E_bat_new
-            
-            # We assume this energy is supplied (e.g., from grid or just assumed)
-            # To keep energy balance somewhat consistent in reports, we add it to charge flow
-            # even if it exceeds power limits
-            # Note: We divide by eta_charge to get the input energy required
-            additional_charge_mw = E_needed / eta_charge
-            flows['battery_charge'] += additional_charge_mw
-            
-            E_bat_new = self.E_max
         
         return E_bat_new, flows
     
     def _sell_to_grid_window(self, E_bat, pv_available, spot_price):
         """
         Evening sell to grid window (default 16:00-23:00)
-        - Discharge battery to grid at maximum power to sell energy
+        - Discharge battery to grid at constant maximum power to sell energy
         - Goal: empty battery to prepare for spot charging
         - PV is curtailed (not sold in this implementation, could be modified)
         """
@@ -251,25 +244,29 @@ class BatteryOptimizer:
         P_discharge_limit = self.battery_params["P_discharge_max"]
         eta_discharge = self.battery_params["eta_discharge"]
         
-        # Discharge at maximum rate
-        P_discharge = min(P_discharge_limit, E_available / 1.0)  # 1.0 hour timestep
-        E_discharge = P_discharge * 1.0
-        
-        # Apply discharge efficiency (energy loss in battery)
-        E_bat_new = E_bat - E_discharge / eta_discharge
+        # Constant discharge at maximum rate (unless battery is empty)
+        if E_available > 0:
+            P_discharge = P_discharge_limit  # Constant power
+            E_discharge = P_discharge * 1.0
+            
+            # Apply discharge efficiency and ensure we don't go below minimum
+            E_bat_new = max(E_bat - E_discharge / eta_discharge, self.E_min)
+            
+            flows['battery_discharge'] = P_discharge
+        else:
+            # Battery already at minimum
+            E_bat_new = E_bat
+            flows['battery_discharge'] = 0.0
         
         # Curtail PV during this window (rule: only arbitrage in evening)
-        pv_curtailed = pv_available
-        
-        flows['battery_discharge'] = P_discharge
-        flows['pv_curtailed'] = pv_curtailed
+        flows['pv_curtailed'] = pv_available
         
         return E_bat_new, flows
     
     def _grid_charging_window(self, E_bat, pv_available, spot_price):
         """
         Spot grid charging window (default 23:00-05:00)
-        - Charge from grid at spot market prices to prepare for electrolyser
+        - Charge from grid at constant maximum power at spot market prices
         - Always charge when in this window
         """
         flows = self._init_flows()
@@ -279,13 +276,19 @@ class BatteryOptimizer:
         P_charge_limit = self.battery_params["P_charge_max"]
         eta_charge = self.battery_params["eta_charge"]
         
-        # Charge at maximum rate
-        P_charge = min(P_charge_limit, E_available / eta_charge / 1.0)
-        E_charge = P_charge * 1.0 * eta_charge
-        
-        E_bat_new = E_bat + E_charge
-        
-        flows['battery_charge'] = P_charge
+        # Constant charge at maximum rate (unless battery is full)
+        if E_available > 0:
+            P_charge = P_charge_limit  # Constant power
+            E_charge = P_charge * 1.0 * eta_charge
+            
+            # Cap at maximum capacity
+            E_bat_new = min(E_bat + E_charge, self.E_max)
+            
+            flows['battery_charge'] = P_charge
+        else:
+            # Battery already full
+            E_bat_new = E_bat
+            flows['battery_charge'] = 0.0
         
         # No PV during this window typically, but handle it
         flows['pv_curtailed'] = pv_available
@@ -295,46 +298,35 @@ class BatteryOptimizer:
     def _electrolyser_window(self, E_bat, pv_available, spot_price):
         """
         Morning electrolyser supply window (default 05:00-10:00)
-        - Battery exclusively powers electrolyser
+        - Battery powers electrolyser at constant rated power
         - No grid purchase allowed
-        - If insufficient battery energy, electrolyser runs at reduced power or shuts down
+        - If insufficient battery energy, electrolyser shuts down
         """
         flows = self._init_flows()
         
         # Required power for electrolyser
         P_ely_rated = self.electrolyser_params["P_ely"]
-        min_load_ratio = self.electrolyser_params["min_load_ratio"]
-        P_ely_min = P_ely_rated * min_load_ratio
         
         # Available battery energy for discharge
         E_available = E_bat - self.E_min
         eta_discharge = self.battery_params["eta_discharge"]
         
-        # Maximum power we can supply from battery this hour
-        P_max_from_battery = min(
-            self.battery_params["P_discharge_max"],
-            E_available / 1.0 * eta_discharge
-        )
+        # Check if we have enough energy for full rated operation (1 hour)
+        E_needed = P_ely_rated * 1.0 / eta_discharge  # Energy needed from battery
         
-        # Determine electrolyser operation
-        if P_max_from_battery >= P_ely_rated:
+        # Constant power operation: either full rated power or shutdown
+        if E_available >= E_needed:
             # Full power operation
-            P_ely_actual = P_ely_rated
+            P_ely_actual = P_ely_rated  # Constant power
             P_shortage = 0
-        elif P_max_from_battery >= P_ely_min:
-            # Reduced power operation
-            P_ely_actual = P_max_from_battery
-            P_shortage = P_ely_rated - P_ely_actual
-        else:
-            # Shutdown - cannot meet minimum load
-            P_ely_actual = 0
-            P_shortage = P_ely_rated
-        
-        # Discharge battery to supply electrolyser
-        if P_ely_actual > 0:
+            
+            # Discharge battery
             E_discharge = P_ely_actual * 1.0
             E_bat_new = E_bat - E_discharge / eta_discharge
         else:
+            # Shutdown - insufficient energy
+            P_ely_actual = 0
+            P_shortage = P_ely_rated
             E_bat_new = E_bat
         
         flows['battery_discharge'] = P_ely_actual
