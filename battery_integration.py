@@ -749,6 +749,24 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                         'ppa_baseline_cost', 'pv_baseline_cost', 'battery_lcos_cost', 'grid_supply_price']:
                 df_hourly_cost[col] = df_hourly_cost[col] * scaling_factor
             
+            df_hourly_cost['net_cashflow'] = (
+                df_hourly_cost['grid_charge_cost']
+                + df_hourly_cost['pv_baseline_cost']
+                + df_hourly_cost['battery_lcos_cost']
+                - df_hourly_cost['revenue_sell_to_grid']
+                - df_hourly_cost['ely_supply_savings']
+            )
+            
+            st.session_state['battery_cash_totals'] = {
+                'grid_cost': float(df_hourly_cost['grid_charge_cost'].sum()),
+                'pv_cost': float(df_hourly_cost['pv_baseline_cost'].sum()),
+                'battery_cost': float(df_hourly_cost['battery_lcos_cost'].sum()),
+                'ppa_cost': float(df_hourly_cost['ppa_baseline_cost'].sum()),
+                'sell_revenue': float(df_hourly_cost['revenue_sell_to_grid'].sum()),
+                'ely_savings': float(df_hourly_cost['ely_supply_savings'].sum()),
+                'net_cashflow': float(df_hourly_cost['net_cashflow'].sum())
+            }
+            
             # Group by hour of day
             hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
                 'grid_charge_cost': 'sum',
@@ -914,26 +932,48 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         col1, col2, col3, col4, col5 = st.columns(5)
         
-        with col1:
-            st.metric(
-                "Net Profit",
-                f"{summary['net_profit_eur']:,.0f} €",
-                delta=f"{summary['net_profit_eur']/365:.0f} €/day"
-            )
-        
-        with col2:
-            st.metric(
-                "Revenue (Sell + Ely)",
-                f"{summary['total_revenue_eur']:,.0f} €",
-                delta=f"Sell: {summary['total_revenue_arbitrage_eur']:,.0f} €, Ely: {summary['total_ely_value_eur']:,.0f} €"
-            )
-        
-        with col3:
-            st.metric(
-                "Charging Cost (Grid + PV)",
-                f"{summary['total_cost_eur']:,.0f} €",
-                delta=f"Grid: {summary['total_cost_charging_eur']:,.0f} €, PV: {summary['total_pv_cost_eur']:,.0f} €"
-            )
+        cash_totals = st.session_state.get('battery_cash_totals')
+        if cash_totals:
+            net_cash = cash_totals['net_cashflow']
+            revenue_total = cash_totals['sell_revenue'] + cash_totals['ely_savings']
+            cost_total = cash_totals['grid_cost'] + cash_totals['pv_cost'] + cash_totals['battery_cost']
+            with col1:
+                st.metric(
+                    "Net Cashflow",
+                    f"{net_cash:,.0f} €",
+                    delta=f"{net_cash/365:.0f} €/day"
+                )
+            with col2:
+                st.metric(
+                    "Revenue (Battery Output)",
+                    f"{revenue_total:,.0f} €",
+                    delta=f"Grid: {cash_totals['sell_revenue']:,.0f} €, Ely: {cash_totals['ely_savings']:,.0f} €"
+                )
+            with col3:
+                st.metric(
+                    "Supply Cost (Grid + PV + Battery)",
+                    f"{cost_total:,.0f} €",
+                    delta=f"Grid: {cash_totals['grid_cost']:,.0f} €, PV: {cash_totals['pv_cost']:,.0f} €, Bat: {cash_totals['battery_cost']:,.0f} €"
+                )
+        else:
+            with col1:
+                st.metric(
+                    "Net Profit",
+                    f"{summary['net_profit_eur']:,.0f} €",
+                    delta=f"{summary['net_profit_eur']/365:.0f} €/day"
+                )
+            with col2:
+                st.metric(
+                    "Revenue (Sell + Ely)",
+                    f"{summary['total_revenue_eur']:,.0f} €",
+                    delta=f"Sell: {summary['total_revenue_arbitrage_eur']:,.0f} €, Ely: {summary['total_ely_value_eur']:,.0f} €"
+                )
+            with col3:
+                st.metric(
+                    "Charging Cost (Grid + PV)",
+                    f"{summary['total_cost_eur']:,.0f} €",
+                    delta=f"Grid: {summary['total_cost_charging_eur']:,.0f} €, PV: {summary['total_pv_cost_eur']:,.0f} €"
+                )
         
         with col4:
             st.metric(
