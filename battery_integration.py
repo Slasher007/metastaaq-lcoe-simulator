@@ -45,8 +45,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     data_content['DayOfWeek'] = data_content['Date'].dt.day_name()
 
     # Filter first week
-    mask = data_content['Week'] == 1 # & data_content['Jours'] == 'Tuesday'
-    data_content = data_content[mask]
+    #mask = data_content['Week'] == 1 # & data_content['Jours'] == 'Tuesday'
+    #data_content = data_content[mask]
     
     # Get available options
     available_years = sorted(data_content['Annee'].unique())
@@ -60,8 +60,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     available_days = [day for day in day_order if day in data_content['DayOfWeek'].unique()]
     
     # Filter data to only include Tuesday
-    mask = data_content['Jours'] == 'Tuesday'
-    data_content = data_content[mask]
+    #mask = data_content['Jours'] == 'Tuesday'
+    #data_content = data_content[mask]
     
     # Initialize session state for filters if not exists
     if 'filter_years' not in st.session_state:

@@ -81,10 +81,6 @@ def main():
     # Calculate week of month, ensuring it's clipped to a max of 4
     #data_content['Week'] = ((day_of_month - 1) // 7).clip(upper=3) + 1
 
-    # Apply the original filtering to the DataFrame
-    mask = (data_content['Annee'] == 2024)& (data_content['Mois']=='January') & (data_content['Jours'] == 'Tuesday') #& (data_content['Week']==1)
-    data_content = data_content[mask]
-
     
     # Create sidebar widgets
     selected_years = create_year_selection(data_content)
