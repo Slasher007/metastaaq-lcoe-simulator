@@ -49,7 +49,7 @@ DEFAULT_BATTERY_PARAMS = {
     "eta_rt": 1.0,  # Round-trip efficiency (UI default; losses modeled via economics, not physics)
     
     # State of Charge (SoC) constraints
-    "SoC_min": 0.10,  # Minimum SoC (10% = 10% DoD protection)
+    "SoC_min": 0.00,  # Minimum SoC (10% = 10% DoD protection)
     "SoC_max": 1.00,  # Maximum SoC (100%)
     "SoC_initial": 0.0,  # Initial SoC on Jan 1st 00:00 (50%)
     
@@ -57,7 +57,7 @@ DEFAULT_BATTERY_PARAMS = {
     "DoD_max": 1.00,  # Maximum allowed depth of discharge (100%)
     
     # Self-discharge
-    "self_discharge_rate": 0.0001,  # Per hour (0.01% per hour = 2.4% per day for Li-ion)
+    "self_discharge_rate": 0.0000,  # Per hour (0.01% per hour = 2.4% per day for Li-ion)
 }
 
 # Penalty Parameters

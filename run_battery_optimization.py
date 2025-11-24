@@ -14,7 +14,7 @@ from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
     validate_time_windows
 )
-from battery_optimizer import BatteryOptimizer, distribute_monthly_pv_to_hourly, generate_typical_pv_profile
+from battery_optimizer import BatteryOptimizer, generate_typical_pv_profile
 from battery_visualization import create_comprehensive_report
 from battery_sensitivity import run_complete_sensitivity_analysis
 
@@ -182,13 +182,10 @@ Examples:
     spot_prices = df_prices['Prix'].values
     
     if args.pv_monthly_file:
-        with open(args.pv_monthly_file, 'r') as f:
-            pv_energy_monthly = json.load(f)
-        pv_profile = distribute_monthly_pv_to_hourly(pv_energy_monthly, timestamps)
-        print(f"   Using monthly PV data from {args.pv_monthly_file}")
-    else:
-        pv_profile = generate_typical_pv_profile(timestamps, peak_power_mw=args.pv_peak_power)
-        print(f"   Generated typical PV profile with {args.pv_peak_power:.1f} MW peak power")
+        print(f"   ⚠️ Monthly PV files are no longer supported. Ignoring {args.pv_monthly_file} and using a typical profile instead.")
+    
+    pv_profile = generate_typical_pv_profile(timestamps, peak_power_mw=args.pv_peak_power)
+    print(f"   Generated typical PV profile with {args.pv_peak_power:.1f} MW peak power")
     
     print(f"   Total PV production: {pv_profile.sum():.1f} MWh/year")
     
@@ -204,108 +201,6 @@ Examples:
     
     df_results, summary = optimizer.simulate_year(pv_profile, spot_prices, timestamps)
     
-    # Display results
-    print("\n✅ OPTIMIZATION COMPLETE")
-    print("="*80)
-    print("\n📊 KEY RESULTS")
-    print("-"*80)
-    
-    print(f"\n💰 Economics:")
-    print(f"   Total Revenue (Arbitrage):  {summary['total_revenue_eur']:>15,.0f} €")
-    print(f"   Total Cost (Grid Charging): {summary['total_cost_eur']:>15,.0f} €")
-    print(f"   Total Penalties:            {summary['total_penalties_eur']:>15,.0f} €")
-    print(f"   NET PROFIT:                 {summary['net_profit_eur']:>15,.0f} €")
-    print(f"   Daily Average Profit:       {summary['net_profit_eur']/365:>15,.0f} €/day")
-    
-    print(f"\n⚡ Hydrogen Production:")
-    print(f"   Total Production:           {summary['total_h2_production_tonnes']:>15,.1f} tonnes")
-    print(f"   Daily Average:              {summary['total_h2_production_kg']/365:>15,.1f} kg/day")
-    print(f"   H₂ Cost:                    {summary['h2_cost_eur_per_kg']:>15,.2f} €/kg")
-    
-    print(f"\n🔋 Battery Statistics:")
-    print(f"   Average SoC:                {summary['avg_soc']:>15,.1%}")
-    print(f"   SoC Range:                  {summary['min_soc']:.1%} - {summary['max_soc']:.1%}")
-    print(f"   Equivalent Cycles:          {summary['equivalent_cycles']:>15,.0f}")
-    print(f"   Energy Throughput:          {summary['total_battery_to_grid_mwh'] + summary['total_battery_to_ely_mwh']:>15,.0f} MWh")
-    
-    print(f"\n⚡ Electrolyser Performance:")
-    print(f"   Operating Hours:            {summary['ely_operating_hours']:>15,.0f} hours")
-    print(f"   Shortage Hours:             {summary['ely_shortage_hours']:>15,.0f} hours")
-    print(f"   Capacity Factor:            {summary['ely_capacity_factor']:>15,.1%}")
-    
-    print(f"\n☀️  PV Utilization:")
-    print(f"   PV Available:               {summary['total_pv_available_mwh']:>15,.0f} MWh")
-    print(f"   PV to Battery:              {summary['total_pv_to_battery_mwh']:>15,.0f} MWh")
-    print(f"   Utilization Rate:           {summary['pv_utilization_rate']:>15,.1%}")
-    
-    # Save results
-    print(f"\n💾 SAVING RESULTS")
-    print("-"*80)
-    
-    # Save hourly results
-    results_file = os.path.join(args.output_dir, f'hourly_results_{args.year}.csv')
-    df_results.to_csv(results_file, index=False)
-    print(f"   Hourly results saved to: {results_file}")
-    
-    # Save summary
-    summary_file = os.path.join(args.output_dir, f'summary_{args.year}.json')
-    with open(summary_file, 'w') as f:
-        # Convert non-serializable types
-        summary_clean = {k: float(v) if isinstance(v, (np.integer, np.floating)) else v 
-                        for k, v in summary.items() if not isinstance(v, dict)}
-        json.dump(summary_clean, f, indent=2)
-    print(f"   Summary saved to: {summary_file}")
-    
-    # Save configuration
-    config_file = os.path.join(args.output_dir, f'configuration_{args.year}.json')
-    with open(config_file, 'w') as f:
-        config = {
-            'battery_params': battery_params,
-            'time_windows': time_windows,
-            'electrolyser_params': electrolyser_params,
-            'year': args.year
-        }
-        json.dump(config, f, indent=2)
-    print(f"   Configuration saved to: {config_file}")
-    
-    # Generate comprehensive report
-    print(f"\n📈 Generating visualization report...")
-    report_dir = os.path.join(args.output_dir, 'visualizations')
-    figures = create_comprehensive_report(
-        df_results, summary, battery_params, time_windows, 
-        electrolyser_params, save_dir=report_dir
-    )
-    print(f"   {len(figures)} figures saved to: {report_dir}/")
-    
-    # Sensitivity analysis
-    if args.sensitivity:
-        print(f"\n🔬 RUNNING SENSITIVITY ANALYSIS")
-        print("-"*80)
-        print("   This may take 10-30 minutes...")
-        
-        sensitivity_dir = os.path.join(args.output_dir, 'sensitivity_analysis')
-        sensitivity_results = run_complete_sensitivity_analysis(
-            pv_profile, spot_prices, timestamps,
-            battery_params, time_windows, electrolyser_params,
-            save_dir=sensitivity_dir
-        )
-        
-        print(f"   Sensitivity analysis complete!")
-        print(f"   Results saved to: {sensitivity_dir}/")
-    
-    print("\n" + "="*80)
-    print("OPTIMIZATION COMPLETE")
-    print("="*80)
-    print(f"\nAll results saved to: {args.output_dir}/")
-    print("\nNext steps:")
-    print(f"  - View visualizations in: {report_dir}/")
-    print(f"  - Analyze hourly results in: {results_file}")
-    if args.sensitivity:
-        print(f"  - Review sensitivity analysis in: {sensitivity_dir}/")
-    print(f"\nTo run the interactive dashboard:")
-    print(f"  streamlit run battery_arbitrage_dashboard.py")
-    print()
-
 
 if __name__ == "__main__":
     main()

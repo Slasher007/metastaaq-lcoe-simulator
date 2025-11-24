@@ -13,7 +13,7 @@ from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
     validate_time_windows
 )
-from battery_optimizer import BatteryOptimizer, distribute_monthly_pv_to_hourly_from_dataframe
+from battery_optimizer import BatteryOptimizer, distribute_monthly_pv_to_hourly_from_dataframe, generate_typical_pv_profile
 from battery_visualization import (
     plot_soc_profile, plot_power_flows, plot_economics_breakdown,
     plot_yearly_cashflow, plot_hydrogen_production
@@ -505,11 +505,13 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             spot_prices = data_content['Prix'].values
             hours_of_day = data_content['Heure'].values
             
+            # Use typical PV profile
+            pv_profile = generate_typical_pv_profile(hours_of_day, peak_power_mw=battery_params['P_charge_max'])
             # Prepare PV profile using month names from Mois column
-            pv_profile = distribute_monthly_pv_to_hourly_from_dataframe(
-                pv_energy_data['pv_energy_mwh'],
-                data_content
-            )
+            # pv_profile = distribute_monthly_pv_to_hourly_from_dataframe(
+            #     pv_energy_data['pv_energy_mwh'],
+            #     data_content
+            # )
             
             # Create optimizer
             optimizer = BatteryOptimizer(
@@ -521,7 +523,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # Run simulation with hours instead of timestamps
             df_results, summary = optimizer.simulate_year(pv_profile, spot_prices, hours_of_day)
-            
+            #print("simulation is run")
+            #print('PV profile:', pv_profile)
             # Store results in session state
             st.session_state['battery_results'] = df_results
             st.session_state['battery_summary'] = summary
@@ -614,6 +617,15 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             plt.close(fig_power_simple)
         
         with res_tab4:
+            col_run_left, col_run_right = st.columns([1, 4])
+            with col_run_left:
+                if st.button("🔁 Run Simulation", key="run_simulation_operational", use_container_width=True):
+                    st.session_state['battery_optimization_run'] = False
+                    rerun_fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
+                    if rerun_fn:
+                        rerun_fn()
+                    else:
+                        st.warning("Cannot rerun automatically; please rerun the app manually.")
             st.markdown("#### Operational Windows Analysis")
             
             # Window name mapping (no explicit idle window)
@@ -755,7 +767,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ax.set_xticks(range(24))
             ax.set_xlabel('Hour of Day', fontweight='bold')
             ax.set_ylabel('Total Cumulated Cost (€)', fontweight='bold')
-            ax.set_title('Total Hourly Power Consumption Cost Profile vs Constant PPA Baseline', fontweight='bold')
+            ax.set_title('Hourly Cash Flows', fontweight='bold')
             ax.legend()
             ax.grid(True, alpha=0.3)
             ax.axhline(0, color='black', linewidth=0.8)
@@ -803,6 +815,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             plt.tight_layout()
             st.pyplot(fig_win_hours)
             plt.close(fig_win_hours)
+
 
         with res_tab5:
             st.markdown("#### Complete Summary Statistics")

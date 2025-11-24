@@ -41,7 +41,7 @@ class BatteryOptimizer:
         
         # Calculate effective energy limits based on DoD
         self.E_min = self.battery_params["E_bat_max"] * self.battery_params["SoC_min"]
-        self.E_max = self.battery_params["E_bat_max"] * self.battery_params["SoC_max"]
+        self.E_max = self.battery_params["E_bat_max"] * self.battery_params["SoC_max"]+1
         
     def simulate_year(self, pv_profile_mw, spot_prices_eur_mwh, hours_of_day):
         """
@@ -88,7 +88,6 @@ class BatteryOptimizer:
         
         # Initialize battery state
         E_bat = self.battery_params["E_bat_max"] * self.battery_params["SoC_initial"]
-        
         # Simulation loop
         for t in range(n_hours):
             hour_of_day = int(hours_of_day[t])
@@ -205,7 +204,7 @@ class BatteryOptimizer:
         E_available = self.E_max - E_bat
         P_charge_limit = self.battery_params["P_charge_max"]
         eta_charge = self.battery_params["eta_charge"]
-        
+
         # Simplified: Constant charge power each hour (not dependent on actual PV or remaining capacity)
         # Always charge at P_charge_max unless battery is already full
         if E_available > 0:
@@ -456,7 +455,6 @@ def load_pv_profile(pv_data, timestamps):
     Args:
         pv_data: Can be:
             - DataFrame with 'timestamp' and 'pv_mw' columns
-            - Dict with monthly energy values (will be distributed hourly)
             - None (will generate typical profile)
         timestamps: Hourly timestamps for the simulation
     
@@ -470,84 +468,23 @@ def load_pv_profile(pv_data, timestamps):
         # Use provided hourly data
         return pv_data['pv_mw'].values
     elif isinstance(pv_data, dict):
-        # Distribute monthly energy across hours
-        return distribute_monthly_pv_to_hourly(pv_data, timestamps)
+        raise ValueError("Monthly PV dictionaries are no longer supported.")
     else:
         raise ValueError("Invalid pv_data format")
 
 
-def generate_typical_pv_profile(timestamps, peak_power_mw=10.0):
+def generate_typical_pv_profile(timestamps, peak_power_mw=None, battery_params=None):
     """
     Generate a typical PV production profile with seasonal variation
     
-    Simple model: PV follows sine curve during daylight hours
+    Simple model: align PV output with the current battery charge power
+    rating unless a custom peak power is provided.
     """
-    pv_profile = np.zeros(len(timestamps))
+    params = battery_params or DEFAULT_BATTERY_PARAMS
+    if peak_power_mw is None:
+        peak_power_mw = params.get("P_charge_max", DEFAULT_BATTERY_PARAMS["P_charge_max"])
     
-    for i, ts in enumerate(timestamps):
-        hour = ts.hour
-        month = ts.month
-        
-        # Seasonal capacity factor (higher in summer)
-        seasonal_factor = 0.7 + 0.3 * np.sin((month - 3) * np.pi / 6)
-        
-        # Daily production curve (sine between sunrise and sunset)
-        if 6 <= hour <= 20:
-            hour_angle = (hour - 13) * np.pi / 14  # Peak at 13:00
-            pv_profile[i] = peak_power_mw * seasonal_factor * np.cos(hour_angle) ** 2
-        else:
-            pv_profile[i] = 0
-    
-    return pv_profile
-
-
-def distribute_monthly_pv_to_hourly(monthly_pv_mwh, timestamps):
-    """
-    Distribute monthly PV energy values to hourly profile
-    using typical daily production curve
-    
-    Args:
-        monthly_pv_mwh: Dict with month names as keys and energy (MWh) as values
-        timestamps: Array-like of datetime objects
-    """
-    pv_profile = np.zeros(len(timestamps))
-    
-    # Month name mapping
-    month_names = ['January', 'February', 'March', 'April', 'May', 'June',
-                   'July', 'August', 'September', 'October', 'November', 'December']
-    
-    # Create daily production curve (normalized)
-    daily_curve = np.zeros(24)
-    for hour in range(6, 21):  # 6am to 9pm
-        hour_angle = (hour - 13) * np.pi / 14
-        daily_curve[hour] = np.cos(hour_angle) ** 2
-    
-    daily_curve = daily_curve / daily_curve.sum()  # Normalize
-    
-    for i, ts in enumerate(timestamps):
-        # Convert numpy.datetime64 to pandas Timestamp if needed
-        if isinstance(ts, np.datetime64):
-            ts = pd.Timestamp(ts)
-        
-        month_name = month_names[ts.month - 1]
-        if month_name in monthly_pv_mwh:
-            # Get monthly energy
-            monthly_energy = monthly_pv_mwh[month_name]
-            
-            # Days in this month
-            if ts.month == 2:
-                days_in_month = 28  # Simplified
-            elif ts.month in [4, 6, 9, 11]:
-                days_in_month = 30
-            else:
-                days_in_month = 31
-            
-            # Daily average energy
-            daily_energy = monthly_energy / days_in_month
-            
-            # Hourly power
-            pv_profile[i] = daily_energy * daily_curve[ts.hour]
-    
+    pv_profile = np.full(len(timestamps), peak_power_mw, dtype=float)
     return pv_profile
 
 

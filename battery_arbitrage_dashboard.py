@@ -14,7 +14,7 @@ from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
     validate_time_windows, calculate_max_hydrogen_production
 )
-from battery_optimizer import BatteryOptimizer, distribute_monthly_pv_to_hourly
+from battery_optimizer import BatteryOptimizer, generate_typical_pv_profile
 from battery_visualization import (
     plot_soc_profile, plot_power_flows, plot_economics_breakdown,
     plot_monthly_summary, plot_yearly_cashflow, plot_hydrogen_production
@@ -224,36 +224,46 @@ def main():
         help="Minimum operating load as fraction of rated power"
     )
     
-    # PV Configuration
-    st.sidebar.subheader("☀️ PV Configuration")
-    pv_mode = st.sidebar.radio(
-        "PV Data Source",
-        ["Use Existing PV Profile", "Import from Main Dashboard", "Generate Simple Profile"],
-        index=0
+# PV Configuration
+st.sidebar.subheader("☀️ PV Configuration")
+pv_mode = st.sidebar.radio(
+    "PV Data Source",
+    ["Use Existing PV Profile", "Import from Main Dashboard", "Generate Simple Profile"],
+    index=0
+)
+
+
+def _pv_peak_power_slider(key_suffix, default_value):
+    return st.sidebar.slider(
+        "PV Peak Power (MW)",
+        min_value=1.0,
+        max_value=30.0,
+        value=float(default_value),
+        step=1.0,
+        key=f"pv_peak_{key_suffix}"
     )
-    
-    if pv_mode == "Import from Main Dashboard":
-        # Try to import PV data from session state (if coming from main dashboard)
-        if 'pv_energy_data' in st.session_state:
-            pv_energy_monthly = st.session_state.pv_energy_data['pv_energy_mwh']
-            st.sidebar.success("✅ Using PV data from main dashboard")
-        else:
-            st.sidebar.warning("⚠️ No PV data in session. Using default profile.")
-            pv_energy_monthly = None
-    elif pv_mode == "Generate Simple Profile":
-        peak_power = st.sidebar.slider(
-            "PV Peak Power (MW)", 
-            min_value=1.0, max_value=30.0, value=10.0, step=1.0
-        )
-        pv_energy_monthly = None  # Will generate in optimizer
+
+
+pv_profile_override = None
+peak_power = float(DEFAULT_BATTERY_PARAMS['P_charge_max'])
+
+if pv_mode == "Use Existing PV Profile":
+    if 'battery_results' in st.session_state:
+        pv_profile_override = st.session_state['battery_results']['pv_profile_mw'].to_numpy()
+        st.sidebar.success("✅ Using PV profile from most recent optimization run")
     else:
-        # Use default monthly values (example)
-        pv_energy_monthly = {
-            'January': 200, 'February': 250, 'March': 350, 'April': 450,
-            'May': 550, 'June': 600, 'July': 620, 'August': 580,
-            'September': 450, 'October': 350, 'November': 220, 'December': 180
-        }
-        st.sidebar.info("Using default monthly PV profile")
+        st.sidebar.warning("⚠️ No previous PV profile available. Specify a peak power.")
+        peak_power = _pv_peak_power_slider('existing', peak_power)
+elif pv_mode == "Import from Main Dashboard":
+    if 'pv_energy_data' in st.session_state:
+        energy_data = st.session_state.pv_energy_data
+        peak_power = float(energy_data.get('estimated_power_mwp', peak_power))
+        st.sidebar.success("✅ Using estimated PV peak power from main dashboard")
+    else:
+        st.sidebar.warning("⚠️ No PV data in session. Specify a peak power.")
+        peak_power = _pv_peak_power_slider('import', peak_power)
+else:
+    peak_power = _pv_peak_power_slider('generate', peak_power)
     
     # Run simulation button
     st.sidebar.markdown("---")
@@ -267,12 +277,14 @@ def main():
             spot_prices = df_prices_year['Prix'].values
             
             # Prepare PV profile
-            if pv_energy_monthly:
-                pv_profile = distribute_monthly_pv_to_hourly(pv_energy_monthly, timestamps)
+            if pv_profile_override is not None:
+                pv_profile = pv_profile_override
             else:
-                # Simple generation
-                from battery_optimizer import generate_typical_pv_profile
-                pv_profile = generate_typical_pv_profile(timestamps, peak_power_mw=peak_power if pv_mode == "Generate Simple Profile" else 10.0)
+                pv_profile = generate_typical_pv_profile(
+                    timestamps,
+                    peak_power_mw=peak_power,
+                    battery_params=battery_params
+                )
             
             # Create optimizer
             optimizer = BatteryOptimizer(
@@ -498,11 +510,11 @@ def main():
                         with st.spinner("Running analysis..."):
                             timestamps = df_prices_year['timestamp'].values
                             spot_prices = df_prices_year['Prix'].values
-                            if pv_energy_monthly:
-                                pv_profile = distribute_monthly_pv_to_hourly(pv_energy_monthly, timestamps)
-                            else:
-                                from battery_optimizer import generate_typical_pv_profile
-                                pv_profile = generate_typical_pv_profile(timestamps, 10.0)
+                            pv_profile = generate_typical_pv_profile(
+                                timestamps,
+                                peak_power_mw=peak_power,
+                                battery_params=battery_params
+                            )
                             
                             analyzer = SensitivityAnalyzer(battery_params, time_windows, electrolyser_params)
                             df_sens = analyzer.time_window_sensitivity(
@@ -528,11 +540,11 @@ def main():
                         with st.spinner("Running analysis..."):
                             timestamps = df_prices_year['timestamp'].values
                             spot_prices = df_prices_year['Prix'].values
-                            if pv_energy_monthly:
-                                pv_profile = distribute_monthly_pv_to_hourly(pv_energy_monthly, timestamps)
-                            else:
-                                from battery_optimizer import generate_typical_pv_profile
-                                pv_profile = generate_typical_pv_profile(timestamps, 10.0)
+                            pv_profile = generate_typical_pv_profile(
+                                timestamps,
+                                peak_power_mw=peak_power,
+                                battery_params=battery_params
+                            )
                             
                             analyzer = SensitivityAnalyzer(battery_params, time_windows, electrolyser_params)
                             df_battery_sens = analyzer.battery_sizing_sensitivity(
