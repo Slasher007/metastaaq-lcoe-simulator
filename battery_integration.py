@@ -825,7 +825,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             battery_series = hourly_profile['battery_lcos_cost'].replace(0, np.nan)
             battery_label = f'Battery LCOS ({battery_cost_per_mwh:.0f} €/MWh)'
             ax.plot(hourly_profile.index, battery_series, label=battery_label, color='gray', linewidth=1.5, alpha=0.7, linestyle='-.', marker='^')
-            ax.plot(grid_supply_series.index, grid_supply_series.values, label='Supply from Grid', color='blue', linewidth=1.5, alpha=0.7, linestyle=':', marker='d')
+            ax.plot(grid_supply_series.index, grid_supply_series.values, label='Grid to Electrolyser', color='blue', linewidth=1.5, alpha=0.7, linestyle=':', marker='d')
             net_series = hourly_profile['net_cashflow']
             ax.plot(net_series.index, net_series.values, label='Net Cashflow', color='black', linewidth=2, alpha=0.8, linestyle='-', marker='o')
             ax.fill_between(net_series.index, 0, net_series.values, where=net_series.values>=0, color='red', alpha=0.1)
@@ -846,48 +846,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             st.pyplot(fig_hourly_cost)
             plt.close(fig_hourly_cost)
-
-            # --- Chart 3: Selected Hours & Spot Prices per Operational Window ---
-            st.markdown("##### ⏰ Selected Hours and Spot Prices by Operational Window")
-            df_hours = df_results[['hour_of_day', 'spot_price_eur_mwh', 'window_type']].copy()
-            df_hours['window_name'] = df_hours['window_type'].map(window_map)
-            # Drop idle/undefined windows so only true operational windows are shown
-            df_hours = df_hours[df_hours['window_name'].notna()]
-
-            fig_win_hours, ax = plt.subplots(figsize=(12, 4))
-
-            colors = {
-                'PV Charging': 'gold',
-                'Sell to Grid': 'green',
-                'Grid Charging': 'red',
-                'Supply to Electrolyser': 'purple',
-            }
-
-            for w in order:
-                sub = df_hours[df_hours['window_name'] == w]
-                if sub.empty:
-                    continue
-                ax.scatter(
-                    sub['hour_of_day'],
-                    sub['spot_price_eur_mwh'],
-                    label=w,
-                    alpha=0.7,
-                    s=25,
-                    color=colors.get(w, 'gray'),
-                    edgecolors='none'
-                )
-
-            ax.set_xticks(range(24))
-            ax.set_xlabel('Hour of Day', fontweight='bold')
-            ax.set_ylabel('Spot Price (€/MWh)', fontweight='bold')
-            ax.set_title('Spot Prices at Selected Hours per Operational Window', fontweight='bold')
-            ax.grid(True, alpha=0.3)
-            ax.legend()
-
-            plt.tight_layout()
-            st.pyplot(fig_win_hours)
-            plt.close(fig_win_hours)
-
 
         with res_tab5:
             st.markdown("#### Complete Summary Statistics")
@@ -927,67 +885,90 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             }
             st.table(pd.DataFrame(summary_data))
         
-        # Key Performance Indicators - moved to bottom
+        # Key Performance Indicators - simplified cash view
         st.markdown("### 📊 Key Performance Indicators")
-        
-        col1, col2, col3, col4, col5 = st.columns(5)
         
         cash_totals = st.session_state.get('battery_cash_totals')
         if cash_totals:
-            net_cash = cash_totals['net_cashflow']
             revenue_total = cash_totals['sell_revenue'] + cash_totals['ely_savings']
             cost_total = cash_totals['grid_cost'] + cash_totals['pv_cost'] + cash_totals['battery_cost']
-            with col1:
-                st.metric(
-                    "Net Cashflow",
-                    f"{net_cash:,.0f} €",
-                    delta=f"{net_cash/365:.0f} €/day"
-                )
-            with col2:
-                st.metric(
-                    "Revenue (Battery Output)",
-                    f"{revenue_total:,.0f} €",
-                    delta=f"Grid: {cash_totals['sell_revenue']:,.0f} €, Ely: {cash_totals['ely_savings']:,.0f} €"
-                )
-            with col3:
-                st.metric(
-                    "Supply Cost (Grid + PV + Battery)",
-                    f"{cost_total:,.0f} €",
-                    delta=f"Grid: {cash_totals['grid_cost']:,.0f} €, PV: {cash_totals['pv_cost']:,.0f} €, Bat: {cash_totals['battery_cost']:,.0f} €"
-                )
+            net_cash = cash_totals['net_cashflow']
         else:
-            with col1:
-                st.metric(
-                    "Net Profit",
-                    f"{summary['net_profit_eur']:,.0f} €",
-                    delta=f"{summary['net_profit_eur']/365:.0f} €/day"
-                )
-            with col2:
-                st.metric(
-                    "Revenue (Sell + Ely)",
-                    f"{summary['total_revenue_eur']:,.0f} €",
-                    delta=f"Sell: {summary['total_revenue_arbitrage_eur']:,.0f} €, Ely: {summary['total_ely_value_eur']:,.0f} €"
-                )
-            with col3:
-                st.metric(
-                    "Charging Cost (Grid + PV)",
-                    f"{summary['total_cost_eur']:,.0f} €",
-                    delta=f"Grid: {summary['total_cost_charging_eur']:,.0f} €, PV: {summary['total_pv_cost_eur']:,.0f} €"
-                )
+            revenue_total = summary['total_revenue_eur']
+            cost_total = summary['total_cost_eur']
+            net_cash = summary['net_profit_eur']
         
-        with col4:
-            st.metric(
-                "H₂ Production",
-                f"{summary['total_h2_production_tonnes']:.1f} t",
-                delta=f"{summary['h2_cost_eur_per_kg']:.2f} €/kg"
+        col_rev, col_cost, col_net = st.columns(3)
+        
+        def _kpi_card(label, value, color_bg, color_text, sign_prefix=""):
+            st.markdown(
+                f"""
+                <div style="
+                    border-radius:8px;
+                    padding:16px;
+                    background-color:{color_bg};
+                    color:{color_text};
+                    text-align:center;
+                    font-weight:bold;
+                ">
+                    <div style="font-size:14px; text-transform:uppercase; letter-spacing:1px;">{label}</div>
+                    <div style="font-size:24px; margin-top:6px;">{sign_prefix}{value:,.0f} €</div>
+                </div>
+                """,
+                unsafe_allow_html=True
             )
         
-        with col5:
-            st.metric(
-                "Battery Cycles",
-                f"{summary['equivalent_cycles']:.0f}",
-                delta=f"{summary['avg_soc']:.0%} avg SoC"
+        with col_rev:
+            _kpi_card("Revenue (Battery Output)", revenue_total, "#e6f4ea", "#1b4332", "+")
+        
+        with col_cost:
+            _kpi_card("Supply Cost (Grid + PV + Battery)", cost_total, "#fdecea", "#8a1c1c", "-")
+        
+        with col_net:
+            card_color = "#f4f4f4" if net_cash >= 0 else "#fdecea"
+            card_text = "#000000" if net_cash >= 0 else "#8a1c1c"
+            net_sign = "+" if net_cash >= 0 else "-"
+            _kpi_card("Net Cashflow", abs(net_cash), card_color, card_text, net_sign)
+        
+        # --- Chart 3: Selected Hours & Spot Prices per Operational Window ---
+        st.markdown("##### ⏰ Selected Hours and Spot Prices by Operational Window")
+        df_hours = df_results[['hour_of_day', 'spot_price_eur_mwh', 'window_type']].copy()
+        df_hours['window_name'] = df_hours['window_type'].map(window_map)
+        df_hours = df_hours[df_hours['window_name'].notna()]
+
+        fig_win_hours, ax = plt.subplots(figsize=(12, 4))
+
+        colors = {
+            'PV Charging': 'gold',
+            'Sell to Grid': 'green',
+            'Grid Charging': 'red',
+            'Supply to Electrolyser': 'purple',
+        }
+
+        for w in order:
+            sub = df_hours[df_hours['window_name'] == w]
+            if sub.empty:
+                continue
+            ax.scatter(
+                sub['hour_of_day'],
+                sub['spot_price_eur_mwh'],
+                label=w,
+                alpha=0.7,
+                s=25,
+                color=colors.get(w, 'gray'),
+                edgecolors='none'
             )
+
+        ax.set_xticks(range(24))
+        ax.set_xlabel('Hour of Day', fontweight='bold')
+        ax.set_ylabel('Spot Price (€/MWh)', fontweight='bold')
+        ax.set_title('Spot Prices at Selected Hours per Operational Window', fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+        plt.tight_layout()
+        st.pyplot(fig_win_hours)
+        plt.close(fig_win_hours)
     
     else:
         st.info("👆 Configure battery parameters and time windows above, then click '🚀 Run Battery Optimization' to start the simulation")
