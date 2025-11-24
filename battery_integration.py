@@ -687,9 +687,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             df_hourly_cost = df_results.copy()
             
             # Calculate costs based on window type
-            df_hourly_cost['pv_charge_cost'] = df_hourly_cost.apply(
-                lambda x: x['battery_charge_mw'] * pv_price if x['window_type'] == 'pv_charge' else 0, axis=1
-            )
             df_hourly_cost['grid_charge_cost'] = df_hourly_cost.apply(
                 lambda x: x['battery_charge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'grid_charging' else 0, axis=1
             )
@@ -713,21 +710,21 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # The baseline assumes constant electrolyser operation powered by PPA
             # So we use the full electrolyser power capacity for PPA baseline calculation
             df_hourly_cost['ppa_baseline_cost'] = electrolyser_power * ppa_price
+            df_hourly_cost['pv_baseline_cost'] = electrolyser_power * pv_price
             
             # Group by hour of day
             hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
-                'pv_charge_cost': 'sum',
                 'grid_charge_cost': 'sum',
                 'revenue_sell_to_grid': 'sum',
                 'ely_supply_savings': 'sum',
-                'ppa_baseline_cost': 'sum'
+                'ppa_baseline_cost': 'sum',
+                'pv_baseline_cost': 'sum'
             })
             
             fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
             
             # Stacked bars for System Costs
             ax.bar(hourly_profile.index, hourly_profile['grid_charge_cost'], label='Grid Charging Cost', color='red', alpha=0.7)
-            ax.bar(hourly_profile.index, hourly_profile['pv_charge_cost'], bottom=hourly_profile['grid_charge_cost'], label='PV Charging Cost', color='gold', alpha=0.7)
             
             # Revenue as negative bars - explicitly labeled as "Sell to Grid"
             ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Sell to Grid Revenue', color='green', alpha=0.7)
@@ -743,12 +740,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                            f"{hourly_profile.loc[hour, 'grid_charge_cost']:.0f}€", 
                            ha='center', va='center', fontsize=8, color='black', fontweight='bold')
                 
-                # PV charging cost (stacked on top)
-                if hourly_profile.loc[hour, 'pv_charge_cost'] > 0:
-                    ax.text(hour, hourly_profile.loc[hour, 'grid_charge_cost'] + hourly_profile.loc[hour, 'pv_charge_cost'] / 2, 
-                           f"{hourly_profile.loc[hour, 'pv_charge_cost']:.0f}€", 
-                           ha='center', va='center', fontsize=8, color='black', fontweight='bold')
-                
                 # Sell to Grid revenue (negative)
                 if hourly_profile.loc[hour, 'revenue_sell_to_grid'] > 0:
                     ax.text(hour, -hourly_profile.loc[hour, 'revenue_sell_to_grid'] / 2, 
@@ -762,7 +753,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                            ha='center', va='center', fontsize=8, color='black', fontweight='bold')
             
             # PPA Baseline as a line (Constant PPA supply)
-            ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA Baseline Cost (Constant {electrolyser_power}MW @ {ppa_price} €/MWh)', color='purple', linewidth=3, linestyle='-', marker='o')
+            ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA ({ppa_price} €/MWh)', color='purple', linewidth=3, linestyle='-', marker='o')
+            ax.plot(hourly_profile.index, hourly_profile['pv_baseline_cost'], label=f'PV Cost ({pv_price} €/MWh)', color='gold', linewidth=2, linestyle='--', marker='s')
             
             ax.set_xticks(range(24))
             ax.set_xlabel('Hour of Day', fontweight='bold')
