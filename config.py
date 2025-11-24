@@ -32,7 +32,7 @@ DEFAULT_PARAMS = {
     "electrolyser_power": 1.0,
     "electrolyser_specific_consumption": 4.8,
     "service_ratio": 0.98,
-    "pv_price": 0.0,
+    "pv_price": 60.0,
     "ppa_price": 80.0,
     "target_price": 30.0,
     "pv_project_years": 20,

@@ -13,6 +13,8 @@ from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
     validate_time_windows
 )
+
+DEFAULT_BATTERY_COST_EUR_PER_MWH = 300 # €/MWh
 from battery_optimizer import BatteryOptimizer, distribute_monthly_pv_to_hourly_from_dataframe, generate_typical_pv_profile
 from battery_visualization import (
     plot_soc_profile, plot_power_flows, plot_economics_breakdown,
@@ -212,6 +214,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with col1:
             st.subheader("⚙️ Battery Configuration")
             
+            if 'battery_cost_per_mwh' not in st.session_state:
+                st.session_state.battery_cost_per_mwh = DEFAULT_BATTERY_COST_EUR_PER_MWH
+            
             # Calculate default capacity based on electrolyser power and PV window
             # Capacity = Power * Duration
             default_pv_duration = DEFAULT_TIME_WINDOWS['pv_charge_end'] - DEFAULT_TIME_WINDOWS['pv_charge_start']
@@ -250,6 +255,16 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 "Max Depth of Discharge", 
                 min_value=0.80, max_value=1.00, value=float(DEFAULT_BATTERY_PARAMS['DoD_max']), step=0.05,
                 key='bat_dod'
+            )
+            
+            st.number_input(
+                "Battery Cost (€/MWh)",
+                min_value=0.0,
+                max_value=1000.0,
+                value=float(st.session_state.battery_cost_per_mwh),
+                step=10.0,
+                help="Assumed levelized cost for battery energy throughput",
+                key='battery_cost_per_mwh'
             )
             
             # Electrolyser parameters (from main dashboard)
@@ -480,6 +495,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         battery_params['eta_charge'] = np.sqrt(battery_params['eta_rt'])
         battery_params['eta_discharge'] = np.sqrt(battery_params['eta_rt'])
         battery_params['DoD_max'] = st.session_state.get('bat_dod', float(DEFAULT_BATTERY_PARAMS['DoD_max']))
+        battery_params['cost_per_mwh'] = st.session_state.get('battery_cost_per_mwh', DEFAULT_BATTERY_COST_EUR_PER_MWH)
         
         time_windows = DEFAULT_TIME_WINDOWS.copy()
         time_windows['pv_charge_start'] = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
@@ -710,7 +726,16 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # The baseline assumes constant electrolyser operation powered by PPA
             # So we use the full electrolyser power capacity for PPA baseline calculation
             df_hourly_cost['ppa_baseline_cost'] = electrolyser_power * ppa_price
-            df_hourly_cost['pv_baseline_cost'] = electrolyser_power * pv_price
+            df_hourly_cost['pv_baseline_cost'] = df_hourly_cost.apply(
+                lambda x: x['battery_charge_mw'] * pv_price if x['window_type'] == 'pv_charge' else 0,
+                axis=1
+            )
+            battery_cost_per_mwh = battery_params.get('cost_per_mwh', DEFAULT_BATTERY_COST_EUR_PER_MWH)
+            discharge_windows = {'sell_to_grid', 'electrolyser'}
+            df_hourly_cost['battery_lcos_cost'] = df_hourly_cost.apply(
+                lambda x: x['battery_discharge_mw'] * battery_cost_per_mwh if x['window_type'] in discharge_windows else 0,
+                axis=1
+            )
             
             # Group by hour of day
             hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
@@ -718,7 +743,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 'revenue_sell_to_grid': 'sum',
                 'ely_supply_savings': 'sum',
                 'ppa_baseline_cost': 'sum',
-                'pv_baseline_cost': 'sum'
+                'pv_baseline_cost': 'sum',
+                'battery_lcos_cost': 'sum'
             })
             
             fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
@@ -754,7 +780,11 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # PPA Baseline as a line (Constant PPA supply)
             ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA ({ppa_price} €/MWh)', color='purple', linewidth=3, linestyle='-', marker='o')
-            ax.plot(hourly_profile.index, hourly_profile['pv_baseline_cost'], label=f'PV Cost ({pv_price} €/MWh)', color='gold', linewidth=2, linestyle='--', marker='s')
+            pv_series = hourly_profile['pv_baseline_cost'].replace(0, np.nan)
+            ax.plot(hourly_profile.index, pv_series, label=f'PV LCOE ({pv_price} €/MWh)', color='gold', linewidth=2, linestyle='--', marker='s')
+            battery_series = hourly_profile['battery_lcos_cost'].replace(0, np.nan)
+            battery_label = f'Battery LCOS ({battery_cost_per_mwh:.0f} €/MWh)'
+            ax.plot(hourly_profile.index, battery_series, label=battery_label, color='gray', linewidth=2, linestyle='-.', marker='^')
             
             ax.set_xticks(range(24))
             ax.set_xlabel('Hour of Day', fontweight='bold')
