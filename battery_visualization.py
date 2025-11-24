@@ -74,7 +74,7 @@ def plot_soc_profile(df_results, time_window_days=7, start_day=0, time_windows=N
 
 def plot_power_flows(df_results, time_window_days=7, start_day=0, save_path=None):
     """
-    Plot power flows (charging, discharging, electrolyser, curtailment)
+    Plot power flows (charging, discharging, electrolyser, PV production)
     
     Returns:
         matplotlib Figure
@@ -128,15 +128,13 @@ def plot_power_flows(df_results, time_window_days=7, start_day=0, save_path=None
     ax2.grid(True, alpha=0.3)
     ax2.axhline(y=0, color='black', linewidth=0.8)
     
-    # Plot 3: PV Production and Curtailment
+    # Plot 3: PV Production
     ax3 = axes[2]
-    ax3.fill_between(df_window['timestamp'], 0, df_window['pv_available_mw'], 
-                     color='orange', alpha=0.5, label='PV Available')
-    ax3.fill_between(df_window['timestamp'], 0, df_window['pv_curtailed_mw'], 
-                     color='gray', alpha=0.7, label='PV Curtailed')
+    ax3.fill_between(df_window['timestamp'], 0, df_window['pv_profile_mw'], 
+                     color='orange', alpha=0.5, label='PV Production')
     ax3.set_xlabel('Time', fontsize=12, fontweight='bold')
     ax3.set_ylabel('Power (MW)', fontsize=11, fontweight='bold')
-    ax3.set_title('PV Production and Curtailment', fontsize=12, fontweight='bold')
+    ax3.set_title('PV Production', fontsize=12, fontweight='bold')
     ax3.legend(loc='upper right')
     ax3.grid(True, alpha=0.3)
     
@@ -256,7 +254,6 @@ def plot_monthly_summary(summary, save_path=None):
         ('Energy Flows (MWh)', [
             ('PV Available', summary['total_pv_available_mwh']),
             ('PV to Battery', summary['total_pv_to_battery_mwh']),
-            ('PV Curtailed', summary['total_pv_curtailed_mwh']),
             ('Grid to Battery', summary['total_grid_to_battery_mwh']),
             ('Battery to Grid', summary['total_battery_to_grid_mwh']),
             ('Battery to Ely', summary['total_battery_to_ely_mwh']),

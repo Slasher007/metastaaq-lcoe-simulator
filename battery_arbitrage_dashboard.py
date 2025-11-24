@@ -433,13 +433,13 @@ def main():
             st.markdown("### Detailed Metrics")
             metrics_data = {
                 'Category': [
-                    'Energy Flows', '', '', '', '', '',
+                    'Energy Flows', '', '', '', '',
                     'Economics', '', '', '',
                     'Battery', '', '', '',
                     'Electrolyser', '', '', ''
                 ],
                 'Metric': [
-                    'PV Available', 'PV to Battery', 'PV Curtailed', 'Grid to Battery', 
+                    'PV Available', 'PV to Battery', 'Grid to Battery', 
                     'Battery to Grid', 'Battery to Electrolyser',
                     'Total Revenue', 'Total Cost', 'Total Penalties', 'Net Profit',
                     'Avg SoC', 'Min SoC', 'Max SoC', 'Equivalent Cycles',
@@ -448,7 +448,6 @@ def main():
                 'Value': [
                     f"{summary['total_pv_available_mwh']:.1f} MWh",
                     f"{summary['total_pv_to_battery_mwh']:.1f} MWh",
-                    f"{summary['total_pv_curtailed_mwh']:.1f} MWh",
                     f"{summary['total_grid_to_battery_mwh']:.1f} MWh",
                     f"{summary['total_battery_to_grid_mwh']:.1f} MWh",
                     f"{summary['total_battery_to_ely_mwh']:.1f} MWh",

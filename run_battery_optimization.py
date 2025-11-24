@@ -236,7 +236,6 @@ Examples:
     print(f"\n☀️  PV Utilization:")
     print(f"   PV Available:               {summary['total_pv_available_mwh']:>15,.0f} MWh")
     print(f"   PV to Battery:              {summary['total_pv_to_battery_mwh']:>15,.0f} MWh")
-    print(f"   PV Curtailed:               {summary['total_pv_curtailed_mwh']:>15,.0f} MWh")
     print(f"   Utilization Rate:           {summary['pv_utilization_rate']:>15,.1%}")
     
     # Save results

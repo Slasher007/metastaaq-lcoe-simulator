@@ -71,7 +71,6 @@ class BatteryOptimizer:
             # Power flows [MW] (positive = charging, negative = discharging)
             'battery_charge_mw': np.zeros(n_hours),
             'battery_discharge_mw': np.zeros(n_hours),
-            'pv_curtailed_mw': np.zeros(n_hours),
             
             # Electrolyser
             'ely_h2_production_kg': np.zeros(n_hours),
@@ -124,7 +123,6 @@ class BatteryOptimizer:
                 # Should not happen if windows cover 24 hours
                 # Default to idle behavior (no flows)
                 flows = self._init_flows()
-                flows['pv_curtailed'] = pv_available
             
             # Store results
             E_bat = np.clip(E_bat, self.E_min, self.E_max)
@@ -134,7 +132,6 @@ class BatteryOptimizer:
             
             results['battery_charge_mw'][t] = flows['battery_charge']
             results['battery_discharge_mw'][t] = flows['battery_discharge']
-            results['pv_curtailed_mw'][t] = flows['pv_curtailed']
             results['ely_shortage_mw'][t] = flows['ely_shortage']
             
             # Calculate economics
@@ -225,9 +222,6 @@ class BatteryOptimizer:
             E_bat_new = E_bat
             flows['battery_charge'] = 0.0
         
-        # Simplified: No curtailment tracking
-        flows['pv_curtailed'] = 0.0
-        
         return E_bat_new, flows
     
     def _sell_to_grid_window(self, E_bat, pv_available, spot_price):
@@ -258,9 +252,6 @@ class BatteryOptimizer:
             E_bat_new = E_bat
             flows['battery_discharge'] = 0.0
         
-        # Curtail PV during this window (rule: only arbitrage in evening)
-        flows['pv_curtailed'] = pv_available
-        
         return E_bat_new, flows
     
     def _grid_charging_window(self, E_bat, pv_available, spot_price):
@@ -289,9 +280,6 @@ class BatteryOptimizer:
             # Battery already full
             E_bat_new = E_bat
             flows['battery_charge'] = 0.0
-        
-        # No PV during this window typically, but handle it
-        flows['pv_curtailed'] = pv_available
         
         return E_bat_new, flows
     
@@ -332,9 +320,6 @@ class BatteryOptimizer:
         flows['battery_discharge'] = P_ely_actual
         flows['ely_shortage'] = P_shortage
         
-        # Curtail any PV during electrolyser window (could be modified to charge battery)
-        flows['pv_curtailed'] = pv_available
-        
         return E_bat_new, flows
     
     def _init_flows(self):
@@ -342,7 +327,6 @@ class BatteryOptimizer:
         return {
             'battery_charge': 0.0,
             'battery_discharge': 0.0,
-            'pv_curtailed': 0.0,
             'ely_shortage': 0.0,
         }
     
@@ -367,8 +351,6 @@ class BatteryOptimizer:
         # Ely Discharge: only when window is 'electrolyser'
         df_ely_discharge = df[df['window_type'] == 'electrolyser']
         total_battery_to_ely = df_ely_discharge['battery_discharge_mw'].sum()
-        
-        total_pv_curtailed = df['pv_curtailed_mw'].sum()
         
         # Economics
         # Arbitrage revenue from selling to grid
@@ -421,7 +403,6 @@ class BatteryOptimizer:
             # Energy flows
             'total_pv_available_mwh': total_pv_available,
             'total_pv_to_battery_mwh': total_pv_to_battery,
-            'total_pv_curtailed_mwh': total_pv_curtailed,
             'pv_utilization_rate': total_pv_to_battery / total_pv_available if total_pv_available > 0 else 0,
             'total_grid_to_battery_mwh': total_grid_to_battery,
             'total_battery_to_grid_mwh': total_battery_to_grid,

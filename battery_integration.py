@@ -602,9 +602,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # PV
             axes[2].fill_between(range(len(df_window)), 0, df_window['pv_profile_mw'], 
-                                color='orange', alpha=0.5, label='PV Available')
-            axes[2].fill_between(range(len(df_window)), 0, df_window['pv_curtailed_mw'], 
-                                color='gray', alpha=0.7, label='PV Curtailed')
+                                color='orange', alpha=0.5, label='PV Production')
             axes[2].set_xlabel('Hour', fontweight='bold')
             axes[2].set_ylabel('Power (MW)', fontweight='bold')
             axes[2].set_title('PV Production', fontweight='bold')
@@ -811,13 +809,13 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             summary_data = {
                 'Category': [
-                    'Energy Flows', '', '', '', '', '',
+                    'Energy Flows', '', '', '', '',
                     'Economics', '', '', '',
                     'Battery', '', '', '',
                     'Electrolyser', '', ''
                 ],
                 'Metric': [
-                    'PV Available', 'PV to Battery', 'PV Curtailed',
+                    'PV Available', 'PV to Battery',
                     'Grid to Battery', 'Battery to Grid', 'Battery to Electrolyser',
                     'Revenue', 'Cost', 'Penalties', 'Net Profit',
                     'Avg SoC', 'SoC Range', 'Cycles', 'Throughput',
@@ -826,7 +824,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 'Value': [
                     f"{summary['total_pv_available_mwh']:.1f} MWh",
                     f"{summary['total_pv_to_battery_mwh']:.1f} MWh",
-                    f"{summary['total_pv_curtailed_mwh']:.1f} MWh",
                     f"{summary['total_grid_to_battery_mwh']:.1f} MWh",
                     f"{summary['total_battery_to_grid_mwh']:.1f} MWh",
                     f"{summary['total_battery_to_ely_mwh']:.1f} MWh",
