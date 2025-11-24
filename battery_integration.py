@@ -697,7 +697,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             win_stats = win_stats.reindex([w for w in order if w in win_stats.index]).fillna(0)
             
             # --- Chart 1: Hourly Power Consumption Cost Analysis ---
-            st.markdown("##### 📉 Hourly Power Consumption Cost Analysis (vs PPA Baseline)")
+            st.markdown("##### 📉 Hourly Cash Flows")
             
             # Prepare hourly data
             df_hourly_cost = df_results.copy()
@@ -725,7 +725,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # PPA Baseline: Cost if we bought the electrolyser input energy at PPA price
             # The baseline assumes constant electrolyser operation powered by PPA
             # So we use the full electrolyser power capacity for PPA baseline calculation
-            df_hourly_cost['ppa_baseline_cost'] = electrolyser_power * ppa_price
+            df_hourly_cost['ppa_baseline_cost'] = df_hourly_cost.apply(
+                lambda x: electrolyser_power * ppa_price if ppa_price > 0 and x['spot_price_eur_mwh'] > ppa_price else 0,
+                axis=1
+            )
             df_hourly_cost['pv_baseline_cost'] = df_hourly_cost.apply(
                 lambda x: x['battery_charge_mw'] * pv_price if x['window_type'] == 'pv_charge' else 0,
                 axis=1
@@ -734,6 +737,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             discharge_windows = {'sell_to_grid', 'electrolyser'}
             df_hourly_cost['battery_lcos_cost'] = df_hourly_cost.apply(
                 lambda x: x['battery_discharge_mw'] * battery_cost_per_mwh if x['window_type'] in discharge_windows else 0,
+                axis=1
+            )
+            df_hourly_cost['grid_supply_price'] = df_hourly_cost.apply(
+                lambda x: x['spot_price_eur_mwh'] if (ppa_price == 0 or x['spot_price_eur_mwh'] <= ppa_price) else np.nan,
                 axis=1
             )
             
@@ -746,8 +753,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 'pv_baseline_cost': 'sum',
                 'battery_lcos_cost': 'sum'
             })
-            grid_supply_series = df_hourly_cost.groupby('hour_of_day')['spot_price_eur_mwh'].mean()
-            
+            grid_supply_series = df_hourly_cost.groupby('hour_of_day')['grid_supply_price'].mean().dropna()
+             
+            print(df_hourly_cost)
+
             fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
             
             # Stacked bars for System Costs
@@ -780,7 +789,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                            ha='center', va='center', fontsize=8, color='black', fontweight='bold')
             
             # PPA Baseline as a line (Constant PPA supply)
-            ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA ({ppa_price} €/MWh)', color='purple', linewidth=3, linestyle='-', marker='o')
+            ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA ({ppa_price} €/MWh)', color='orange', linewidth=3, linestyle='-', marker='o')
             pv_series = hourly_profile['pv_baseline_cost'].replace(0, np.nan)
             ax.plot(hourly_profile.index, pv_series, label=f'PV LCOE ({pv_price} €/MWh)', color='gold', linewidth=2, linestyle='--', marker='s')
             battery_series = hourly_profile['battery_lcos_cost'].replace(0, np.nan)
