@@ -727,7 +727,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 height = bar.get_height()
                 if height > 0:
                     ax.text(bar.get_x() + bar.get_width()/2., height,
-                           f'{height:.0f}',
+                           f'{height:.4f}',
                            ha='center', va='bottom', fontsize=9, fontweight='bold')
             
             ax.set_xlabel('Hour of Day', fontweight='bold', fontsize=12)
@@ -745,7 +745,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             max_value = hourly_pv_cumulative['cumulative_pv_mwh'].max()
             
             # Add text box with statistics
-            stats_text = f'Total: {total_pv:,.0f} MWh/year\nPeak Hour: {max_hour:02d}:00 ({max_value:,.0f} MWh)'
+            stats_text = f'Total: {total_pv:,.4f} MWh/year\nPeak Hour: {max_hour:02d}:00 ({max_value:,.4f} MWh)'
             ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
                    fontsize=10, verticalalignment='top',
                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))

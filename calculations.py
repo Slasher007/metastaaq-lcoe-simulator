@@ -175,7 +175,7 @@ def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, l
         'Heure': aggregated_df['hour'],
         'Mois': aggregated_df['date'].dt.month.map(month_names_en),
         'Jours': aggregated_df['date'].dt.dayofweek.map(day_names_en),
-        'MW': aggregated_df['pv_mw'].round(2),
+        'MW': aggregated_df['pv_mw'],#.round(2),
         'Annee': aggregated_df['date'].dt.year
     })
     
