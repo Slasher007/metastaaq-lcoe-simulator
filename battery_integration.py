@@ -42,7 +42,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     # Filter data to only include December 2023
     start_date = '2023-12-01'
-    end_date = '2023-12-31'
+    end_date = '2023-12-01'
     mask = (data_content['Date'] >= start_date) & (data_content['Date'] <= end_date)
     data_content = data_content[mask]
 
@@ -556,6 +556,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                                 endyear=endyear
                             )
                         
+                        print('Total PV production:', data_content['PV_MW'].sum())
                         print(data_content[['Date', 'Heure','Mois','Jours','PV_MW']][:24])
 
                         pv_profile = data_content['PV_MW'].values
