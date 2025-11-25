@@ -23,6 +23,7 @@ from battery_visualization import (
 
 
 def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_data, pv_price=0.0, ppa_price=0.0):
+    
     """
     Render the battery arbitrage optimization tab in the main dashboard
     
@@ -40,6 +41,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     if not pd.api.types.is_datetime64_any_dtype(data_content['Date']):
         data_content['Date'] = pd.to_datetime(data_content['Date'])
     
+    mask = data_content['Date'] == '2024-12-01'
+    data_content = data_content[mask]
+
     # Add computed columns
     data_content['Week'] = data_content['Date'].dt.isocalendar().week
     data_content['DayOfWeek'] = data_content['Date'].dt.day_name()
@@ -912,7 +916,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             )
             grid_supply_series = df_hourly_cost.groupby('hour_of_day')['grid_supply_price'].mean().dropna()
              
-            print(df_hourly_cost)
+            #print(df_hourly_cost)
 
             fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
             
@@ -1096,61 +1100,3 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     else:
         st.info("👆 Configure battery parameters and time windows above, then click '🚀 Run Battery Optimization' to start the simulation")
-        
-        # Show example configuration help
-        with st.expander("💡 Quick Start Guide", expanded=False):
-            st.markdown("""
-            **Getting Started:**
-            
-            1. **Review Data Filters** (optional)
-               - Filter by year, month, week, or day of week
-               - Click '🔄 Apply Filters' to update data
-            
-            2. **Check Price Distribution Chart**
-               - Identify peak price hours (good for discharge)
-               - Identify low price hours (good for charging)
-            
-            3. **Configure Battery** (left column)
-               - Start with defaults or adjust capacity/power
-               - Set efficiency and depth of discharge
-            
-            4. **Set Time Windows** (right column)
-               - Use default windows or customize
-               - Align with your price patterns
-            
-            5. **Click 'Run Battery Optimization'**
-               - Wait 5-30 seconds for results
-               - Review KPIs and detailed analysis
-            
-            **Default Configuration:**
-            - Battery: 10 MWh capacity, 5 MW power
-            - PV Charging: 10:00-16:00
-            - Arbitrage: 16:00-23:00
-            - Spot Charging: 23:00-05:00
-            - Electrolyser: 05:00-10:00
-            """)
-        
-        # Show example time windows
-        st.markdown("### 📋 Default Operating Strategy")
-        st.markdown("""
-        **1. PV Charging (10:00-16:00)**
-        - All PV production charges the battery
-        - Excess PV is curtailed
-        
-        **2. Arbitrage Discharge (16:00-23:00)**
-        - Discharge to grid at maximum power
-        - Sell energy at evening peak prices
-        - Goal: empty battery for spot charging
-        
-        **3. Spot Charging (23:00-05:00)**
-        - Charge from grid at spot market prices
-        - Prepare battery for electrolyser operation
-        
-        **4. Electrolyser Operation (05:00-10:00)**
-        - Battery exclusively powers electrolyser
-        - No grid purchase allowed
-        - Produce hydrogen for the day
-        
-        **Objective:** Maximize net profit = Revenue (arbitrage) - Cost (charging) - Penalties (shortages)
-        """)
-

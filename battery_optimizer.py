@@ -5,6 +5,7 @@ Hourly simulation of PV-Battery-Electrolyser system with arbitrage
 
 import pandas as pd
 import numpy as np
+import json
 from datetime import datetime, timedelta
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
@@ -454,7 +455,7 @@ class BatteryOptimizer:
         return summary
 
 
-def load_pv_profile(pv_data, timestamps, pv_params=None, startyear=2020, endyear=2024):
+def load_pv_profile(pv_data, timestamps, pv_params=None, startyear=2020, endyear=2023):
     """
     Load or generate PV production profile
     
@@ -469,8 +470,8 @@ def load_pv_profile(pv_data, timestamps, pv_params=None, startyear=2020, endyear
             - lat: Latitude
             - lon: Longitude
             - loss: System losses in percentage
-        startyear: Start year for PVGIS data (default: 2020)
-        endyear: End year for PVGIS data (default: 2024)
+        startyear: Start year for PVGIS data (default: 2020, valid range: 2005-2023)
+        endyear: End year for PVGIS data (default: 2023, valid range: 2005-2023)
     
     Returns:
         Array of PV production [MW] for each timestamp
@@ -479,8 +480,8 @@ def load_pv_profile(pv_data, timestamps, pv_params=None, startyear=2020, endyear
         # Try to generate realistic PV profile from PVGIS if parameters are provided
         if pv_params is not None and PVGIS_AVAILABLE:
             try:
-                # Generate hourly PV profile from PVGIS
-                pv_df = calculate_hourly_pv_profile(
+                # Generate hourly PV profile from PVGIS (returns JSON)
+                pv_json = calculate_hourly_pv_profile(
                     pv_surface_hectares=pv_params.get('pv_surface_hectares'),
                     power_density_mwp_per_ha=pv_params.get('power_density_mwp_per_ha'),
                     lat=pv_params.get('lat'),
@@ -490,6 +491,13 @@ def load_pv_profile(pv_data, timestamps, pv_params=None, startyear=2020, endyear
                     endyear=endyear,
                     pvcalculation=1
                 )
+                
+                # Parse JSON and convert to DataFrame
+                pv_data = json.loads(pv_json)
+                print(pv_data)
+                pv_df = pd.DataFrame(pv_data)
+                # Convert timestamp strings back to datetime
+                pv_df['timestamp'] = pd.to_datetime(pv_df['timestamp'])
                 
                 # Match timestamps with PV data
                 if len(pv_df) > 0:
@@ -593,7 +601,7 @@ def load_pv_profile(pv_data, timestamps, pv_params=None, startyear=2020, endyear
 
 
 def generate_realistic_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, lat, lon, loss,
-                                   timestamps, startyear=2024, endyear=2024):
+                                   timestamps, startyear=2023, endyear=2023):
     """
     Generate realistic hourly PV profile using PVGIS seriescalc API
     
@@ -604,8 +612,8 @@ def generate_realistic_pv_profile(pv_surface_hectares, power_density_mwp_per_ha,
         lon: Longitude
         loss: System losses in percentage
         timestamps: Hourly timestamps for the simulation
-        startyear: Start year for PVGIS data (default: 2020)
-        endyear: End year for PVGIS data (default: 2024)
+        startyear: Start year for PVGIS data (default: 2023, valid range: 2005-2023)
+        endyear: End year for PVGIS data (default: 2023, valid range: 2005-2023)
     
     Returns:
         Array of PV production [MW] for each timestamp
@@ -613,8 +621,8 @@ def generate_realistic_pv_profile(pv_surface_hectares, power_density_mwp_per_ha,
     if not PVGIS_AVAILABLE:
         raise ImportError("calculations module not available. Cannot generate realistic PV profile.")
     
-    # Generate hourly PV profile from PVGIS
-    pv_df = calculate_hourly_pv_profile(
+    # Generate hourly PV profile from PVGIS (returns JSON)
+    pv_json = calculate_hourly_pv_profile(
         pv_surface_hectares=pv_surface_hectares,
         power_density_mwp_per_ha=power_density_mwp_per_ha,
         lat=lat,
@@ -624,6 +632,12 @@ def generate_realistic_pv_profile(pv_surface_hectares, power_density_mwp_per_ha,
         endyear=endyear,
         pvcalculation=1
     )
+    
+    # Parse JSON and convert to DataFrame
+    pv_data = json.loads(pv_json)
+    pv_df = pd.DataFrame(pv_data)
+    # Convert timestamp strings back to datetime
+    pv_df['timestamp'] = pd.to_datetime(pv_df['timestamp'])
     
     # Extract PV values
     pv_values = pv_df['pv_mw'].values

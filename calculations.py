@@ -72,10 +72,10 @@ def calculate_pv_energy_production(pv_surface_hectares, power_density_mwp_per_ha
 
 
 def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, lat, lon, loss,
-                                 startyear=2020, endyear=2024, pvcalculation=1):
+                                 startyear=2020, endyear=2023, pvcalculation=1):
     """
     Calculate hourly PV production profile using PVGIS seriescalc API
-    Returns hourly data for use in battery optimizer simulations
+    Returns hourly data as JSON for use in battery optimizer simulations
     
     Args:
         pv_surface_hectares: Surface area in hectares
@@ -83,17 +83,37 @@ def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, l
         lat: Latitude
         lon: Longitude
         loss: System losses in percentage
-        startyear: Start year for hourly data (default: 2020)
-        endyear: End year for hourly data (default: 2024)
+        startyear: Start year for hourly data (default: 2020, valid range: 2005-2023)
+        endyear: End year for hourly data (default: 2023, valid range: 2005-2023)
         pvcalculation: Set to 1 to calculate PV output (default: 1)
     
     Returns:
-        DataFrame with columns 'timestamp' and 'pv_mw' for hourly PV production
+        JSON string with hourly PV production data. Each entry contains:
+        - timestamp: ISO format timestamp string
+        - pv_mw: PV power output in MW
     """
+    # Validate and clamp years to PVGIS API valid range (2005-2023)
+    MIN_YEAR = 2005
+    MAX_YEAR = 2023
+    
+    if startyear < MIN_YEAR:
+        startyear = MIN_YEAR
+    elif startyear > MAX_YEAR:
+        startyear = MAX_YEAR
+    
+    if endyear < MIN_YEAR:
+        endyear = MIN_YEAR
+    elif endyear > MAX_YEAR:
+        endyear = MAX_YEAR
+    
+    if startyear > endyear:
+        # If startyear > endyear, swap them
+        startyear, endyear = endyear, startyear
+    
     estimated_power_mwp = pv_surface_hectares * power_density_mwp_per_ha
     estimated_power_kwp = estimated_power_mwp * 1000
     
-    # Use seriescalc API for hourly data
+    # Use seriescalc API for hourly data - request JSON format since we output JSON
     target = "https://re.jrc.ec.europa.eu/api/seriescalc"
     params = {
         'lat': lat,
@@ -106,13 +126,31 @@ def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, l
         'mountingplace': 'free',
         'angle': 35,  # Tilt angle in degrees
         'aspect': 0,  # Azimuth angle (0 = South)
-        'outputformat': 'csv'
+        'outputformat': 'json'  # Use JSON format since we output JSON
     }
-    pv_hourly_data = PvgisHourlyData(target, params)
-    pv_hourly_data.format_data()
-    hourly_df = pv_hourly_data.get_hourly_pv_dataframe()
     
-    return hourly_df
+    try:
+        pv_hourly_data = PvgisHourlyData(target, params)
+        pv_hourly_data.format_data()
+        hourly_df = pv_hourly_data.get_hourly_pv_dataframe()
+    except ValueError as e:
+        # If JSON format fails, try CSV format as fallback
+        error_msg = str(e)
+        raise ValueError(error_msg)
+    
+    # Handle empty DataFrame
+    if hourly_df.empty or len(hourly_df) == 0:
+        return json.dumps([], indent=2)
+    
+    # Convert DataFrame to JSON format
+    # Convert timestamps to ISO format strings for JSON compatibility
+    hourly_df['timestamp'] = hourly_df['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+    
+    # Convert to list of dictionaries
+    json_data = hourly_df.to_dict('records')
+    
+    # Return as JSON string
+    return json.dumps(json_data, indent=2)
 
 
 def calculate_battery_capacity(storage_hours, estimated_power_mwp):
@@ -578,92 +616,48 @@ class PvgisHourlyData:
         self.r = requests.get(self.target, params=self.params)
         
     def format_data(self):
-        """Parse hourly CSV data from PVGIS seriescalc API"""
+        """Parse hourly data from PVGIS seriescalc API - supports both JSON and CSV formats"""
+        # Check HTTP response status
+        if self.r.status_code != 200:
+            error_msg = f"PVGIS API returned status code {self.r.status_code}"
+            try:
+                error_content = self.r.content.decode("utf-8")
+                if error_content:
+                    error_msg += f": {error_content[:500]}"
+            except:
+                pass
+            raise ValueError(error_msg)
+        
         self.data = self.r.content.decode("utf-8")
-        lines = self.data.splitlines()
         
-        # Find the header line (usually contains "time" or "Time")
-        header_index = None
-        for i, line in enumerate(lines):
-            if 'time' in line.lower() and ('P' in line or 'power' in line.lower()):
-                header_index = i
-                break
-        
-        if header_index is None:
-            raise ValueError("Could not find header in PVGIS response")
-        
-        # Parse header - try different delimiters
-        header_line = lines[header_index]
-        # Try comma first, then semicolon, then tab
-        if ',' in header_line:
-            delimiter = ','
-        elif ';' in header_line:
-            delimiter = ';'
-        elif '\t' in header_line:
-            delimiter = '\t'
-        else:
-            delimiter = ','
-        
-        headers = [col.strip() for col in header_line.split(delimiter)]
-        
-        # Find the column index for power output (usually 'P' for power in W)
-        power_col_idx = None
-        time_col_idx = None
-        
-        for idx, header in enumerate(headers):
-            header_lower = header.lower()
-            if 'time' in header_lower:
-                time_col_idx = idx
-            elif header == 'P' or header_lower == 'power' or 'pv power' in header_lower:
-                power_col_idx = idx
-        
-        if power_col_idx is None:
-            raise ValueError(f"Could not find power column (P) in PVGIS response. Headers: {headers}")
-        if time_col_idx is None:
-            raise ValueError(f"Could not find time column in PVGIS response. Headers: {headers}")
-        
-        # Parse data lines
-        self.hourly_data = []
-        for line in lines[header_index + 1:]:
-            if not line.strip() or line.strip().startswith('#'):
-                continue
-            
-            parts = line.split(delimiter)
-            if len(parts) > max(time_col_idx, power_col_idx):
-                try:
-                    time_str = parts[time_col_idx].strip()
-                    power_w = float(parts[power_col_idx].strip())
-                    
-                    # Parse timestamp (format: YYYYMMDD:HHMM or YYYY-MM-DD HH:MM)
-                    if ':' in time_str and len(time_str) > 10:
-                        # Format: YYYYMMDD:HHMM
-                        if '-' not in time_str:
-                            date_part, time_part = time_str.split(':')
-                            year = int(date_part[:4])
-                            month = int(date_part[4:6])
-                            day = int(date_part[6:8])
-                            hour = int(time_part[:2])
-                            minute = int(time_part[2:4]) if len(time_part) >= 4 else 0
-                            timestamp = pd.Timestamp(year, month, day, hour, minute)
-                        else:
-                            # Try standard datetime parsing
-                            timestamp = pd.to_datetime(time_str)
-                    else:
-                        # Try to parse as datetime string
-                        timestamp = pd.to_datetime(time_str)
-                    
-                    # Convert power from W to MW (PVGIS returns power in W)
-                    power_mw = power_w / 1000000.0  # W to MW
-                    
-                    self.hourly_data.append({
-                        'timestamp': timestamp,
-                        'pv_mw': power_mw
-                    })
-                except (ValueError, IndexError) as e:
-                    # Skip invalid lines
-                    continue
-        
-        return self.hourly_data
+        # Try JSON format first (primary format since we output JSON)
+        if self.data.strip().startswith('{') or self.data.strip().startswith('['):
+            try:
+                response_json = self.r.json()
+                if 'outputs' in response_json and 'hourly' in response_json['outputs']:
+                    # Response is JSON format, parse it
+                    hourly_data = response_json['outputs']['hourly']
+                    self.hourly_data = []
+                    for entry in hourly_data:
+                        time_str = entry.get('time', entry.get('Time', ''))
+                        power_w = entry.get('P', entry.get('P(n)', 0))
+                        if not time_str:
+                            continue  # Skip entries without timestamp
+                        try:
+                            timestamp = pd.to_datetime(time_str, format='%Y%m%d:%H%M')
+                            power_mw = float(power_w) / 1000000.0  # W to MW (0 is valid for nighttime)
+                            self.hourly_data.append({
+                                'timestamp': timestamp,
+                                'pv_mw': power_mw
+                            })
+                        except (ValueError, TypeError) as e:
+                            # Skip invalid entries
+                            continue
+                    if self.hourly_data:
+                        return self.hourly_data
+            except (ValueError, KeyError, json.JSONDecodeError) as e:
+                # Not valid JSON or missing expected fields, try CSV parsing
+                pass
     
     def get_hourly_pv_dataframe(self):
         """Return hourly PV data as a DataFrame with timestamp and pv_mw columns"""
