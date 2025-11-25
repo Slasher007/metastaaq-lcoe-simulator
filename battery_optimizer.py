@@ -5,11 +5,18 @@ Hourly simulation of PV-Battery-Electrolyser system with arbitrage
 
 import pandas as pd
 import numpy as np
+import json
 from datetime import datetime, timedelta
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
     PENALTY_PARAMS, is_hour_in_window, get_window_duration
 )
+
+try:
+    from calculations import calculate_hourly_pv_profile
+    PVGIS_AVAILABLE = True
+except ImportError:
+    PVGIS_AVAILABLE = False
 
 
 class BatteryOptimizer:
@@ -448,29 +455,120 @@ class BatteryOptimizer:
         return summary
 
 
-def load_pv_profile(pv_data, timestamps):
+def load_pv_profile(data_content, pv_params=None, startyear=2020, endyear=2023):
     """
-    Load or generate PV production profile
+    Load or generate PV production profile and add it to data_content
     
     Args:
-        pv_data: Can be:
-            - DataFrame with 'timestamp' and 'pv_mw' columns
-            - None (will generate typical profile)
+        data_content: DataFrame with 'Date', 'Heure', 'Mois', 'Jours', 'Prix', 'Annee' columns
         timestamps: Hourly timestamps for the simulation
+        pv_params: Dictionary with PV parameters for realistic generation:
+            - pv_surface_hectares: Surface area in hectares
+            - power_density_mwp_per_ha: Power density in MWp per hectare
+            - lat: Latitude
+            - lon: Longitude
+            - loss: System losses in percentage
+        startyear: Start year for PVGIS data (default: 2020, valid range: 2005-2023)
+        endyear: End year for PVGIS data (default: 2023, valid range: 2005-2023)
     
     Returns:
-        Array of PV production [MW] for each timestamp
+        DataFrame with added 'PV_MW' column containing hourly PV production in MW
     """
-    if pv_data is None:
-        # Generate typical PV profile (simplified)
-        return generate_typical_pv_profile(timestamps)
-    elif isinstance(pv_data, pd.DataFrame):
-        # Use provided hourly data
-        return pv_data['pv_mw'].values
-    elif isinstance(pv_data, dict):
-        raise ValueError("Monthly PV dictionaries are no longer supported.")
+    # Make a copy to avoid modifying the original
+    result_df = data_content.copy()
+    
+    # Initialize PV_MW column with zeros
+    result_df['PV_MW'] = 0.0
+    
+    # Try to generate realistic PV profile from PVGIS if parameters are provided
+    if pv_params is not None and PVGIS_AVAILABLE:
+        try:
+            # Generate hourly PV profile from PVGIS (returns DataFrame)
+            pv_df = calculate_hourly_pv_profile(
+                pv_surface_hectares=pv_params.get('pv_surface_hectares'),
+                power_density_mwp_per_ha=pv_params.get('power_density_mwp_per_ha'),
+                lat=pv_params.get('lat'),
+                lon=pv_params.get('lon'),
+                loss=pv_params.get('loss', 14),
+                startyear=startyear,
+                endyear=endyear,
+                pvcalculation=1
+            )
+            
+            # Ensure Date columns are in the same format for matching
+            result_df['Date'] = pd.to_datetime(result_df['Date']).dt.strftime('%Y-%m-%d')
+            pv_df['Date'] = pd.to_datetime(pv_df['Date']).dt.strftime('%Y-%m-%d')
+            
+            # Create a mapping dictionary for fast lookup: (Date, Heure) -> MW
+            pv_lookup = {}
+            for _, row in pv_df.iterrows():
+                key = (row['Date'], row['Heure'])
+                pv_lookup[key] = row['MW']
+            
+            # Match PV data to data_content based on Date and Heure
+            for idx, row in result_df.iterrows():
+                key = (row['Date'], row['Heure'])
+                if key in pv_lookup:
+                    result_df.at[idx, 'PV_MW'] = pv_lookup[key]
+                else:
+                    # No match found, keep as 0.0
+                    result_df.at[idx, 'PV_MW'] = 0.0
+            
+            print(f"Successfully matched PV data. Non-zero PV hours: {(result_df['PV_MW'] > 0).sum()}")
+            
+        except Exception as e:
+            # Fall back to typical profile if PVGIS fails
+            print(f"Warning: Could not generate PV profile from PVGIS: {e}")
+            print("Falling back to typical PV profile.")
+            
+            # Generate typical PV profile based on hour of day
+            result_df['PV_MW'] = result_df['Heure'].apply(
+                lambda h: generate_typical_pv_for_hour(h, pv_params)
+            )
     else:
-        raise ValueError("Invalid pv_data format")
+        # No PV params provided or PVGIS not available - use typical profile
+        print("No PV parameters provided or PVGIS not available. Using typical PV profile.")
+        
+        # Generate typical PV profile based on hour of day
+        if pv_params is not None:
+            result_df['PV_MW'] = result_df['Heure'].apply(
+                lambda h: generate_typical_pv_for_hour(h, pv_params)
+            )
+        else:
+            # No params at all - leave as zeros
+            result_df['PV_MW'] = 0.0
+    
+    return result_df
+
+
+def generate_typical_pv_for_hour(hour, pv_params=None):
+    """
+    Generate typical PV production for a given hour of day
+    
+    Args:
+        hour: Hour of day (0-23)
+        pv_params: Dictionary with PV parameters (optional)
+    
+    Returns:
+        PV production in MW for that hour
+    """
+    # Typical PV curve: 0 at night, peak around noon
+    if hour < 6 or hour > 18:
+        return 0.0
+    
+    # Bell curve centered at noon (hour 12)
+    normalized_value = np.exp(-0.5 * ((hour - 12) / 4) ** 2)
+    
+    # Scale by capacity if params provided
+    if pv_params is not None:
+        pv_surface = pv_params.get('pv_surface_hectares', 1.0)
+        power_density = pv_params.get('power_density_mwp_per_ha', 0.5)
+        peak_power = pv_surface * power_density
+        # Peak production is typically 80% of installed capacity
+        return normalized_value * peak_power * 0.8
+    else:
+        # Default to 1 MW peak
+        return normalized_value * 1.0
 
 
 def generate_typical_pv_profile(timestamps, peak_power_mw=None, battery_params=None):
@@ -486,57 +584,3 @@ def generate_typical_pv_profile(timestamps, peak_power_mw=None, battery_params=N
     
     pv_profile = np.full(len(timestamps), peak_power_mw, dtype=float)
     return pv_profile
-
-
-def distribute_monthly_pv_to_hourly_from_dataframe(monthly_pv_mwh, data_df):
-    """
-    Distribute monthly PV energy values to hourly profile using DataFrame with Mois and Heure columns
-    
-    Args:
-        monthly_pv_mwh: Dict with month names as keys and energy (MWh) as values
-        data_df: DataFrame with 'Mois' (month name) and 'Heure' (hour) columns
-    
-    Returns:
-        Array of PV power [MW] for each hour in the dataframe
-    """
-    n_hours = len(data_df)
-    pv_profile = np.zeros(n_hours)
-    
-    # Days in each month (simplified, not accounting for leap years)
-    days_in_month = {
-        'January': 31, 'February': 28, 'March': 31, 'April': 30,
-        'May': 31, 'June': 30, 'July': 31, 'August': 31,
-        'September': 30, 'October': 31, 'November': 30, 'December': 31
-    }
-    
-    # Create daily production curve (normalized)
-    daily_curve = np.zeros(24)
-    for hour in range(6, 21):  # 6am to 9pm
-        hour_angle = (hour - 13) * np.pi / 14
-        daily_curve[hour] = np.cos(hour_angle) ** 2
-    
-    daily_curve = daily_curve / daily_curve.sum()  # Normalize
-    
-    # Process each row
-    for i in range(n_hours):
-        month_name = data_df.iloc[i]['Mois']
-        hour = int(data_df.iloc[i]['Heure'])
-        
-        if month_name in monthly_pv_mwh:
-            # Get monthly energy
-            monthly_energy = monthly_pv_mwh[month_name]
-            
-            # Days in this month
-            if days_in_month.get(month_name):
-                days = days_in_month.get(month_name)
-            else:
-                days = 30
-            
-            # Daily average energy
-            daily_energy = monthly_energy / days
-            
-            # Hourly power
-            pv_profile[i] = daily_energy * daily_curve[hour]
-    
-    return pv_profile
-
