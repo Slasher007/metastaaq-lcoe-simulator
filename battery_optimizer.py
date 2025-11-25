@@ -455,14 +455,12 @@ class BatteryOptimizer:
         return summary
 
 
-def load_pv_profile(pv_data, timestamps, pv_params=None, startyear=2020, endyear=2023):
+def load_pv_profile(data_content, pv_params=None, startyear=2020, endyear=2023):
     """
-    Load or generate PV production profile
+    Load or generate PV production profile and add it to data_content
     
     Args:
-        pv_data: Can be:
-            - DataFrame with 'timestamp' and 'pv_mw' columns
-            - None (will generate profile based on pv_params or typical profile)
+        data_content: DataFrame with 'Date', 'Heure', 'Mois', 'Jours', 'Prix', 'Annee' columns
         timestamps: Hourly timestamps for the simulation
         pv_params: Dictionary with PV parameters for realistic generation:
             - pv_surface_hectares: Surface area in hectares
@@ -474,185 +472,103 @@ def load_pv_profile(pv_data, timestamps, pv_params=None, startyear=2020, endyear
         endyear: End year for PVGIS data (default: 2023, valid range: 2005-2023)
     
     Returns:
-        Array of PV production [MW] for each timestamp
+        DataFrame with added 'PV_MW' column containing hourly PV production in MW
     """
-    if pv_data is None:
-        # Try to generate realistic PV profile from PVGIS if parameters are provided
-        if pv_params is not None and PVGIS_AVAILABLE:
-            try:
-                # Generate hourly PV profile from PVGIS (returns JSON)
-                pv_json = calculate_hourly_pv_profile(
-                    pv_surface_hectares=pv_params.get('pv_surface_hectares'),
-                    power_density_mwp_per_ha=pv_params.get('power_density_mwp_per_ha'),
-                    lat=pv_params.get('lat'),
-                    lon=pv_params.get('lon'),
-                    loss=pv_params.get('loss', 14),
-                    startyear=startyear,
-                    endyear=endyear,
-                    pvcalculation=1
-                )
-                
-                # Parse JSON and convert to DataFrame
-                pv_data = json.loads(pv_json)
-                print(pv_data)
-                pv_df = pd.DataFrame(pv_data)
-                # Convert timestamp strings back to datetime
-                pv_df['timestamp'] = pd.to_datetime(pv_df['timestamp'])
-                
-                # Match timestamps with PV data
-                if len(pv_df) > 0:
-                    pv_values = pv_df['pv_mw'].values
-                    pv_timestamps = pv_df['timestamp'].values
-                    
-                    # Check if timestamps are datetime objects or just hours
-                    if isinstance(timestamps[0], (int, float)) and all(0 <= h <= 23 for h in timestamps[:24]):
-                        # Timestamps are just hours of day - need to match by hour and preserve daily variation
-                        # Convert PV timestamps to hours
-                        pv_hours = pd.to_datetime(pv_timestamps).hour.values
-                        pv_dates = pd.to_datetime(pv_timestamps).date
-                        
-                        # If we have the same number of timestamps as PV data, try to match by cycling
-                        # Otherwise, create a mapping that preserves daily patterns
-                        if len(timestamps) == len(pv_values):
-                            # Direct match - timestamps align with PV data
-                            return pv_values
-                        else:
-                            # Need to map hours to PV values while preserving daily/seasonal variation
-                            # Strategy: cycle through PV data matching by hour of day
-                            pv_profile = []
-                            pv_df_with_hour = pd.DataFrame({
-                                'hour': pv_hours,
-                                'pv_mw': pv_values,
-                                'date': pv_dates
-                            })
-                            
-                            # Group by hour to get variation across days
-                            for hour_val in timestamps:
-                                hour_int = int(hour_val)
-                                # Get all PV values for this hour across all days
-                                hour_pv_data = pv_df_with_hour[pv_df_with_hour['hour'] == hour_int]['pv_mw'].values
-                                
-                                if len(hour_pv_data) > 0:
-                                    # Cycle through the days to preserve seasonal variation
-                                    # Use modulo to repeat the pattern
-                                    idx = len(pv_profile) % len(hour_pv_data)
-                                    pv_profile.append(hour_pv_data[idx])
-                                else:
-                                    pv_profile.append(0.0)
-                            
-                            return np.array(pv_profile)
-                    else:
-                        # Full timestamps - try to match directly or by date/hour
-                        try:
-                            # Convert to datetime if not already
-                            timestamps_dt = pd.to_datetime(timestamps)
-                            
-                            # Try to match by exact timestamp
-                            pv_df_indexed = pv_df.set_index('timestamp')
-                            
-                            # Match timestamps
-                            matched_pv = []
-                            for ts in timestamps_dt:
-                                # Find closest timestamp in PV data (within 1 hour)
-                                time_diff = abs(pv_df_indexed.index - ts)
-                                closest_idx = time_diff.idxmin()
-                                if time_diff.loc[closest_idx] <= pd.Timedelta(hours=1):
-                                    matched_pv.append(pv_df_indexed.loc[closest_idx, 'pv_mw'])
-                                else:
-                                    # If no close match, use hour-based lookup
-                                    hour = ts.hour
-                                    hour_pv = pv_df_indexed[pv_df_indexed.index.hour == hour]['pv_mw']
-                                    if len(hour_pv) > 0:
-                                        # Use average for that hour across all days
-                                        matched_pv.append(hour_pv.mean())
-                                    else:
-                                        matched_pv.append(0.0)
-                            
-                            return np.array(matched_pv)
-                        except:
-                            # Fallback: simple length matching
-                            if len(pv_df) == len(timestamps):
-                                return pv_values
-                            else:
-                                # Repeat or truncate PV data to match timestamps
-                                if len(timestamps) > len(pv_values):
-                                    # Repeat PV data to fill the requested period
-                                    repeats = int(np.ceil(len(timestamps) / len(pv_values)))
-                                    pv_values = np.tile(pv_values, repeats)[:len(timestamps)]
-                                else:
-                                    # Truncate PV data to match timestamps
-                                    pv_values = pv_values[:len(timestamps)]
-                                return pv_values
-            except Exception as e:
-                # Fall back to typical profile if PVGIS fails
-                print(f"Warning: Could not generate PV profile from PVGIS: {e}")
-                print("Falling back to typical PV profile.")
-                return generate_typical_pv_profile(timestamps)
-        
-        # Generate typical PV profile (simplified)
-        return generate_typical_pv_profile(timestamps)
-    elif isinstance(pv_data, pd.DataFrame):
-        # Use provided hourly data
-        return pv_data['pv_mw'].values
-    elif isinstance(pv_data, dict):
-        raise ValueError("Monthly PV dictionaries are no longer supported.")
+    # Make a copy to avoid modifying the original
+    result_df = data_content.copy()
+    
+    # Initialize PV_MW column with zeros
+    result_df['PV_MW'] = 0.0
+    
+    # Try to generate realistic PV profile from PVGIS if parameters are provided
+    if pv_params is not None and PVGIS_AVAILABLE:
+        try:
+            # Generate hourly PV profile from PVGIS (returns DataFrame)
+            pv_df = calculate_hourly_pv_profile(
+                pv_surface_hectares=pv_params.get('pv_surface_hectares'),
+                power_density_mwp_per_ha=pv_params.get('power_density_mwp_per_ha'),
+                lat=pv_params.get('lat'),
+                lon=pv_params.get('lon'),
+                loss=pv_params.get('loss', 14),
+                startyear=startyear,
+                endyear=endyear,
+                pvcalculation=1
+            )
+            
+            # Ensure Date columns are in the same format for matching
+            result_df['Date'] = pd.to_datetime(result_df['Date']).dt.strftime('%Y-%m-%d')
+            pv_df['Date'] = pd.to_datetime(pv_df['Date']).dt.strftime('%Y-%m-%d')
+            
+            # Create a mapping dictionary for fast lookup: (Date, Heure) -> MW
+            pv_lookup = {}
+            for _, row in pv_df.iterrows():
+                key = (row['Date'], row['Heure'])
+                pv_lookup[key] = row['MW']
+            
+            # Match PV data to data_content based on Date and Heure
+            for idx, row in result_df.iterrows():
+                key = (row['Date'], row['Heure'])
+                if key in pv_lookup:
+                    result_df.at[idx, 'PV_MW'] = pv_lookup[key]
+                else:
+                    # No match found, keep as 0.0
+                    result_df.at[idx, 'PV_MW'] = 0.0
+            
+            print(f"Successfully matched PV data. Non-zero PV hours: {(result_df['PV_MW'] > 0).sum()}")
+            
+        except Exception as e:
+            # Fall back to typical profile if PVGIS fails
+            print(f"Warning: Could not generate PV profile from PVGIS: {e}")
+            print("Falling back to typical PV profile.")
+            
+            # Generate typical PV profile based on hour of day
+            result_df['PV_MW'] = result_df['Heure'].apply(
+                lambda h: generate_typical_pv_for_hour(h, pv_params)
+            )
     else:
-        raise ValueError("Invalid pv_data format")
+        # No PV params provided or PVGIS not available - use typical profile
+        print("No PV parameters provided or PVGIS not available. Using typical PV profile.")
+        
+        # Generate typical PV profile based on hour of day
+        if pv_params is not None:
+            result_df['PV_MW'] = result_df['Heure'].apply(
+                lambda h: generate_typical_pv_for_hour(h, pv_params)
+            )
+        else:
+            # No params at all - leave as zeros
+            result_df['PV_MW'] = 0.0
+    
+    return result_df
 
 
-def generate_realistic_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, lat, lon, loss,
-                                   timestamps, startyear=2023, endyear=2023):
+def generate_typical_pv_for_hour(hour, pv_params=None):
     """
-    Generate realistic hourly PV profile using PVGIS seriescalc API
+    Generate typical PV production for a given hour of day
     
     Args:
-        pv_surface_hectares: Surface area in hectares
-        power_density_mwp_per_ha: Power density in MWp per hectare
-        lat: Latitude
-        lon: Longitude
-        loss: System losses in percentage
-        timestamps: Hourly timestamps for the simulation
-        startyear: Start year for PVGIS data (default: 2023, valid range: 2005-2023)
-        endyear: End year for PVGIS data (default: 2023, valid range: 2005-2023)
+        hour: Hour of day (0-23)
+        pv_params: Dictionary with PV parameters (optional)
     
     Returns:
-        Array of PV production [MW] for each timestamp
+        PV production in MW for that hour
     """
-    if not PVGIS_AVAILABLE:
-        raise ImportError("calculations module not available. Cannot generate realistic PV profile.")
+    # Typical PV curve: 0 at night, peak around noon
+    if hour < 6 or hour > 18:
+        return 0.0
     
-    # Generate hourly PV profile from PVGIS (returns JSON)
-    pv_json = calculate_hourly_pv_profile(
-        pv_surface_hectares=pv_surface_hectares,
-        power_density_mwp_per_ha=power_density_mwp_per_ha,
-        lat=lat,
-        lon=lon,
-        loss=loss,
-        startyear=startyear,
-        endyear=endyear,
-        pvcalculation=1
-    )
+    # Bell curve centered at noon (hour 12)
+    normalized_value = np.exp(-0.5 * ((hour - 12) / 4) ** 2)
     
-    # Parse JSON and convert to DataFrame
-    pv_data = json.loads(pv_json)
-    pv_df = pd.DataFrame(pv_data)
-    # Convert timestamp strings back to datetime
-    pv_df['timestamp'] = pd.to_datetime(pv_df['timestamp'])
-    
-    # Extract PV values
-    pv_values = pv_df['pv_mw'].values
-    
-    # Match length with timestamps
-    if len(timestamps) == len(pv_values):
-        return pv_values
-    elif len(timestamps) > len(pv_values):
-        # Repeat PV data to fill the requested period
-        repeats = int(np.ceil(len(timestamps) / len(pv_values)))
-        pv_values = np.tile(pv_values, repeats)[:len(timestamps)]
-        return pv_values
+    # Scale by capacity if params provided
+    if pv_params is not None:
+        pv_surface = pv_params.get('pv_surface_hectares', 1.0)
+        power_density = pv_params.get('power_density_mwp_per_ha', 0.5)
+        peak_power = pv_surface * power_density
+        # Peak production is typically 80% of installed capacity
+        return normalized_value * peak_power * 0.8
     else:
-        # Truncate PV data to match timestamps
-        return pv_values[:len(timestamps)]
+        # Default to 1 MW peak
+        return normalized_value * 1.0
 
 
 def generate_typical_pv_profile(timestamps, peak_power_mw=None, battery_params=None):

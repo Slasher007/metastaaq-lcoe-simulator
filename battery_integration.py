@@ -41,7 +41,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     if not pd.api.types.is_datetime64_any_dtype(data_content['Date']):
         data_content['Date'] = pd.to_datetime(data_content['Date'])
     
-    mask = data_content['Date'] == '2024-12-01'
+    mask = data_content['Date'] == '2023-12-01'
     data_content = data_content[mask]
 
     # Add computed columns
@@ -523,7 +523,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with st.spinner("Running battery optimization..."):
             # Use existing columns from CSV data
             spot_prices = data_content['Prix'].values
-            hours_of_day = data_content['Heure'].values
             
             # Generate realistic PV profile using PVGIS data
             pv_profile = None
@@ -533,13 +532,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # Check if PV parameters are available and valid
             if pv_params is not None:
                 # Validate required PV parameters
-                required_params = ['pv_surface_hectares', 'power_density_mwp_per_ha', 'lat', 'lon']
-                missing_params = [p for p in required_params if p not in pv_params or pv_params.get(p) is None]
-                
-                if missing_params:
-                    st.warning(f"⚠️ Missing PV parameters: {', '.join(missing_params)}. Using typical PV profile.")
-                    pv_profile = generate_typical_pv_profile(hours_of_day, peak_power_mw=battery_params['P_charge_max'])
-                else:
                     try:
                         # Extract years from data for PVGIS query
                         available_years = sorted(data_content['Annee'].unique())
@@ -560,29 +552,19 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                                   for k in ['pv_surface_hectares', 'power_density_mwp_per_ha', 'lat', 'lon']):
                             raise ValueError("Invalid PV parameter values")
                         
-                        # Create proper timestamps from Date and Heure for accurate PV matching
-                        timestamps_for_pv = hours_of_day
-                        if 'Date' in data_content.columns:
-                            try:
-                                # Create proper timestamps by combining Date and Heure
-                                timestamps_for_pv = pd.to_datetime(data_content['Date']) + pd.to_timedelta(data_content['Heure'], unit='h')
-                                st.info(f"🌞 Using date-based timestamps for PV profile matching...")
-                            except Exception as e:
-                                st.warning(f"⚠️ Could not create timestamps from Date column: {e}")
-                                timestamps_for_pv = hours_of_day
-                        else:
-                            st.info(f"ℹ️ No Date column found. Using hour-based matching (may reduce variation)...")
-                        
                         # Generate realistic PV profile from PVGIS
                         with st.spinner(f"🌞 Fetching real PV data from PVGIS (years {startyear}-{endyear})..."):
-                            pv_profile = load_pv_profile(
-                                pv_data=None,
-                                timestamps=timestamps_for_pv,
+                            data_content = load_pv_profile(
+                                data_content=data_content,
                                 pv_params=pv_params_dict,
                                 startyear=startyear,
                                 endyear=endyear
                             )
                         
+                        print(data_content[['Date', 'Heure','Mois','Jours','PV_MW']][:24])
+
+                        pv_profile = data_content['PV_MW'].values
+
                         # Validate PV profile
                         if pv_profile is None or len(pv_profile) == 0:
                             raise ValueError("PV profile is empty")
@@ -607,13 +589,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                         with st.expander("🔍 Error details"):
                             st.code(error_details)
                         st.warning("⚠️ Falling back to typical (constant) PV profile...")
-                        pv_profile = generate_typical_pv_profile(hours_of_day, peak_power_mw=battery_params['P_charge_max'])
             else:
                 # Fallback to typical profile if PV params not available
                 st.warning("⚠️ PV parameters not available in session state. Using typical (constant) PV profile.")
                 st.info("💡 Tip: Configure PV installation parameters in the main dashboard to use real PV data.")
-                pv_profile = generate_typical_pv_profile(hours_of_day, peak_power_mw=battery_params['P_charge_max'])
-            
             # Store flag indicating if real PV data was used
             st.session_state['battery_used_real_pv'] = use_real_pv
             
@@ -624,6 +603,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 electrolyser_params=electrolyser_params,
                 pv_price=pv_price
             )
+
+            hours_of_day = data_content['Heure'].values
             
             # Run simulation with hours instead of timestamps
             df_results, summary = optimizer.simulate_year(pv_profile, spot_prices, hours_of_day)

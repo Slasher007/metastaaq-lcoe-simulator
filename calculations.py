@@ -75,7 +75,7 @@ def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, l
                                  startyear=2020, endyear=2023, pvcalculation=1):
     """
     Calculate hourly PV production profile using PVGIS seriescalc API
-    Returns hourly data as JSON for use in battery optimizer simulations
+    Returns daily aggregated data as DataFrame for use in battery optimizer simulations
     
     Args:
         pv_surface_hectares: Surface area in hectares
@@ -88,9 +88,13 @@ def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, l
         pvcalculation: Set to 1 to calculate PV output (default: 1)
     
     Returns:
-        JSON string with hourly PV production data. Each entry contains:
-        - timestamp: ISO format timestamp string
-        - pv_mw: PV power output in MW
+        DataFrame with daily aggregated PV production data with columns:
+        - Date: Date in YYYY-MM-DD format
+        - Heure: Hour (always 0 for daily aggregation)
+        - Mois: Month name in English
+        - Jours: Day name in English
+        - MW: Daily total PV energy production in MWh (sum of hourly MW)
+        - Annee: Year
     """
     # Validate and clamp years to PVGIS API valid range (2005-2023)
     MIN_YEAR = 2005
@@ -107,13 +111,11 @@ def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, l
         endyear = MAX_YEAR
     
     if startyear > endyear:
-        # If startyear > endyear, swap them
         startyear, endyear = endyear, startyear
     
     estimated_power_mwp = pv_surface_hectares * power_density_mwp_per_ha
     estimated_power_kwp = estimated_power_mwp * 1000
     
-    # Use seriescalc API for hourly data - request JSON format since we output JSON
     target = "https://re.jrc.ec.europa.eu/api/seriescalc"
     params = {
         'lat': lat,
@@ -124,9 +126,9 @@ def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, l
         'startyear': startyear,
         'endyear': endyear,
         'mountingplace': 'free',
-        'angle': 35,  # Tilt angle in degrees
-        'aspect': 0,  # Azimuth angle (0 = South)
-        'outputformat': 'json'  # Use JSON format since we output JSON
+        'angle': 35,
+        'aspect': 0,
+        'outputformat': 'json'
     }
     
     try:
@@ -134,23 +136,50 @@ def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, l
         pv_hourly_data.format_data()
         hourly_df = pv_hourly_data.get_hourly_pv_dataframe()
     except ValueError as e:
-        # If JSON format fails, try CSV format as fallback
         error_msg = str(e)
         raise ValueError(error_msg)
     
     # Handle empty DataFrame
     if hourly_df.empty or len(hourly_df) == 0:
-        return json.dumps([], indent=2)
+        return pd.DataFrame(columns=['Date', 'Heure', 'Mois', 'Jours', 'MW', 'Annee'])
     
-    # Convert DataFrame to JSON format
-    # Convert timestamps to ISO format strings for JSON compatibility
-    hourly_df['timestamp'] = hourly_df['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+    # Convert timestamp to datetime if it's not already
+    hourly_df['timestamp'] = pd.to_datetime(hourly_df['timestamp'])
     
-    # Convert to list of dictionaries
-    json_data = hourly_df.to_dict('records')
+    # Extract date and hour for grouping
+    hourly_df['date'] = hourly_df['timestamp'].dt.date
+    hourly_df['hour'] = hourly_df['timestamp'].dt.hour
     
-    # Return as JSON string
-    return json.dumps(json_data, indent=2)
+    # Aggregate by date and hour (sum MW values for same date-hour combinations)
+    aggregated_df = hourly_df.groupby(['date', 'hour']).agg({'pv_mw': 'sum'}).reset_index()
+    
+    # Convert date back to datetime for formatting
+    aggregated_df['date'] = pd.to_datetime(aggregated_df['date'])
+    
+    # English month names
+    month_names_en = {
+        1: 'January', 2: 'February', 3: 'March', 4: 'April',
+        5: 'May', 6: 'June', 7: 'July', 8: 'August',
+        9: 'September', 10: 'October', 11: 'November', 12: 'December'
+    }
+    
+    # English day names
+    day_names_en = {
+        0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday',
+        4: 'Friday', 5: 'Saturday', 6: 'Sunday'
+    }
+    
+    # Create the formatted DataFrame
+    hourly_df = pd.DataFrame({
+        'Date': aggregated_df['date'].dt.strftime('%Y-%m-%d'),
+        'Heure': aggregated_df['hour'],
+        'Mois': aggregated_df['date'].dt.month.map(month_names_en),
+        'Jours': aggregated_df['date'].dt.dayofweek.map(day_names_en),
+        'MW': aggregated_df['pv_mw'].round(2),
+        'Annee': aggregated_df['date'].dt.year
+    })
+    
+    return hourly_df
 
 
 def calculate_battery_capacity(storage_hours, estimated_power_mwp):
