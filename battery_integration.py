@@ -40,16 +40,15 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     if not pd.api.types.is_datetime64_any_dtype(data_content['Date']):
         data_content['Date'] = pd.to_datetime(data_content['Date'])
     
-    mask = data_content['Date'] == '2023-12-01'
+    # Filter data to only include December 2023
+    start_date = '2023-12-01'
+    end_date = '2023-12-31'
+    mask = (data_content['Date'] >= start_date) & (data_content['Date'] <= end_date)
     data_content = data_content[mask]
 
     # Add computed columns
     data_content['Week'] = data_content['Date'].dt.isocalendar().week
     data_content['DayOfWeek'] = data_content['Date'].dt.day_name()
-
-    # Filter first week
-    #mask = data_content['Week'] == 1 # & data_content['Jours'] == 'Tuesday'
-    #data_content = data_content[mask]
     
     # Get available options
     available_years = sorted(data_content['Annee'].unique())
@@ -61,10 +60,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     available_weeks = sorted(data_content['Week'].unique())
     day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     available_days = [day for day in day_order if day in data_content['DayOfWeek'].unique()]
-    
-    # Filter data to only include Tuesday
-    #mask = data_content['Jours'] == 'Tuesday'
-    #data_content = data_content[mask]
     
     # Initialize session state for filters if not exists
     if 'filter_years' not in st.session_state:

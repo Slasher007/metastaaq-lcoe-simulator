@@ -126,8 +126,10 @@ def calculate_hourly_pv_profile(pv_surface_hectares, power_density_mwp_per_ha, l
         'startyear': startyear,
         'endyear': endyear,
         'mountingplace': 'free',
-        'angle': 35,
-        'aspect': 0,
+        'twoaxis': 1,
+        'trackingtype':2,
+        'pvtechchoice': 'crystSi',
+        'raddatabase': 'PVGIS-SARAH3',
         'outputformat': 'json'
     }
     
