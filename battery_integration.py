@@ -22,8 +22,7 @@ from battery_visualization import (
 )
 
 
-def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_data, pv_price=0.0, ppa_price=0.0):
-    
+def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_data, pv_price=0.0, ppa_price=0.0, avg_service_ratio=0.0):
     """
     Render the battery arbitrage optimization tab in the main dashboard
     
@@ -426,8 +425,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     ax_price.set_xlabel('Hour of Day', fontsize=12, fontweight='bold')
     ax_price.set_ylabel('Spot Price (€/MWh)', fontsize=12, fontweight='bold')
-    ax_price.set_title('Electricity Spot Price Distribution by Hour and Operational Windows', 
-                      fontsize=14, fontweight='bold')
+    n_data_points = len(data_content)
+    title = f'Electricity Spot Price Distribution by Hour and Operational Windows\nElectrolyser Power: {electrolyser_power:.1f} MW | Data Points: {n_data_points:,}'
+    ax_price.set_title(title, fontsize=14, fontweight='bold')
     ax_price.grid(True, alpha=0.3, axis='y')
     ax_price.legend(loc='upper left', fontsize=9)
     
@@ -656,7 +656,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ax.axhline(y=battery_params['SoC_max'] * 100, color='green', linestyle='--', label='Max SoC')
             ax.set_xlabel('Hour', fontweight='bold')
             ax.set_ylabel('State of Charge (%)', fontweight='bold')
-            ax.set_title(f'Battery SoC Profile (Days {week_selector} to {week_selector + 7})', fontweight='bold')
+            n_data_points = len(df_results)
+            service_ratio_pct = avg_service_ratio * 100
+            title = f'Battery SoC Profile (Days {week_selector} to {week_selector + 7})\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+            ax.set_title(title, fontweight='bold')
             ax.grid(True, alpha=0.3)
             ax.legend()
             ax.set_ylim(0, 105)
@@ -681,7 +684,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             axes[0].fill_between(range(len(df_window)), 0, -grid_discharge, 
                                 color='blue', alpha=0.7, label='Battery to Grid')
             axes[0].set_ylabel('Power (MW)', fontweight='bold')
-            axes[0].set_title('Battery Charging/Discharging', fontweight='bold')
+            n_data_points = len(df_results)
+            service_ratio_pct = avg_service_ratio * 100
+            title_base = f'Electrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+            axes[0].set_title(f'Battery Charging/Discharging\n{title_base}', fontweight='bold')
             axes[0].legend()
             axes[0].grid(True, alpha=0.3)
             
@@ -691,7 +697,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             axes[1].fill_between(range(len(df_window)), 0, -df_window['ely_shortage_mw'], 
                                 color='red', alpha=0.5, label='Shortage')
             axes[1].set_ylabel('Power (MW)', fontweight='bold')
-            axes[1].set_title('Electrolyser Supply', fontweight='bold')
+            axes[1].set_title(f'Electrolyser Supply\n{title_base}', fontweight='bold')
             axes[1].legend()
             axes[1].grid(True, alpha=0.3)
             
@@ -700,7 +706,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                                 color='orange', alpha=0.5, label='PV Production')
             axes[2].set_xlabel('Hour', fontweight='bold')
             axes[2].set_ylabel('Power (MW)', fontweight='bold')
-            axes[2].set_title('PV Production', fontweight='bold')
+            axes[2].set_title(f'PV Production\n{title_base}', fontweight='bold')
             axes[2].legend()
             axes[2].grid(True, alpha=0.3)
             
@@ -951,7 +957,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ax.set_xticks(range(24))
             ax.set_xlabel('Hour of Day', fontweight='bold')
             ax.set_ylabel('Total Cumulated Cost (€)', fontweight='bold')
-            ax.set_title('Hourly Cash Flows', fontweight='bold')
+            n_data_points = len(df_results)
+            service_ratio_pct = avg_service_ratio * 100
+            title = f'Hourly Cash Flows\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+            ax.set_title(title, fontweight='bold')
             ax.legend()
             ax.grid(True, alpha=0.3)
             ax.axhline(0, color='black', linewidth=0.8)
@@ -1071,7 +1080,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         ax.set_xticks(range(24))
         ax.set_xlabel('Hour of Day', fontweight='bold')
         ax.set_ylabel('Spot Price (€/MWh)', fontweight='bold')
-        ax.set_title('Spot Prices at Selected Hours per Operational Window', fontweight='bold')
+        n_data_points = len(df_results)
+        service_ratio_pct = avg_service_ratio * 100
+        title = f'Spot Prices at Selected Hours per Operational Window\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+        ax.set_title(title, fontweight='bold')
         ax.grid(True, alpha=0.3)
         ax.legend()
 
