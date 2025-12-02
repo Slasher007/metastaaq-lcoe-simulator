@@ -64,18 +64,14 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     available_days = [day for day in day_order if day in data_content['DayOfWeek'].unique()]
     
     # Initialize session state for filters if not exists
-    if 'filter_years' not in st.session_state:
-        st.session_state.filter_years = available_years
+    if 'filter_year' not in st.session_state:
+        st.session_state.filter_year = available_years[0] if available_years else None  # Single year selection
     if 'filter_months' not in st.session_state:
         st.session_state.filter_months = available_months
-    if 'filter_week_enabled' not in st.session_state:
-        st.session_state.filter_week_enabled = False
-    if 'filter_weeks' not in st.session_state:
-        st.session_state.filter_weeks = available_weeks[:4] if len(available_weeks) >= 4 else available_weeks
-    if 'filter_day_enabled' not in st.session_state:
-        st.session_state.filter_day_enabled = False
-    if 'filter_days' not in st.session_state:
-        st.session_state.filter_days = available_days
+    if 'filter_week' not in st.session_state:
+        st.session_state.filter_week = None  # Single week selection or None
+    if 'filter_day' not in st.session_state:
+        st.session_state.filter_day = None  # Single day selection or None
     
     # Data filtering controls - make hideable with expander
     with st.expander("🔍 Data Filters", expanded=False):
@@ -85,13 +81,13 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
         
         with filter_col1:
-            # Year filter
-            st.multiselect(
-                "📅 Year(s)",
+            # Year filter (single selection)
+            st.selectbox(
+                "📅 Year",
                 options=available_years,
-                default=st.session_state.filter_years,
-                help="Select one or more years to include",
-                key='filter_years'
+                index=available_years.index(st.session_state.filter_year) if st.session_state.filter_year in available_years else 0,
+                help="Select a year to include",
+                key='filter_year'
             )
         
         with filter_col2:
@@ -105,28 +101,28 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             )
         
         with filter_col3:
-            # Week filter (using week of year)
-            st.checkbox("Filter by Week", value=st.session_state.filter_week_enabled, key='filter_week_enabled')
-            if st.session_state.filter_week_enabled:
-                st.multiselect(
-                    "Week(s)",
-                    options=available_weeks,
-                    default=st.session_state.filter_weeks,
-                    help="Select specific weeks (1-52)",
-                    key='filter_weeks'
-                )
+            # Week filter (single selection or None)
+            week_options = ["All weeks"] + [f"Week {w}" for w in available_weeks]
+            current_week = f"Week {st.session_state.filter_week}" if st.session_state.filter_week is not None else "All weeks"
+            st.selectbox(
+                "Week",
+                options=week_options,
+                index=week_options.index(current_week) if current_week in week_options else 0,
+                help="Select a specific week or 'All weeks'",
+                key='filter_week_selection'
+            )
         
         with filter_col4:
-            # Day of week filter
-            st.checkbox("Filter by Day of Week", value=st.session_state.filter_day_enabled, key='filter_day_enabled')
-            if st.session_state.filter_day_enabled:
-                st.multiselect(
-                    "📅 Day(s) of Week",
-                    options=available_days,
-                    default=st.session_state.filter_days,
-                    help="Select specific days (e.g., weekdays only)",
-                    key='filter_days'
-                )
+            # Day of week filter (single selection or None)
+            day_options = ["All days"] + available_days
+            current_day = st.session_state.filter_day if st.session_state.filter_day is not None else "All days"
+            st.selectbox(
+                "📅 Day of Week",
+                options=day_options,
+                index=day_options.index(current_day) if current_day in day_options else 0,
+                help="Select a specific day or 'All days'",
+                key='filter_day_selection'
+            )
         
         # Apply Filters Button
         st.markdown("")  # Add spacing
@@ -140,13 +136,30 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         if apply_filters_btn:
             st.session_state.filters_applied = True
             st.session_state.battery_optimization_run = False
+
+            # Update session state based on selectbox selections
+            st.session_state.filter_year = st.session_state.filter_year
+            st.session_state.filter_months = st.session_state.filter_months
+
+            # Parse week selection
+            week_selection = st.session_state.filter_week_selection
+            if week_selection == "All weeks":
+                st.session_state.filter_week = None
+            else:
+                st.session_state.filter_week = int(week_selection.replace("Week ", ""))
+
+            # Parse day selection
+            day_selection = st.session_state.filter_day_selection
+            if day_selection == "All days":
+                st.session_state.filter_day = None
+            else:
+                st.session_state.filter_day = day_selection
+
             st.session_state.filter_config = {
-                'years': st.session_state.filter_years,
+                'year': st.session_state.filter_year,
                 'months': st.session_state.filter_months,
-                'weeks': st.session_state.filter_weeks if st.session_state.filter_week_enabled else None,
-                'week_enabled': st.session_state.filter_week_enabled,
-                'days': st.session_state.filter_days if st.session_state.filter_day_enabled else None,
-                'day_enabled': st.session_state.filter_day_enabled
+                'week': st.session_state.filter_week,
+                'day': st.session_state.filter_day
             }
     
     # Apply filters if they have been applied at least once
@@ -154,21 +167,21 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         filtered_data = data_content.copy()
         config = st.session_state.filter_config
         
-        # Apply year filter
-        if config['years']:
-            filtered_data = filtered_data[filtered_data['Annee'].isin(config['years'])]
-        
+        # Apply year filter (single year)
+        if config['year']:
+            filtered_data = filtered_data[filtered_data['Annee'] == config['year']]
+
         # Apply month filter
         if config['months']:
             filtered_data = filtered_data[filtered_data['Mois'].isin(config['months'])]
-        
-        # Apply week filter
-        if config['week_enabled'] and config['weeks']:
-            filtered_data = filtered_data[filtered_data['Week'].isin(config['weeks'])]
-        
-        # Apply day of week filter
-        if config['day_enabled'] and config['days']:
-            filtered_data = filtered_data[filtered_data['DayOfWeek'].isin(config['days'])]
+
+        # Apply week filter (single week or None)
+        if config['week'] is not None:
+            filtered_data = filtered_data[filtered_data['Week'] == config['week']]
+
+        # Apply day of week filter (single day or None)
+        if config['day'] is not None:
+            filtered_data = filtered_data[filtered_data['DayOfWeek'] == config['day']]
         
         # Display filter summary with statistics
         total_hours_original = len(data_content)
@@ -182,10 +195,11 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
         with col_stat1:
-            st.metric("Filtered Hours", f"{total_hours_filtered:,}", 
+            st.metric("Filtered Hours", f"{total_hours_filtered:,}",
                      delta=f"{filter_percentage:.1f}% of total")
         with col_stat2:
-            st.metric("Days Selected", f"{len(config['days']) if config['day_enabled'] else 7}")
+            day_info = config['day'] if config['day'] else "All days"
+            st.metric("Day Filter", day_info)
         with col_stat3:
             st.metric("Avg Price", f"{avg_price_filtered:.1f} €/MWh")
         with col_stat4:
