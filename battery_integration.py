@@ -41,10 +41,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         data_content['Date'] = pd.to_datetime(data_content['Date'])
     
     # Filter data to only include December 2023
-    start_date = '2023-12-01'
-    end_date = '2023-12-01'
-    mask = (data_content['Date'] >= start_date) & (data_content['Date'] <= end_date)
-    data_content = data_content[mask]
+    #start_date = '2023-12-01'
+    #end_date = '2023-12-01'
+    #start_date = '2025-01-01'
+    #end_date = '2025-12-31'
+    #mask = (data_content['Date'] >= start_date) & (data_content['Date'] <= end_date)
+    #data_content = data_content[mask]
 
     # Add computed columns
     data_content['Week'] = data_content['Date'].dt.isocalendar().week
