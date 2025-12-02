@@ -67,7 +67,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     if 'filter_year' not in st.session_state:
         st.session_state.filter_year = available_years[0] if available_years else None  # Single year selection
     if 'filter_months' not in st.session_state:
-        st.session_state.filter_months = available_months
+        st.session_state.filter_months = available_months  # Keep for backward compatibility
     if 'filter_week' not in st.session_state:
         st.session_state.filter_week = None  # Single week selection or None
     if 'filter_day' not in st.session_state:
@@ -77,7 +77,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     if 'selected_filter_year' not in st.session_state:
         st.session_state.selected_filter_year = st.session_state.filter_year
     if 'selected_filter_months' not in st.session_state:
-        st.session_state.selected_filter_months = st.session_state.filter_months
+        st.session_state.selected_filter_months = available_months  # Default to all months
     if 'selected_filter_week' not in st.session_state:
         st.session_state.selected_filter_week = st.session_state.filter_week
     if 'selected_filter_day' not in st.session_state:
@@ -102,13 +102,20 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             )
         
         with filter_col2:
-            # Month filter
-            st.multiselect(
-                "📆 Month(s)",
-                options=available_months,
-                default=st.session_state.filter_months,
-                help="Select one or more months to include",
-                key='filter_months'
+            # Month filter (single selection or None)
+            month_options = ["All months"] + available_months
+            current_month_value = st.session_state.get('selected_filter_months', st.session_state.filter_months)
+            # For months, we need to handle the case where it's a list vs single value
+            if isinstance(current_month_value, list):
+                current_month = "All months"  # If it's a list, default to all months for compatibility
+            else:
+                current_month = current_month_value if current_month_value is not None else "All months"
+            st.selectbox(
+                "📆 Month",
+                options=month_options,
+                index=month_options.index(current_month) if current_month in month_options else 0,
+                help="Select a specific month or 'All months'",
+                key='filter_month_selection'
             )
         
         with filter_col3:
@@ -152,7 +159,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
 
             # Get current widget values and process them
             selected_year = st.session_state.filter_year
-            selected_months = st.session_state.filter_months
+
+            # Parse month selection
+            month_selection = st.session_state.filter_month_selection
+            selected_months = available_months if month_selection == "All months" else [month_selection]
 
             # Parse week selection
             week_selection = st.session_state.filter_week_selection
@@ -206,18 +216,21 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         min_price_filtered = filtered_data['Prix'].min()
         max_price_filtered = filtered_data['Prix'].max()
         
-        col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
+        col_stat1, col_stat2, col_stat3, col_stat4, col_stat5, col_stat6 = st.columns(6)
         with col_stat1:
             st.metric("Filtered Hours", f"{total_hours_filtered:,}",
                      delta=f"{filter_percentage:.1f}% of total")
         with col_stat2:
+            month_info = "All months" if len(config['months']) > 1 else (config['months'][0] if config['months'] else "None")
+            st.metric("Month Filter", month_info)
+        with col_stat3:
             day_info = config['day'] if config['day'] else "All days"
             st.metric("Day Filter", day_info)
-        with col_stat3:
-            st.metric("Avg Price", f"{avg_price_filtered:.1f} €/MWh")
         with col_stat4:
-            st.metric("Min Price", f"{min_price_filtered:.1f} €/MWh")
+            st.metric("Avg Price", f"{avg_price_filtered:.1f} €/MWh")
         with col_stat5:
+            st.metric("Min Price", f"{min_price_filtered:.1f} €/MWh")
+        with col_stat6:
             st.metric("Max Price", f"{max_price_filtered:.1f} €/MWh")
         
         if total_hours_filtered == 0:
