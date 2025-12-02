@@ -72,6 +72,16 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         st.session_state.filter_week = None  # Single week selection or None
     if 'filter_day' not in st.session_state:
         st.session_state.filter_day = None  # Single day selection or None
+
+    # Initialize processed filter values
+    if 'selected_filter_year' not in st.session_state:
+        st.session_state.selected_filter_year = st.session_state.filter_year
+    if 'selected_filter_months' not in st.session_state:
+        st.session_state.selected_filter_months = st.session_state.filter_months
+    if 'selected_filter_week' not in st.session_state:
+        st.session_state.selected_filter_week = st.session_state.filter_week
+    if 'selected_filter_day' not in st.session_state:
+        st.session_state.selected_filter_day = st.session_state.filter_day
     
     # Data filtering controls - make hideable with expander
     with st.expander("🔍 Data Filters", expanded=False):
@@ -82,10 +92,11 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         with filter_col1:
             # Year filter (single selection)
+            current_year = st.session_state.get('selected_filter_year', st.session_state.filter_year)
             st.selectbox(
                 "📅 Year",
                 options=available_years,
-                index=available_years.index(st.session_state.filter_year) if st.session_state.filter_year in available_years else 0,
+                index=available_years.index(current_year) if current_year in available_years else 0,
                 help="Select a year to include",
                 key='filter_year'
             )
@@ -103,7 +114,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with filter_col3:
             # Week filter (single selection or None)
             week_options = ["All weeks"] + [f"Week {w}" for w in available_weeks]
-            current_week = f"Week {st.session_state.filter_week}" if st.session_state.filter_week is not None else "All weeks"
+            current_week_value = st.session_state.get('selected_filter_week', st.session_state.filter_week)
+            current_week = f"Week {current_week_value}" if current_week_value is not None else "All weeks"
             st.selectbox(
                 "Week",
                 options=week_options,
@@ -115,7 +127,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with filter_col4:
             # Day of week filter (single selection or None)
             day_options = ["All days"] + available_days
-            current_day = st.session_state.filter_day if st.session_state.filter_day is not None else "All days"
+            current_day_value = st.session_state.get('selected_filter_day', st.session_state.filter_day)
+            current_day = current_day_value if current_day_value is not None else "All days"
             st.selectbox(
                 "📅 Day of Week",
                 options=day_options,
@@ -137,29 +150,29 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             st.session_state.filters_applied = True
             st.session_state.battery_optimization_run = False
 
-            # Update session state based on selectbox selections
-            st.session_state.filter_year = st.session_state.filter_year
-            st.session_state.filter_months = st.session_state.filter_months
+            # Get current widget values and process them
+            selected_year = st.session_state.filter_year
+            selected_months = st.session_state.filter_months
 
             # Parse week selection
             week_selection = st.session_state.filter_week_selection
-            if week_selection == "All weeks":
-                st.session_state.filter_week = None
-            else:
-                st.session_state.filter_week = int(week_selection.replace("Week ", ""))
+            selected_week = None if week_selection == "All weeks" else int(week_selection.replace("Week ", ""))
 
             # Parse day selection
             day_selection = st.session_state.filter_day_selection
-            if day_selection == "All days":
-                st.session_state.filter_day = None
-            else:
-                st.session_state.filter_day = day_selection
+            selected_day = None if day_selection == "All days" else day_selection
+
+            # Store processed filter values in separate session state variables
+            st.session_state.selected_filter_year = selected_year
+            st.session_state.selected_filter_months = selected_months
+            st.session_state.selected_filter_week = selected_week
+            st.session_state.selected_filter_day = selected_day
 
             st.session_state.filter_config = {
-                'year': st.session_state.filter_year,
-                'months': st.session_state.filter_months,
-                'week': st.session_state.filter_week,
-                'day': st.session_state.filter_day
+                'year': selected_year,
+                'months': selected_months,
+                'week': selected_week,
+                'day': selected_day
             }
     
     # Apply filters if they have been applied at least once
