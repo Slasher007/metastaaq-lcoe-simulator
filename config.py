@@ -108,7 +108,26 @@ DEFAULT_PARAMS = {
     # Others costs by category
     "methanation_others_capex": 0.0,
     "methanation_others_opex_annual": 0.0,
-    "methanation_others_maintenance_annual": 0.0
+    "methanation_others_maintenance_annual": 0.0,
+    # LCOS (Levelized Cost of Storage) parameters
+    "lcos_inflation_rate": 2.8,  # Inflation rate (%)
+    "lcos_debt_fraction": 60.0,  # Debt Fraction (%)
+    "lcos_nominal_interest_rate": 5.0,  # Nominal interest rate (%)
+    "lcos_tax_rate": 25.0,  # Tax rate (federal and state) (%)
+    "lcos_nominal_cost_of_equity": 8.0,  # Nominal cost of equity (%)
+    "lcos_economic_life": 20,  # Economic life (years)
+    "lcos_construction_period": 1,  # Construction period (years)
+    "lcos_capital_fraction_year_0": 70.0,  # Capital fraction in year 0 (%)
+    "lcos_capital_fraction_year_1": 30.0,  # Capital fraction in year 1 (%)
+    "lcos_capital_fraction_year_2": 0.0,  # Capital fraction in year 2 (%)
+    "lcos_capital_fraction_year_3": 0.0,  # Capital fraction in year 3 (%)
+    # Battery-specific LCOS parameters
+    "lcos_battery_capex_per_kwh": 300.0,  # Battery CAPEX (€/kWh)
+    "lcos_battery_opex_percentage": 2.5,  # Battery O&M (% of CAPEX per year)
+    "lcos_battery_efficiency": 85.0,  # Battery round-trip efficiency (%)
+    "lcos_battery_degradation_rate": 2.5,  # Annual degradation rate (%)
+    "lcos_battery_replacement_years": 10,  # Battery replacement interval (years)
+    "lcos_battery_replacement_cost": 200.0  # Battery replacement cost (€/kWh)
 }
 
 # Parameter ranges
@@ -189,7 +208,26 @@ PARAM_RANGES = {
     # Others costs ranges
     "methanation_others_capex": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
     "methanation_others_opex_annual": {"min": 0.0, "max": 1000000.0, "step": 1000.0},
-    "methanation_others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0}
+    "methanation_others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0},
+    # LCOS parameter ranges
+    "lcos_inflation_rate": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "lcos_debt_fraction": {"min": 0.0, "max": 100.0, "step": 5.0},
+    "lcos_nominal_interest_rate": {"min": 0.0, "max": 15.0, "step": 0.1},
+    "lcos_tax_rate": {"min": 0.0, "max": 50.0, "step": 1.0},
+    "lcos_nominal_cost_of_equity": {"min": 0.0, "max": 20.0, "step": 0.1},
+    "lcos_economic_life": {"min": 5, "max": 30, "step": 1},
+    "lcos_construction_period": {"min": 1, "max": 3, "step": 1},
+    "lcos_capital_fraction_year_0": {"min": 0.0, "max": 100.0, "step": 5.0},
+    "lcos_capital_fraction_year_1": {"min": 0.0, "max": 100.0, "step": 5.0},
+    "lcos_capital_fraction_year_2": {"min": 0.0, "max": 100.0, "step": 5.0},
+    "lcos_capital_fraction_year_3": {"min": 0.0, "max": 100.0, "step": 5.0},
+    # Battery-specific LCOS parameter ranges
+    "lcos_battery_capex_per_kwh": {"min": 100.0, "max": 1000.0, "step": 10.0},
+    "lcos_battery_opex_percentage": {"min": 0.5, "max": 10.0, "step": 0.1},
+    "lcos_battery_efficiency": {"min": 70.0, "max": 95.0, "step": 1.0},
+    "lcos_battery_degradation_rate": {"min": 0.5, "max": 10.0, "step": 0.1},
+    "lcos_battery_replacement_years": {"min": 5, "max": 20, "step": 1},
+    "lcos_battery_replacement_cost": {"min": 50.0, "max": 500.0, "step": 10.0}
 }
 
 # CSS Styles
