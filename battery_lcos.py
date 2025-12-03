@@ -385,7 +385,7 @@ def create_lcos_breakdown_chart(lcos_components: Dict) -> plt.Figure:
 
     ax1.pie(financial_values, labels=financial_labels, autopct='%1.1f%%',
             colors=colors_financial, startangle=90)
-    ax1.set_title('LCOS Breakdown (€/kWh-discharge)')
+    ax1.set_title('LCOS Breakdown ($/MWh-discharge)')
 
     # Key ratios and rates
     ratios_labels = ['WACC Real', 'CRF', 'FCR', 'CFF']
@@ -650,7 +650,7 @@ def render_battery_lcos_tab():
                     with col_a:
                         st.metric(
                             "**LCOS**",
-                            f"€{results['lcos']:.3f}/kWh",
+                            f"${round(results['lcos'] * 1000):.0f}/MWh",
                             help="Levelized Cost of Storage"
                         )
                     with col_b:
@@ -694,7 +694,7 @@ def render_battery_lcos_tab():
                     st.markdown("#### 📋 Detailed Results")
                     detailed_data = {
                         'Component': [
-                            'LCOS (€/kWh-discharge)',
+                            'LCOS ($/MWh-discharge)',
                             'CAPEX Present Value (€)',
                             'Annual Fixed O&M (€/year)',
                             'Electricity Charging Cost (€/kWh-discharge)',
@@ -708,7 +708,7 @@ def render_battery_lcos_tab():
                             'Charging Cost (€/kWh)'
                         ],
                         'Value': [
-                            f"{results['lcos']:.4f}",
+                            f"{round(results['lcos'] * 1000):.0f}",
                             f"{results['capex_pv']:,.0f}",
                             f"{results['annual_opex']:,.0f}",
                             f"{results['ecc']:.4f}",
