@@ -132,7 +132,7 @@ def calculate_fixed_charge_rate(crf: float, tax_rate: float, pvd_macrs: float, c
     Args:
         crf: Capital Recovery Factor (%)
         tax_rate: Tax rate (%)
-        pvd_macrs: Present Value of Depreciation (MACRS) - using simplified 1.0 for now
+        pvd_macrs: Present Value of Depreciation (MACRS)
         cff: Construction Finance Factor (%)
 
     Returns:
@@ -141,9 +141,6 @@ def calculate_fixed_charge_rate(crf: float, tax_rate: float, pvd_macrs: float, c
     crf_decimal = crf / 100
     tax_rate_decimal = tax_rate / 100
     cff_decimal = cff / 100
-
-    # For simplicity, using PVD_MACRS = 1.0 (can be enhanced with actual MACRS calculations)
-    pvd_macrs = 1.0
 
     fcr = crf_decimal * ((1 - tax_rate_decimal * pvd_macrs) / (1 - tax_rate_decimal)) * cff_decimal
     return fcr * 100  # Return as percentage
@@ -185,6 +182,50 @@ def calculate_annual_operating_hours(annual_discharge_hours: float) -> float:
     return annual_discharge_hours
 
 
+def calculate_battery_capacity_kwh(battery_power_kw: float, duration_hours: float) -> float:
+    """
+    Calculate battery energy capacity from power and duration
+
+    Args:
+        battery_power_kw: Battery power capacity (kW)
+        duration_hours: Storage duration (hours)
+
+    Returns:
+        Battery energy capacity (kWh)
+    """
+    return battery_power_kw * duration_hours
+
+
+def calculate_annual_discharge_hours(duration_hours: float, cycles_per_day: float,
+                                   operating_days_per_year: float) -> float:
+    """
+    Calculate annual discharge hours
+
+    Args:
+        duration_hours: Storage duration per cycle (hours)
+        cycles_per_day: Number of cycles per day
+        operating_days_per_year: Operating days per year
+
+    Returns:
+        Annual discharge hours (hours/year)
+    """
+    return duration_hours * cycles_per_day * operating_days_per_year
+
+
+def calculate_annual_opex_fixed(battery_power_kw: float, opex_per_kw_year: float) -> float:
+    """
+    Calculate annual fixed O&M costs
+
+    Args:
+        battery_power_kw: Battery power capacity (kW)
+        opex_per_kw_year: Fixed O&M cost ($/kW-year)
+
+    Returns:
+        Annual fixed O&M cost ($/year)
+    """
+    return battery_power_kw * opex_per_kw_year
+
+
 def calculate_electricity_charging_cost(charging_cost_per_kwh: float,
                                       system_rte: float) -> float:
     """
@@ -203,35 +244,35 @@ def calculate_electricity_charging_cost(charging_cost_per_kwh: float,
     return charging_cost_per_kwh / rte_decimal
 
 
-def calculate_battery_capex_schedule(battery_capacity_kwh: float,
-                                   capex_per_kwh: float,
+def calculate_battery_capex_schedule(battery_power_kw: float,
+                                   capex_per_kw: float,
                                    replacement_years: int,
-                                   replacement_cost_per_kwh: float,
+                                   replacement_cost_per_kw: float,
                                    project_life: int) -> List[float]:
     """
     Calculate battery CAPEX schedule including replacements
 
     Args:
-        battery_capacity_kwh: Battery capacity (kWh)
-        capex_per_kwh: Initial CAPEX (€/kWh)
+        battery_power_kw: Battery power capacity (kW)
+        capex_per_kw: Initial CAPEX ($/kW)
         replacement_years: Years between replacements
-        replacement_cost_per_kwh: Replacement cost (€/kWh)
+        replacement_cost_per_kw: Replacement cost ($/kW)
         project_life: Project life (years)
 
     Returns:
-        List of CAPEX cash flows by year (€)
+        List of CAPEX cash flows by year ($)
     """
     capex_schedule = [0.0] * (project_life + 1)
 
     # Initial CAPEX in year 0
-    capex_schedule[0] = battery_capacity_kwh * capex_per_kwh
+    capex_schedule[0] = battery_power_kw * capex_per_kw
 
     # Replacement CAPEX
     if replacement_years > 0 and replacement_years <= project_life:
         replacement_years_list = list(range(replacement_years, project_life + 1, replacement_years))
         for year in replacement_years_list:
             if year <= project_life:
-                capex_schedule[year] = battery_capacity_kwh * replacement_cost_per_kwh
+                capex_schedule[year] = battery_power_kw * replacement_cost_per_kw
 
     return capex_schedule
 
@@ -262,8 +303,10 @@ def calculate_lcos(fcr: float, capex_pv: float, annual_opex: float,
     return lcos
 
 
-def calculate_battery_lcos_full(battery_capacity_kwh: float,
-                              annual_discharge_hours: float,
+def calculate_battery_lcos_full(battery_power_kw: float,
+                              duration_hours: float,
+                              cycles_per_day: float,
+                              operating_days_per_year: float,
                               charging_cost_per_kwh: float,
                               lcos_params: Dict,
                               capital_fractions: List[float] = None) -> Dict:
@@ -271,9 +314,11 @@ def calculate_battery_lcos_full(battery_capacity_kwh: float,
     Calculate complete battery LCOS with all financial components
 
     Args:
-        battery_capacity_kwh: Battery capacity (kWh)
-        annual_discharge_hours: Annual discharge hours
-        charging_cost_per_kwh: Charging cost (€/kWh)
+        battery_power_kw: Battery power capacity (kW)
+        duration_hours: Storage duration (hours)
+        cycles_per_day: Number of cycles per day
+        operating_days_per_year: Operating days per year
+        charging_cost_per_kwh: Charging cost ($/kWh)
         lcos_params: Dictionary of LCOS parameters
 
     Returns:
@@ -281,12 +326,13 @@ def calculate_battery_lcos_full(battery_capacity_kwh: float,
     """
     # Extract parameters
     inflation_rate = lcos_params.get('inflation_rate', 2.8)
-    debt_fraction = lcos_params.get('debt_fraction', 60.0)
-    nominal_interest_rate = lcos_params.get('nominal_interest_rate', 5.0)
-    tax_rate = lcos_params.get('tax_rate', 25.0)
-    nominal_cost_of_equity = lcos_params.get('nominal_cost_of_equity', 8.0)
+    debt_fraction = lcos_params.get('debt_fraction', 20.0)
+    nominal_interest_rate = lcos_params.get('nominal_interest_rate', 8.0)
+    tax_rate = lcos_params.get('tax_rate', 21.0)
+    nominal_cost_of_equity = lcos_params.get('nominal_cost_of_equity', 12.0)
     economic_life = int(lcos_params.get('economic_life', 20))
     construction_period = int(lcos_params.get('construction_period', 1))
+    pvd_macrs = lcos_params.get('pvd_macrs', 0.7)
 
     # Get capital fractions - use passed parameter or extract from lcos_params
     if capital_fractions is None:
@@ -302,11 +348,15 @@ def calculate_battery_lcos_full(battery_capacity_kwh: float,
                 capital_fractions.append(0.0)
 
     # Battery-specific parameters
-    capex_per_kwh = lcos_params.get('battery_capex_per_kwh', 300.0)
-    opex_percentage = lcos_params.get('battery_opex_percentage', 2.5)
-    battery_efficiency = lcos_params.get('battery_efficiency', 85.0)
+    capex_per_kw = lcos_params.get('battery_capex_per_kw', 172.0)
+    opex_fixed_per_kw_year = lcos_params.get('battery_opex_fixed_per_kw_year', 0.02)
+    battery_efficiency = lcos_params.get('battery_efficiency', 91.0)
     replacement_years = int(lcos_params.get('battery_replacement_years', 10))
-    replacement_cost_per_kwh = lcos_params.get('battery_replacement_cost', 200.0)
+    replacement_cost_per_kw = lcos_params.get('battery_replacement_cost_per_kw', 120.4)
+
+    # Calculate derived parameters
+    battery_capacity_kwh = calculate_battery_capacity_kwh(battery_power_kw, duration_hours)
+    annual_discharge_hours = calculate_annual_discharge_hours(duration_hours, cycles_per_day, operating_days_per_year)
 
     # Step 1: Calculate WACC
     wacc_nominal = calculate_wacc_nominal(
@@ -325,18 +375,18 @@ def calculate_battery_lcos_full(battery_capacity_kwh: float,
     )
 
     # Step 4: Calculate Fixed Charge Rate
-    fcr = calculate_fixed_charge_rate(crf, tax_rate, 1.0, cff)  # PVD_MACRS = 1.0 for simplicity
+    fcr = calculate_fixed_charge_rate(crf, tax_rate, pvd_macrs, cff)
 
     # Step 5: Calculate CAPEX schedule and present value
     capex_schedule = calculate_battery_capex_schedule(
-        battery_capacity_kwh, capex_per_kwh, replacement_years,
-        replacement_cost_per_kwh, economic_life
+        battery_power_kw, capex_per_kw, replacement_years,
+        replacement_cost_per_kw, economic_life
     )
 
     capex_pv = calculate_capex_pv(capex_schedule, wacc_real, economic_life)
 
     # Step 6: Calculate annual O&M
-    annual_opex = capex_schedule[0] * (opex_percentage / 100)  # Based on initial CAPEX
+    annual_opex = calculate_annual_opex_fixed(battery_power_kw, opex_fixed_per_kw_year)
 
     # Step 7: Calculate Electricity Charging Cost
     ecc = calculate_electricity_charging_cost(charging_cost_per_kwh, battery_efficiency)
@@ -351,12 +401,17 @@ def calculate_battery_lcos_full(battery_capacity_kwh: float,
         'crf': crf,
         'cff': cff,
         'fcr': fcr,
+        'pvd_macrs': pvd_macrs,
         'capex_schedule': capex_schedule,
         'capex_pv': capex_pv,
         'annual_opex': annual_opex,
         'ecc': ecc,
         'lcos': lcos,
+        'battery_power_kw': battery_power_kw,
         'battery_capacity_kwh': battery_capacity_kwh,
+        'duration_hours': duration_hours,
+        'cycles_per_day': cycles_per_day,
+        'operating_days_per_year': operating_days_per_year,
         'annual_discharge_hours': annual_discharge_hours,
         'charging_cost_per_kwh': charging_cost_per_kwh
     }
@@ -463,22 +518,49 @@ def render_battery_lcos_tab():
 
         # Battery system parameters
         st.markdown("#### 🔋 Battery System Parameters")
-        battery_capacity_mwh = st.number_input(
-            "Battery Capacity (MWh)",
-            min_value=0.1, max_value=1000.0, value=10.0, step=0.1,
-            help="Total battery energy capacity in megawatt-hours"
+        battery_charging_power_kw = st.number_input(
+            "Charging Power (kW)",
+            min_value=PARAM_RANGES["lcos_battery_charging_power_kw"]["min"],
+            max_value=PARAM_RANGES["lcos_battery_charging_power_kw"]["max"],
+            value=DEFAULT_PARAMS["lcos_battery_charging_power_kw"],
+            step=PARAM_RANGES["lcos_battery_charging_power_kw"]["step"],
+            help="Maximum rate at which the system can charge or discharge energy"
         )
 
-        annual_discharge_hours = st.number_input(
-            "Annual Discharge Hours",
-            min_value=1, max_value=8760, value=1000, step=10,
-            help="Total hours of battery discharge per year"
+        battery_duration_hours = st.number_input(
+            "Duration (Hours)",
+            min_value=PARAM_RANGES["lcos_battery_duration_hours"]["min"],
+            max_value=PARAM_RANGES["lcos_battery_duration_hours"]["max"],
+            value=DEFAULT_PARAMS["lcos_battery_duration_hours"],
+            step=PARAM_RANGES["lcos_battery_duration_hours"]["step"],
+            help="Storage duration in hours"
         )
 
-        charging_cost_per_kwh = st.number_input(
-            "Charging Cost (€/kWh)",
-            min_value=0.0, max_value=1.0, value=0.05, step=0.01,
-            help="Electricity cost for charging the battery"
+        battery_cycles_per_day = st.number_input(
+            "Cycle per day",
+            min_value=PARAM_RANGES["lcos_battery_cycles_per_day"]["min"],
+            max_value=PARAM_RANGES["lcos_battery_cycles_per_day"]["max"],
+            value=DEFAULT_PARAMS["lcos_battery_cycles_per_day"],
+            step=PARAM_RANGES["lcos_battery_cycles_per_day"]["step"],
+            help="Number of charge/discharge cycles per day"
+        )
+
+        battery_operating_days_year = st.number_input(
+            "Operating Days/Years",
+            min_value=PARAM_RANGES["lcos_battery_operating_days_year"]["min"],
+            max_value=PARAM_RANGES["lcos_battery_operating_days_year"]["max"],
+            value=DEFAULT_PARAMS["lcos_battery_operating_days_year"],
+            step=PARAM_RANGES["lcos_battery_operating_days_year"]["step"],
+            help="Number of operating days per year"
+        )
+
+        electricity_charging_cost = st.number_input(
+            "Electricity Charging Cost ($/kWh-Purchased)",
+            min_value=PARAM_RANGES["lcos_electricity_charging_cost"]["min"],
+            max_value=PARAM_RANGES["lcos_electricity_charging_cost"]["max"],
+            value=DEFAULT_PARAMS["lcos_electricity_charging_cost"],
+            step=PARAM_RANGES["lcos_electricity_charging_cost"]["step"],
+            help="Charging cost for purchased energy"
         )
 
         # Financial parameters
@@ -493,39 +575,39 @@ def render_battery_lcos_tab():
         )
 
         debt_fraction = st.number_input(
-            f"Debt Fraction (%)",
+            "Debt Fraction (%)",
             min_value=PARAM_RANGES["lcos_debt_fraction"]["min"],
             max_value=PARAM_RANGES["lcos_debt_fraction"]["max"],
             value=DEFAULT_PARAMS["lcos_debt_fraction"],
             step=PARAM_RANGES["lcos_debt_fraction"]["step"],
-            help="Percentage of capital financed with debt"
+            help="Percent of total capital expenditures financed with debt"
         )
 
         nominal_interest_rate = st.number_input(
-            f"Nominal Interest Rate (%)",
+            "Nominal Interest Rate (%)",
             min_value=PARAM_RANGES["lcos_nominal_interest_rate"]["min"],
             max_value=PARAM_RANGES["lcos_nominal_interest_rate"]["max"],
             value=DEFAULT_PARAMS["lcos_nominal_interest_rate"],
             step=PARAM_RANGES["lcos_nominal_interest_rate"]["step"],
-            help="Interest rate on debt financing"
+            help="Interest rate assumed on expenditures financed with debt"
         )
 
         tax_rate = st.number_input(
-            f"Tax Rate (%)",
+            "Tax Rate (%)",
             min_value=PARAM_RANGES["lcos_tax_rate"]["min"],
             max_value=PARAM_RANGES["lcos_tax_rate"]["max"],
             value=DEFAULT_PARAMS["lcos_tax_rate"],
             step=PARAM_RANGES["lcos_tax_rate"]["step"],
-            help="Combined federal and state tax rate"
+            help="Federal and state combined tax rate"
         )
 
         nominal_cost_of_equity = st.number_input(
-            f"Nominal Cost of Equity (%)",
+            "Nominal Cost of Equity Rate (%)",
             min_value=PARAM_RANGES["lcos_nominal_cost_of_equity"]["min"],
             max_value=PARAM_RANGES["lcos_nominal_cost_of_equity"]["max"],
             value=DEFAULT_PARAMS["lcos_nominal_cost_of_equity"],
             step=PARAM_RANGES["lcos_nominal_cost_of_equity"]["step"],
-            help="Rate of return required on equity"
+            help="Rate of return paid on assets financed with equity"
         )
 
         economic_life = st.number_input(
@@ -538,12 +620,21 @@ def render_battery_lcos_tab():
         )
 
         construction_period = st.number_input(
-            f"Construction Period (years)",
+            "Construction Period (years)",
             min_value=PARAM_RANGES["lcos_construction_period"]["min"],
             max_value=PARAM_RANGES["lcos_construction_period"]["max"],
             value=DEFAULT_PARAMS["lcos_construction_period"],
             step=PARAM_RANGES["lcos_construction_period"]["step"],
             help="Total construction period (years) - determines number of capital fraction inputs"
+        )
+
+        pvd_macrs = st.number_input(
+            "Present Value of Depreciation (MACRS)",
+            min_value=PARAM_RANGES["lcos_pvd_macrs"]["min"],
+            max_value=PARAM_RANGES["lcos_pvd_macrs"]["max"],
+            value=DEFAULT_PARAMS["lcos_pvd_macrs"],
+            step=PARAM_RANGES["lcos_pvd_macrs"]["step"],
+            help="Value dependent on the tax depreciation method (MACRS, half-year convention)"
         )
 
         # Dynamic capital fraction inputs based on construction period
@@ -571,26 +662,35 @@ def render_battery_lcos_tab():
 
         # Battery-specific parameters
         st.markdown("#### 🔋 Battery Technology Parameters")
-        battery_capex_per_kwh = st.number_input(
-            f"Battery CAPEX (€/kWh)",
-            min_value=PARAM_RANGES["lcos_battery_capex_per_kwh"]["min"],
-            max_value=PARAM_RANGES["lcos_battery_capex_per_kwh"]["max"],
-            value=DEFAULT_PARAMS["lcos_battery_capex_per_kwh"],
-            step=PARAM_RANGES["lcos_battery_capex_per_kwh"]["step"],
-            help="Battery capital expenditure per kWh"
+        battery_capex_per_kw = st.number_input(
+            "Initial Capex ($/kW)",
+            min_value=PARAM_RANGES["lcos_battery_capex_per_kw"]["min"],
+            max_value=PARAM_RANGES["lcos_battery_capex_per_kw"]["max"],
+            value=DEFAULT_PARAMS["lcos_battery_capex_per_kw"],
+            step=PARAM_RANGES["lcos_battery_capex_per_kw"]["step"],
+            help="Battery capital expenditure per kW"
+        )
+
+        battery_opex_fixed_per_kw_year = st.number_input(
+            "Annual Fixed O&M ($/kW-year)",
+            min_value=PARAM_RANGES["lcos_battery_opex_fixed_per_kw_year"]["min"],
+            max_value=PARAM_RANGES["lcos_battery_opex_fixed_per_kw_year"]["max"],
+            value=DEFAULT_PARAMS["lcos_battery_opex_fixed_per_kw_year"],
+            step=PARAM_RANGES["lcos_battery_opex_fixed_per_kw_year"]["step"],
+            help="Annual fixed O&M per kW-year"
         )
 
         battery_efficiency = st.number_input(
-            f"Battery Efficiency (%)",
+            "System Round-Trip Efficiency (%)",
             min_value=PARAM_RANGES["lcos_battery_efficiency"]["min"],
             max_value=PARAM_RANGES["lcos_battery_efficiency"]["max"],
             value=DEFAULT_PARAMS["lcos_battery_efficiency"],
             step=PARAM_RANGES["lcos_battery_efficiency"]["step"],
-            help="Battery round-trip efficiency"
+            help="System RTE (%)"
         )
 
         battery_replacement_years = st.number_input(
-            f"Battery Replacement Interval (years)",
+            "Battery replacement Year",
             min_value=PARAM_RANGES["lcos_battery_replacement_years"]["min"],
             max_value=PARAM_RANGES["lcos_battery_replacement_years"]["max"],
             value=DEFAULT_PARAMS["lcos_battery_replacement_years"],
@@ -598,13 +698,13 @@ def render_battery_lcos_tab():
             help="Years between battery replacements"
         )
 
-        battery_replacement_cost = st.number_input(
-            f"Battery Replacement Cost (€/kWh)",
-            min_value=PARAM_RANGES["lcos_battery_replacement_cost"]["min"],
-            max_value=PARAM_RANGES["lcos_battery_replacement_cost"]["max"],
-            value=DEFAULT_PARAMS["lcos_battery_replacement_cost"],
-            step=PARAM_RANGES["lcos_battery_replacement_cost"]["step"],
-            help="Cost of battery replacement per kWh"
+        battery_replacement_cost_per_kw = st.number_input(
+            "Battery replacement cost ($/kW)",
+            min_value=PARAM_RANGES["lcos_battery_replacement_cost_per_kw"]["min"],
+            max_value=PARAM_RANGES["lcos_battery_replacement_cost_per_kw"]["max"],
+            value=DEFAULT_PARAMS["lcos_battery_replacement_cost_per_kw"],
+            step=PARAM_RANGES["lcos_battery_replacement_cost_per_kw"]["step"],
+            help="Cost of battery replacement per kW"
         )
 
     with col2:
@@ -615,8 +715,6 @@ def render_battery_lcos_tab():
             with st.spinner("Calculating LCOS..."):
 
                 # Prepare parameters
-                battery_capacity_kwh = battery_capacity_mwh * 1000  # Convert to kWh
-
                 lcos_params = {
                     'inflation_rate': inflation_rate,
                     'debt_fraction': debt_fraction,
@@ -624,21 +722,24 @@ def render_battery_lcos_tab():
                     'tax_rate': tax_rate,
                     'nominal_cost_of_equity': nominal_cost_of_equity,
                     'economic_life': economic_life,
-                    'battery_capex_per_kwh': battery_capex_per_kwh,
+                    'battery_capex_per_kw': battery_capex_per_kw,
+                    'battery_opex_fixed_per_kw_year': battery_opex_fixed_per_kw_year,
                     'battery_efficiency': battery_efficiency,
                     'battery_replacement_years': battery_replacement_years,
-                    'battery_replacement_cost': battery_replacement_cost,
-                    'battery_opex_percentage': DEFAULT_PARAMS["lcos_battery_opex_percentage"],
+                    'battery_replacement_cost_per_kw': battery_replacement_cost_per_kw,
                     'construction_period': construction_period,
+                    'pvd_macrs': pvd_macrs,
                     'capital_fractions': capital_fractions
                 }
 
                 # Calculate LCOS
                 try:
                     results = calculate_battery_lcos_full(
-                        battery_capacity_kwh,
-                        annual_discharge_hours,
-                        charging_cost_per_kwh,
+                        battery_charging_power_kw,
+                        battery_duration_hours,
+                        battery_cycles_per_day,
+                        battery_operating_days_year,
+                        electricity_charging_cost,
                         lcos_params,
                         capital_fractions
                     )
@@ -650,20 +751,41 @@ def render_battery_lcos_tab():
                     with col_a:
                         st.metric(
                             "**LCOS**",
-                            f"${round(results['lcos'] * 1000):.0f}/MWh",
+                            f"${results['lcos'] * 1000:.2f}/MWh",
                             help="Levelized Cost of Storage"
                         )
                     with col_b:
                         st.metric(
-                            "**Battery Capacity**",
-                            f"{battery_capacity_mwh:.1f} MWh",
-                            help="Total battery energy capacity"
+                            "**Battery Power**",
+                            f"{results['battery_power_kw']/1000:.1f} MW",
+                            help="Battery charging/discharging power"
                         )
                     with col_c:
                         st.metric(
+                            "**Battery Capacity**",
+                            f"{results['battery_capacity_kwh']/1000:.1f} MWh",
+                            help="Total battery energy capacity"
+                        )
+
+                    # Additional metrics
+                    col_d, col_e, col_f = st.columns(3)
+                    with col_d:
+                        st.metric(
                             "**Annual Discharge**",
-                            f"{annual_discharge_hours:.0f} hours",
+                            f"{results['annual_discharge_hours']:.0f} hours",
                             help="Total annual discharge hours"
+                        )
+                    with col_e:
+                        st.metric(
+                            "**Duration**",
+                            f"{results['duration_hours']:.1f} hours",
+                            help="Storage duration"
+                        )
+                    with col_f:
+                        st.metric(
+                            "**Cycles/Day**",
+                            f"{results['cycles_per_day']:.1f}",
+                            help="Daily charge/discharge cycles"
                         )
 
                     # Financial components breakdown
@@ -673,12 +795,13 @@ def render_battery_lcos_tab():
                     with comp_col1:
                         st.metric("WACC (Real)", f"{results['wacc_real']:.2f}%")
                         st.metric("Capital Recovery Factor", f"{results['crf']:.2f}%")
+                        st.metric("PVD (MACRS)", f"{results['pvd_macrs']:.2f}")
                     with comp_col2:
                         st.metric("Construction Finance Factor", f"{results['cff']:.2f}%")
                         st.metric("Fixed Charge Rate", f"{results['fcr']:.2f}%")
                     with comp_col3:
-                        st.metric("CAPEX (PV)", f"€{results['capex_pv']:,.0f}")
-                        st.metric("Annual O&M", f"€{results['annual_opex']:,.0f}")
+                        st.metric("CAPEX (PV)", f"${results['capex_pv']:,.0f}")
+                        st.metric("Annual O&M", f"${results['annual_opex']:,.0f}")
 
                     # Cost breakdown visualization
                     st.markdown("#### 📈 Cost Breakdown Analysis")
@@ -695,20 +818,25 @@ def render_battery_lcos_tab():
                     detailed_data = {
                         'Component': [
                             'LCOS ($/MWh-discharge)',
-                            'CAPEX Present Value (€)',
-                            'Annual Fixed O&M (€/year)',
-                            'Electricity Charging Cost (€/kWh-discharge)',
+                            'CAPEX Present Value ($)',
+                            'Annual Fixed O&M ($/year)',
+                            'Electricity Charging Cost ($/kWh-discharge)',
                             'WACC Nominal (%)',
                             'WACC Real (%)',
                             'Capital Recovery Factor (%)',
                             'Construction Finance Factor (%)',
                             'Fixed Charge Rate (%)',
+                            'PVD (MACRS)',
+                            'Battery Power (kW)',
                             'Battery Capacity (kWh)',
+                            'Duration (hours)',
+                            'Cycles per Day',
+                            'Operating Days/Year',
                             'Annual Discharge Hours',
-                            'Charging Cost (€/kWh)'
+                            'Charging Cost ($/kWh)'
                         ],
                         'Value': [
-                            f"{round(results['lcos'] * 1000):.0f}",
+                            f"{results['lcos'] * 1000:.2f}",
                             f"{results['capex_pv']:,.0f}",
                             f"{results['annual_opex']:,.0f}",
                             f"{results['ecc']:.4f}",
@@ -717,7 +845,12 @@ def render_battery_lcos_tab():
                             f"{results['crf']:.2f}",
                             f"{results['cff']:.2f}",
                             f"{results['fcr']:.2f}",
+                            f"{results['pvd_macrs']:.2f}",
+                            f"{results['battery_power_kw']:,.0f}",
                             f"{results['battery_capacity_kwh']:,.0f}",
+                            f"{results['duration_hours']:.1f}",
+                            f"{results['cycles_per_day']:.1f}",
+                            f"{results['operating_days_per_year']:.0f}",
                             f"{results['annual_discharge_hours']:.0f}",
                             f"{results['charging_cost_per_kwh']:.4f}"
                         ]
