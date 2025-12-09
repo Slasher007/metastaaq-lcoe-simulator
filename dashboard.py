@@ -58,6 +58,14 @@ except ImportError:
     BATTERY_MODULE_AVAILABLE = False
     print("⚠️ Battery arbitrage module not available. Install required dependencies.")
 
+# Import battery LCOS integration
+try:
+    from battery_lcos import render_battery_lcos_tab
+    LCOS_MODULE_AVAILABLE = True
+except ImportError:
+    LCOS_MODULE_AVAILABLE = False
+    print("⚠️ Battery LCOS module not available. Install required dependencies.")
+
 
 def main():
     """Main dashboard function"""
@@ -179,7 +187,7 @@ def main():
             st.rerun()
 
     # Create main tabs for different analysis sections
-    main_tab1, main_tab2 = st.tabs(["🔋 Battery Arbitrage Optimization", "📊 LCOE & Energy Analysis"])
+    main_tab1, main_tab2, main_tab3 = st.tabs(["🔋 Battery Arbitrage Optimization", "📊 LCOE & Energy Analysis", "💰 Battery LCOS Analysis"])
     
     with main_tab2:
         # Update last_params only when in LCOE tab
@@ -214,6 +222,14 @@ def main():
         else:
             st.error("🔋 Battery Arbitrage module not available. Please ensure all battery optimization files are present.")
             st.info("Required files: battery_config.py, battery_optimizer.py, battery_visualization.py, battery_integration.py")
+
+    with main_tab3:
+        # Battery LCOS analysis tab
+        if LCOS_MODULE_AVAILABLE:
+            render_battery_lcos_tab()
+        else:
+            st.error("💰 Battery LCOS module not available. Please ensure battery_lcos.py is present.")
+            st.info("Required files: battery_lcos.py")
 
 
 def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, avg_service_ratio,

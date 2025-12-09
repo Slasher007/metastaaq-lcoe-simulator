@@ -108,7 +108,34 @@ DEFAULT_PARAMS = {
     # Others costs by category
     "methanation_others_capex": 0.0,
     "methanation_others_opex_annual": 0.0,
-    "methanation_others_maintenance_annual": 0.0
+    "methanation_others_maintenance_annual": 0.0,
+    # LCOS (Levelized Cost of Storage) parameters
+    "lcos_inflation_rate": 2.8,  # Inflation rate (%)
+    "lcos_debt_fraction": 20.0,  # Debt Fraction (%)
+    "lcos_nominal_interest_rate": 8.0,  # Nominal interest rate (%)
+    "lcos_tax_rate": 21.0,  # Tax rate (federal and state) (%)
+    "lcos_nominal_cost_of_equity": 12.0,  # Nominal cost of equity (%)
+    "lcos_economic_life": 20,  # Economic life (years)
+    "lcos_construction_period": 1,  # Construction period (years)
+    "lcos_capital_fraction_year_0": 70.0,  # Capital fraction in year 0 (%)
+    "lcos_capital_fraction_year_1": 30.0,  # Capital fraction in year 1 (%)
+    "lcos_capital_fraction_year_2": 0.0,  # Capital fraction in year 2 (%)
+    "lcos_capital_fraction_year_3": 0.0,  # Capital fraction in year 3 (%)
+    "lcos_pvd_macrs": 0.7,  # Present Value of Depreciation (MACRS)
+    # Battery-specific LCOS parameters
+    "lcos_battery_charging_power_kw": 100000,  # Charging Power (kW)
+    "lcos_battery_duration_hours": 2,  # Duration (Hours)
+    "lcos_battery_cycles_per_day": 1.0,  # Cycle per day
+    "lcos_battery_operating_days_year": 350,  # Operating Days/Years
+    "lcos_battery_capex_per_kw": 172.0,  # Initial Capex ($/kW)
+    "lcos_battery_opex_fixed_per_kw_year": 0.02,  # Annual Fixed O&M ($/kW-year)
+    "lcos_battery_replacement_cost_per_kw": 120.4,  # Battery replacement cost ($/kW)
+    "lcos_battery_efficiency": 91.0,  # System Round-Trip Efficiency (%)
+    "lcos_battery_replacement_years": 10,  # Battery replacement interval (years)
+    "lcos_electricity_charging_cost": 0.042,  # Electricity Charging Cost ($/kWh-Purchased)
+    # Legacy parameters for backward compatibility
+    "lcos_battery_capex_per_kwh": 300.0,  # Battery CAPEX (€/kWh) - legacy
+    "lcos_battery_opex_percentage": 2.5,  # Battery O&M (% of CAPEX per year) - legacy
 }
 
 # Parameter ranges
@@ -189,7 +216,34 @@ PARAM_RANGES = {
     # Others costs ranges
     "methanation_others_capex": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
     "methanation_others_opex_annual": {"min": 0.0, "max": 1000000.0, "step": 1000.0},
-    "methanation_others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0}
+    "methanation_others_maintenance_annual": {"min": 0.0, "max": 500000.0, "step": 1000.0},
+    # LCOS parameter ranges
+    "lcos_inflation_rate": {"min": 0.0, "max": 10.0, "step": 0.1},
+    "lcos_debt_fraction": {"min": 0.0, "max": 100.0, "step": 5.0},
+    "lcos_nominal_interest_rate": {"min": 0.0, "max": 15.0, "step": 0.1},
+    "lcos_tax_rate": {"min": 0.0, "max": 50.0, "step": 1.0},
+    "lcos_nominal_cost_of_equity": {"min": 0.0, "max": 20.0, "step": 0.1},
+    "lcos_economic_life": {"min": 5, "max": 30, "step": 1},
+    "lcos_construction_period": {"min": 1, "max": 3, "step": 1},
+    "lcos_capital_fraction_year_0": {"min": 0.0, "max": 100.0, "step": 5.0},
+    "lcos_capital_fraction_year_1": {"min": 0.0, "max": 100.0, "step": 5.0},
+    "lcos_capital_fraction_year_2": {"min": 0.0, "max": 100.0, "step": 5.0},
+    "lcos_capital_fraction_year_3": {"min": 0.0, "max": 100.0, "step": 5.0},
+    "lcos_pvd_macrs": {"min": 0.0, "max": 1.0, "step": 0.05},
+    # Battery-specific LCOS parameter ranges
+    "lcos_battery_charging_power_kw": {"min": 1000, "max": 500000, "step": 1000},
+    "lcos_battery_duration_hours": {"min": 1, "max": 24, "step": 1},
+    "lcos_battery_cycles_per_day": {"min": 0.5, "max": 4.0, "step": 0.5},
+    "lcos_battery_operating_days_year": {"min": 200, "max": 365, "step": 5},
+    "lcos_battery_capex_per_kw": {"min": 50.0, "max": 500.0, "step": 10.0},
+    "lcos_battery_opex_fixed_per_kw_year": {"min": 0.005, "max": 0.1, "step": 0.005},
+    "lcos_battery_replacement_cost_per_kw": {"min": 30.0, "max": 300.0, "step": 10.0},
+    "lcos_battery_efficiency": {"min": 70.0, "max": 95.0, "step": 1.0},
+    "lcos_battery_replacement_years": {"min": 5, "max": 20, "step": 1},
+    "lcos_electricity_charging_cost": {"min": 0.01, "max": 0.2, "step": 0.01},
+    # Legacy parameter ranges for backward compatibility
+    "lcos_battery_capex_per_kwh": {"min": 100.0, "max": 1000.0, "step": 10.0},
+    "lcos_battery_opex_percentage": {"min": 0.5, "max": 10.0, "step": 0.1}
 }
 
 # CSS Styles
