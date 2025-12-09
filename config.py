@@ -123,12 +123,12 @@ DEFAULT_PARAMS = {
     "lcos_capital_fraction_year_3": 0.0,  # Capital fraction in year 3 (%)
     "lcos_pvd_macrs": 0.7,  # Present Value of Depreciation (MACRS)
     # Battery-specific LCOS parameters
-    "lcos_battery_charging_power_kw": 100000,  # Charging Power (kW)
-    "lcos_battery_duration_hours": 2,  # Duration (Hours)
+    "lcos_battery_charging_power_kw": 5000.0,  # Charging Power (kW)
+    "lcos_battery_duration_hours": 4.0,  # Duration (Hours)
     "lcos_battery_cycles_per_day": 1.0,  # Cycle per day
-    "lcos_battery_operating_days_year": 350,  # Operating Days/Years
+    "lcos_battery_operating_days_year": 358.0,  # Operating Days/Years
     "lcos_battery_capex_per_kw": 172.0,  # Initial Capex ($/kW)
-    "lcos_battery_opex_fixed_per_kw_year": 20,  # Annual Fixed O&M ($/kW-year)
+    "lcos_battery_opex_fixed_per_kw_year": 20.0,  # Annual Fixed O&M ($/kW-year)
     "lcos_battery_replacement_cost_per_kw": 120.4,  # Battery replacement cost ($/kW)
     "lcos_battery_efficiency": 91.0,  # System Round-Trip Efficiency (%)
     "lcos_battery_replacement_years": 10,  # Battery replacement interval (years)
@@ -231,13 +231,13 @@ PARAM_RANGES = {
     "lcos_capital_fraction_year_3": {"min": 0.0, "max": 100.0, "step": 5.0},
     "lcos_pvd_macrs": {"min": 0.0, "max": 1.0, "step": 0.05},
     # Battery-specific LCOS parameter ranges
-    "lcos_battery_charging_power_kw": {"min": 1000, "max": 500000, "step": 1000},
-    "lcos_battery_duration_hours": {"min": 1, "max": 24, "step": 1},
+    "lcos_battery_charging_power_kw": {"min": 1000.0, "max": 500000.0, "step": 1000.0},
+    "lcos_battery_duration_hours": {"min": 1.0, "max": 24.0, "step": 1.0},
     "lcos_battery_cycles_per_day": {"min": 0.5, "max": 4.0, "step": 0.5},
-    "lcos_battery_operating_days_year": {"min": 200, "max": 365, "step": 5},
+    "lcos_battery_operating_days_year": {"min": 200.0, "max": 365.0, "step": 5.0},
     "lcos_battery_capex_per_kw": {"min": 50.0, "max": 500.0, "step": 10.0},
-    "lcos_battery_opex_fixed_per_kw_year": {"min": 0.005, "max": 0.1, "step": 0.005},
-    "lcos_battery_replacement_cost_per_kw": {"min": 30.0, "max": 300.0, "step": 10.0},
+    "lcos_battery_opex_fixed_per_kw_year": {"min": 0.0, "max": 1000.0, "step": 0.5},
+    "lcos_battery_replacement_cost_per_kw": {"min": 30.0, "max": 3000.0, "step": 10.0},
     "lcos_battery_efficiency": {"min": 70.0, "max": 95.0, "step": 1.0},
     "lcos_battery_replacement_years": {"min": 5, "max": 20, "step": 1},
     "lcos_electricity_charging_cost": {"min": 0.01, "max": 0.2, "step": 0.01},

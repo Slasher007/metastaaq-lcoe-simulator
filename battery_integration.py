@@ -309,7 +309,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # Electrolyser parameters (from main dashboard)
             st.subheader("⚡ Electrolyser")
-            
             st.info(f"Using electrolyser power from main config: **{electrolyser_power:.1f} MW**")
         
         with col2:
@@ -923,6 +922,13 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 'net_cashflow': float(df_hourly_cost['net_cashflow'].sum())
             }
             
+            #print(df_hourly_cost.columns)
+            subset_columns = ['window_type',
+                                'spot_price_eur_mwh',
+                                'grid_charge_cost', 'revenue_sell_to_grid',
+                                'ely_supply_savings', 'ppa_baseline_cost', 'pv_baseline_cost',
+                                'battery_lcos_cost', 'grid_supply_price','net_cashflow',]
+            print(df_hourly_cost[subset_columns])
             # Group by hour of day
             hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
                 'grid_charge_cost': 'sum',
