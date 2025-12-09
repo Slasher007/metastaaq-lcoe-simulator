@@ -153,12 +153,12 @@ def calculate_capex_pv(cash_flows: List[float], wacc_real: float, project_life: 
     CAPEX_PV = Σ(CF_n / (1 + d)^n) for n=0 to N
 
     Args:
-        cash_flows: List of cash flows for each year (€)
+        cash_flows: List of cash flows for each year ($/kW)
         wacc_real: Real WACC (%)
         project_life: Project life (years)
 
     Returns:
-        Present value of capital expenditures (€)
+        Present value of capital expenditures ($/kW)
     """
     d = wacc_real / 100  # Convert to decimal
     capex_pv = 0.0
@@ -244,8 +244,7 @@ def calculate_electricity_charging_cost(charging_cost_per_kwh: float,
     return charging_cost_per_kwh / rte_decimal
 
 
-def calculate_battery_capex_schedule(battery_power_kw: float,
-                                   capex_per_kw: float,
+def calculate_battery_capex_schedule(capex_per_kw: float,
                                    replacement_years: int,
                                    replacement_cost_per_kw: float,
                                    project_life: int) -> List[float]:
@@ -253,26 +252,25 @@ def calculate_battery_capex_schedule(battery_power_kw: float,
     Calculate battery CAPEX schedule including replacements
 
     Args:
-        battery_power_kw: Battery power capacity (kW)
         capex_per_kw: Initial CAPEX ($/kW)
         replacement_years: Years between replacements
         replacement_cost_per_kw: Replacement cost ($/kW)
         project_life: Project life (years)
 
     Returns:
-        List of CAPEX cash flows by year ($)
+        List of CAPEX cash flows by year ($/kW)
     """
     capex_schedule = [0.0] * (project_life + 1)
 
     # Initial CAPEX in year 0
-    capex_schedule[0] = battery_power_kw * capex_per_kw
+    capex_schedule[0] = capex_per_kw
 
     # Replacement CAPEX
     if replacement_years > 0 and replacement_years <= project_life:
         replacement_years_list = list(range(replacement_years, project_life + 1, replacement_years))
         for year in replacement_years_list:
             if year <= project_life:
-                capex_schedule[year] = battery_power_kw * replacement_cost_per_kw
+                capex_schedule[year] = replacement_cost_per_kw
 
     return capex_schedule
 
@@ -286,13 +284,13 @@ def calculate_lcos(fcr: float, capex_pv: float, annual_opex: float,
 
     Args:
         fcr: Fixed Charge Rate (%)
-        capex_pv: Present value of capital expenditures (€)
-        annual_opex: Annual fixed O&M (€/year)
+        capex_pv: Present value of capital expenditures ($/kW)
+        annual_opex: Annual fixed O&M ($/kW-year)
         annual_discharge_hours: Annual hours discharged (hours/year)
-        ecc: Electricity charging cost (€/kWh-discharge)
+        ecc: Electricity charging cost ($/kWh-discharge)
 
     Returns:
-        LCOS (€/kWh-discharge)
+        LCOS ($/kWh-discharge)
     """
     fcr_decimal = fcr / 100
 
@@ -379,20 +377,20 @@ def calculate_battery_lcos_full(battery_power_kw: float,
 
     # Step 5: Calculate CAPEX schedule and present value
     capex_schedule = calculate_battery_capex_schedule(
-        battery_power_kw, capex_per_kw, replacement_years,
+        capex_per_kw, replacement_years,
         replacement_cost_per_kw, economic_life
     )
 
     capex_pv = calculate_capex_pv(capex_schedule, wacc_real, economic_life)
 
     # Step 6: Calculate annual O&M
-    annual_opex = calculate_annual_opex_fixed(battery_power_kw, opex_fixed_per_kw_year)
+    annual_opex_total = calculate_annual_opex_fixed(battery_power_kw, opex_fixed_per_kw_year)
 
     # Step 7: Calculate Electricity Charging Cost
     ecc = calculate_electricity_charging_cost(charging_cost_per_kwh, battery_efficiency)
 
     # Step 8: Calculate LCOS
-    lcos = calculate_lcos(fcr, capex_pv, annual_opex, annual_discharge_hours, ecc)
+    lcos = calculate_lcos(fcr, capex_pv, opex_fixed_per_kw_year, annual_discharge_hours, ecc)
 
     # Return all components
     return {
@@ -404,7 +402,9 @@ def calculate_battery_lcos_full(battery_power_kw: float,
         'pvd_macrs': pvd_macrs,
         'capex_schedule': capex_schedule,
         'capex_pv': capex_pv,
-        'annual_opex': annual_opex,
+        'capex_pv_total': capex_pv * battery_power_kw,
+        'annual_opex': opex_fixed_per_kw_year,
+        'annual_opex_total': annual_opex_total,
         'ecc': ecc,
         'lcos': lcos,
         'battery_power_kw': battery_power_kw,
@@ -482,7 +482,7 @@ def create_capex_schedule_chart(capex_schedule: List[float]) -> plt.Figure:
     ax.bar(years, capex_schedule, color='#1f77b4', alpha=0.7)
 
     ax.set_xlabel('Year')
-    ax.set_ylabel('CAPEX (€)')
+    ax.set_ylabel('CAPEX ($/kW)')
     ax.set_title('Battery CAPEX Schedule (including replacements)')
     ax.grid(True, alpha=0.3)
 
@@ -540,7 +540,7 @@ def render_battery_lcos_tab():
             "Cycle per day",
             min_value=PARAM_RANGES["lcos_battery_cycles_per_day"]["min"],
             max_value=PARAM_RANGES["lcos_battery_cycles_per_day"]["max"],
-            value=DEFAULT_PARAMS["lcos_battery_cycles_per_day"],
+            value=float(DEFAULT_PARAMS["lcos_battery_cycles_per_day"]),
             step=PARAM_RANGES["lcos_battery_cycles_per_day"]["step"],
             help="Number of charge/discharge cycles per day"
         )
@@ -800,8 +800,8 @@ def render_battery_lcos_tab():
                         st.metric("Construction Finance Factor", f"{results['cff']:.2f}%")
                         st.metric("Fixed Charge Rate", f"{results['fcr']:.2f}%")
                     with comp_col3:
-                        st.metric("CAPEX (PV)", f"${results['capex_pv']:,.0f}")
-                        st.metric("Annual O&M", f"${results['annual_opex']:,.0f}")
+                        st.metric("CAPEX (PV)", f"${results['capex_pv_total']:,.0f}")
+                        st.metric("Annual O&M", f"${results['annual_opex_total']:,.0f}")
 
                     # Cost breakdown visualization
                     st.markdown("#### 📈 Cost Breakdown Analysis")
@@ -837,8 +837,8 @@ def render_battery_lcos_tab():
                         ],
                         'Value': [
                             f"{results['lcos'] * 1000:.2f}",
-                            f"{results['capex_pv']:,.0f}",
-                            f"{results['annual_opex']:,.0f}",
+                            f"{results['capex_pv_total']:,.0f}",
+                            f"{results['annual_opex_total']:,.0f}",
                             f"{results['ecc']:.4f}",
                             f"{results['wacc_nominal']:.2f}",
                             f"{results['wacc_real']:.2f}",
