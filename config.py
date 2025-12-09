@@ -128,7 +128,7 @@ DEFAULT_PARAMS = {
     "lcos_battery_cycles_per_day": 1.0,  # Cycle per day
     "lcos_battery_operating_days_year": 350,  # Operating Days/Years
     "lcos_battery_capex_per_kw": 172.0,  # Initial Capex ($/kW)
-    "lcos_battery_opex_fixed_per_kw_year": 0.02,  # Annual Fixed O&M ($/kW-year)
+    "lcos_battery_opex_fixed_per_kw_year": 20,  # Annual Fixed O&M ($/kW-year)
     "lcos_battery_replacement_cost_per_kw": 120.4,  # Battery replacement cost ($/kW)
     "lcos_battery_efficiency": 91.0,  # System Round-Trip Efficiency (%)
     "lcos_battery_replacement_years": 10,  # Battery replacement interval (years)
