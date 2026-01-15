@@ -139,10 +139,10 @@ Examples:
     time_windows = {
         'pv_charge_start': args.pv_start,
         'pv_charge_end': args.pv_end,
-        'arbitrage_discharge_start': args.arbitrage_start,
-        'arbitrage_discharge_end': args.arbitrage_end,
-        'night_charge_start': args.night_start,
-        'night_charge_end': args.night_end,
+        'sell_to_grid_start': args.arbitrage_start,
+        'sell_to_grid_end': args.arbitrage_end,
+        'grid_charging_start': args.night_start,
+        'grid_charging_end': args.night_end,
         'electrolyser_start': args.ely_start,
         'electrolyser_end': args.ely_end,
     }
@@ -172,8 +172,8 @@ Examples:
     
     print(f"\nOperational Time Windows:")
     print(f"  PV Charging: {time_windows['pv_charge_start']:02d}:00 - {time_windows['pv_charge_end']:02d}:00")
-    print(f"  Arbitrage Discharge: {time_windows['arbitrage_discharge_start']:02d}:00 - {time_windows['arbitrage_discharge_end']:02d}:00")
-    print(f"  Night Charging: {time_windows['night_charge_start']:02d}:00 - {time_windows['night_charge_end']:02d}:00")
+    print(f"  Sell to Grid: {time_windows['sell_to_grid_start']:02d}:00 - {time_windows['sell_to_grid_end']:02d}:00")
+    print(f"  Grid Charging: {time_windows['grid_charging_start']:02d}:00 - {time_windows['grid_charging_end']:02d}:00")
     print(f"  Electrolyser: {time_windows['electrolyser_start']:02d}:00 - {time_windows['electrolyser_end']:02d}:00")
     
     # Prepare PV profile

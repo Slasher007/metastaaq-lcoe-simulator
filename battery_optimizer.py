@@ -48,7 +48,7 @@ class BatteryOptimizer:
         
         # Calculate effective energy limits based on DoD
         self.E_min = self.battery_params["E_bat_max"] * self.battery_params["SoC_min"]
-        self.E_max = self.battery_params["E_bat_max"] * self.battery_params["SoC_max"]+1
+        self.E_max = self.battery_params["E_bat_max"] * self.battery_params["SoC_max"]
         
     def simulate_year(self, pv_profile_mw, spot_prices_eur_mwh, hours_of_day):
         """

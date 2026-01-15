@@ -7,20 +7,20 @@ Parametric time windows and battery parameters for PV-Battery-Electrolyser optim
 # Defaults aligned with battery_integration operational windows (non-overlapping)
 DEFAULT_TIME_WINDOWS = {
     # 1. PV-priority charging window
-    "pv_charge_start": 12,  # 10:00 - Start PV charging
-    "pv_charge_end": 17,    # 16:00 - End PV charging
+    "pv_charge_start": 12,  # 12:00 - Start PV charging
+    "pv_charge_end": 17,    # 17:00 - End PV charging
     
     # 2. Evening arbitrage discharge window
-    "sell_to_grid_start": 18,  # 17:00 - Start selling to grid
-    "sell_to_grid_end": 23,    # 22:00 - End selling to grid
+    "sell_to_grid_start": 18,  # 18:00 - Start selling to grid
+    "sell_to_grid_end": 23,    # 23:00 - End selling to grid
     
     # 3. Spot charging window (grid charging at spot prices)
-    "grid_charging_start": 0,  # 23:00 - Start spot grid charging
-    "grid_charging_end": 5,     # 04:00 - End spot grid charging (wraps midnight)
+    "grid_charging_start": 0,  # 00:00 - Start spot grid charging
+    "grid_charging_end": 5,    # 05:00 - End spot grid charging
     
     # 4. Morning electrolyser supply window
-    "electrolyser_start": 6,  # 05:00 - Start electrolyser operation
-    "electrolyser_end": 11,    # 09:00 - End electrolyser operation
+    "electrolyser_start": 6,   # 06:00 - Start electrolyser operation
+    "electrolyser_end": 11,    # 11:00 - End electrolyser operation
 }
 
 # Electrolyser Parameters for Battery Supply
@@ -44,9 +44,9 @@ DEFAULT_BATTERY_PARAMS = {
     
     # Efficiency (one-way and round-trip)
     # Note: battery_integration recomputes eta_charge/eta_discharge from eta_rt
-    "eta_charge": 1.0,  # Charging efficiency (one-way)
-    "eta_discharge": 1.0,  # Discharging efficiency (one-way)
-    "eta_rt": 1.0,  # Round-trip efficiency (UI default; losses modeled via economics, not physics)
+    "eta_charge": 0.959,  # Charging efficiency (one-way, sqrt of 0.92)
+    "eta_discharge": 0.959,  # Discharging efficiency (one-way, sqrt of 0.92)
+    "eta_rt": 0.92,  # Round-trip efficiency (typical Li-ion battery)
     
     # State of Charge (SoC) constraints
     "SoC_min": 0.00,  # Minimum SoC (10% = 10% DoD protection)
