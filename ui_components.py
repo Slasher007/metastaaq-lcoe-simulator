@@ -1061,55 +1061,7 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
         
         df_breakdown = pd.DataFrame(breakdown_data)
         
-        # Create two columns: table on left, pie chart on right
-        col_table, col_pie = st.columns([2, 1])
-        
-        with col_table:
-            st.table(df_breakdown)
-        
-        with col_pie:
-            # Create pie chart for LCOC breakdown by component
-            pie_labels = ['Electrolyser', 'Methanation', 'Site & CO₂']
-            pie_values = [electrolyzer_per_kg, methanation_per_kg, site_co2_per_kg]
-            
-            # Create pie chart
-            fig_pie, ax_pie = plt.subplots(figsize=(7, 7))
-            colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
-            
-            wedges, texts, autotexts = ax_pie.pie(
-                pie_values,
-                labels=pie_labels,
-                autopct='%1.1f%%',
-                startangle=90,
-                colors=colors,
-                pctdistance=0.85,
-                explode=[0.05, 0.05, 0.05]
-            )
-            
-            # Enhance text
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontweight('bold')
-                autotext.set_fontsize(9)
-            
-            for text in texts:
-                text.set_fontsize(10)
-                text.set_fontweight('bold')
-            
-            # Create title with average service ratio if available
-            title = 'LCOC Cost Breakdown'
-            if avg_service_ratio is not None:
-                title += f'\nService Ratio: {avg_service_ratio:.1%}'
-            ax_pie.set_title(title, fontsize=12, fontweight='bold', pad=20)
-            
-            ax_pie.axis('equal')
-            plt.tight_layout()
-            st.pyplot(fig_pie)
-        
-        # Detailed Cost Breakdown Structure
-        st.markdown("#### 📋 Detailed Cost Breakdown")
-        
-        # Extract annual costs for each component
+        # Extract annual costs for each component (needed for pie charts and detailed breakdown)
         electrolyzer_capex_annual_cat = electrolyzer_costs.get('capex_annual', 0)
         electrolyzer_opex_annual_cat = electrolyzer_costs.get('opex_annual', 0)
         electrolyzer_maintenance_annual_cat = electrolyzer_costs.get('maintenance_annual', 0)
@@ -1132,7 +1084,90 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
         site_maintenance_annual = site_co2_costs.get('site_maintenance_annual', 0)
         appro_co2_maintenance_annual = site_co2_costs.get('appro_co2_maintenance_annual', 0)
         
-        # Total by category
+        # Create two columns: table on left, pie chart on right
+        col_table, col_pie = st.columns([2, 1])
+        
+        with col_table:
+            st.table(df_breakdown)
+        
+        with col_pie:
+            # Create two pie charts side by side: Domain breakdown and Cost Type breakdown
+            fig_pies, (ax_domain, ax_costtype) = plt.subplots(1, 2, figsize=(14, 6))
+            
+            # --- Pie Chart 1: Domain Breakdown ---
+            pie_labels_domain = ['Electrolyser', 'Methanation', 'Site & CO₂']
+            pie_values_domain = [electrolyzer_per_kg, methanation_per_kg, site_co2_per_kg]
+            colors_domain = ['#1f77b4', '#ff7f0e', '#2ca02c']
+            
+            wedges1, texts1, autotexts1 = ax_domain.pie(
+                pie_values_domain,
+                labels=pie_labels_domain,
+                autopct='%1.1f%%',
+                startangle=90,
+                colors=colors_domain,
+                pctdistance=0.85,
+                explode=[0.05, 0.05, 0.05]
+            )
+            
+            # Enhance text for domain pie chart
+            for autotext in autotexts1:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(9)
+            
+            for text in texts1:
+                text.set_fontsize(9)
+                text.set_fontweight('bold')
+            
+            ax_domain.set_title('LCOC by Domain', fontsize=11, fontweight='bold', pad=10)
+            ax_domain.axis('equal')
+            
+            # --- Pie Chart 2: Cost Type Breakdown ---
+            # Calculate total costs by type across all domains
+            total_capex_annual = electrolyzer_capex_annual_cat + methanation_capex_annual_cat + site_co2_capex_annual_cat
+            total_opex_annual = electrolyzer_opex_annual_cat + methanation_opex_annual_cat + site_co2_opex_annual_cat
+            total_maintenance_annual = electrolyzer_maintenance_annual_cat + methanation_maintenance_annual_cat + site_co2_maintenance_annual_cat
+            
+            pie_labels_costtype = ['CapEx', 'OpEx', 'Maintenance']
+            pie_values_costtype = [total_capex_annual, total_opex_annual, total_maintenance_annual]
+            colors_costtype = ['#3498db', '#e74c3c', '#2ecc71']
+            
+            wedges2, texts2, autotexts2 = ax_costtype.pie(
+                pie_values_costtype,
+                labels=pie_labels_costtype,
+                autopct='%1.1f%%',
+                startangle=90,
+                colors=colors_costtype,
+                pctdistance=0.85,
+                explode=[0.05, 0.05, 0.05]
+            )
+            
+            # Enhance text for cost type pie chart
+            for autotext in autotexts2:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(9)
+            
+            for text in texts2:
+                text.set_fontsize(9)
+                text.set_fontweight('bold')
+            
+            # Add service ratio to title if available
+            title_costtype = 'LCOC by Cost Type'
+            if avg_service_ratio is not None:
+                title_costtype += f'\nService Ratio: {avg_service_ratio:.1%}'
+            ax_costtype.set_title(title_costtype, fontsize=11, fontweight='bold', pad=10)
+            ax_costtype.axis('equal')
+            
+            plt.tight_layout()
+            st.pyplot(fig_pies)
+            plt.close()
+        
+        
+        # Detailed Cost Breakdown Structure
+        st.markdown("#### 📋 Detailed Cost Breakdown")
+        
+        # Total by category (already calculated above)
         total_capex_annual_cat = electrolyzer_capex_annual_cat + methanation_capex_annual_cat + site_co2_capex_annual_cat
         total_opex_annual_cat = electrolyzer_opex_annual_cat + methanation_opex_annual_cat + site_co2_opex_annual_cat
         total_maintenance_annual_cat = electrolyzer_maintenance_annual_cat + methanation_maintenance_annual_cat + site_co2_maintenance_annual_cat
@@ -1196,6 +1231,130 @@ def display_lcoc_results(lcoc_results, avg_service_ratio=None):
         
         styled_breakdown = df_detailed_breakdown.style.apply(style_breakdown_rows, axis=1)
         st.dataframe(styled_breakdown, hide_index=True, use_container_width=True)
+        
+        # Add domain-specific expandable breakdowns
+        st.markdown("#### 🔍 Domain-Specific Cost Breakdowns")
+        st.info("Expand each domain below to see detailed CAPEX, OPEX, and Maintenance breakdown")
+        
+        # --- Electrolyser Domain Breakdown ---
+        with st.expander("⚡ Electrolyser Cost Breakdown", expanded=False):
+            col_elec_1, col_elec_2 = st.columns(2)
+            
+            with col_elec_1:
+                st.markdown("**Annual Costs**")
+                elec_breakdown_data = {
+                    'Category': ['CapEx', 'OpEx', 'Maintenance'],
+                    'Annual Cost (€)': [
+                        f"{electrolyzer_capex_annual_cat:,.0f}",
+                        f"{electrolyzer_opex_annual_cat:,.0f}",
+                        f"{electrolyzer_maintenance_annual_cat:,.0f}"
+                    ],
+                    'Cost per kg CH₄ (€)': [
+                        f"{electrolyzer_costs.get('capex_component', 0):.4f}",
+                        f"{electrolyzer_costs.get('opex_component', 0):.4f}",
+                        f"{electrolyzer_costs.get('maintenance_component', 0):.4f}"
+                    ],
+                    'Percentage of Electrolyser': [
+                        f"{(electrolyzer_capex_annual_cat/electrolyzer_annual*100):.1f}%" if electrolyzer_annual > 0 else "0%",
+                        f"{(electrolyzer_opex_annual_cat/electrolyzer_annual*100):.1f}%" if electrolyzer_annual > 0 else "0%",
+                        f"{(electrolyzer_maintenance_annual_cat/electrolyzer_annual*100):.1f}%" if electrolyzer_annual > 0 else "0%"
+                    ]
+                }
+                st.table(pd.DataFrame(elec_breakdown_data))
+            
+            with col_elec_2:
+                st.markdown("**Contribution to Total LCOC**")
+                st.metric("Total Electrolyser Cost", f"{electrolyzer_annual:,.0f} €/year")
+                st.metric("Cost per kg CH₄", f"{electrolyzer_per_kg:.4f} €/kg")
+                st.metric("% of Total LCOC", 
+                         f"{(electrolyzer_per_kg/lcoc_results['lcoc_eur_per_kg']*100):.1f}%" if lcoc_results['lcoc_eur_per_kg'] > 0 else "0%")
+        
+        # --- Methanation Domain Breakdown ---
+        with st.expander("🔥 Methanation Cost Breakdown", expanded=False):
+            col_meth_1, col_meth_2 = st.columns(2)
+            
+            with col_meth_1:
+                st.markdown("**Annual Costs**")
+                meth_breakdown_data = {
+                    'Category': ['CapEx', 'OpEx', 'Maintenance'],
+                    'Annual Cost (€)': [
+                        f"{methanation_capex_annual_cat:,.0f}",
+                        f"{methanation_opex_annual_cat:,.0f}",
+                        f"{methanation_maintenance_annual_cat:,.0f}"
+                    ],
+                    'Cost per kg CH₄ (€)': [
+                        f"{methanation_costs.get('capex_component', 0):.4f}",
+                        f"{methanation_costs.get('opex_component', 0):.4f}",
+                        f"{methanation_costs.get('maintenance_component', 0):.4f}"
+                    ],
+                    'Percentage of Methanation': [
+                        f"{(methanation_capex_annual_cat/methanation_annual*100):.1f}%" if methanation_annual > 0 else "0%",
+                        f"{(methanation_opex_annual_cat/methanation_annual*100):.1f}%" if methanation_annual > 0 else "0%",
+                        f"{(methanation_maintenance_annual_cat/methanation_annual*100):.1f}%" if methanation_annual > 0 else "0%"
+                    ]
+                }
+                st.table(pd.DataFrame(meth_breakdown_data))
+                
+                # Add OpEx sub-breakdown
+                st.markdown("**OpEx Sub-components**")
+                st.write(f"• Electricity: {lcoc_results['methanation_electricity_cost']:,.0f} €/year")
+                st.write(f"• Others: {methanation_costs.get('opex_annual', 0) - lcoc_results['methanation_electricity_cost']:,.0f} €/year")
+            
+            with col_meth_2:
+                st.markdown("**Contribution to Total LCOC**")
+                st.metric("Total Methanation Cost", f"{methanation_annual:,.0f} €/year")
+                st.metric("Cost per kg CH₄", f"{methanation_per_kg:.4f} €/kg")
+                st.metric("% of Total LCOC", 
+                         f"{(methanation_per_kg/lcoc_results['lcoc_eur_per_kg']*100):.1f}%" if lcoc_results['lcoc_eur_per_kg'] > 0 else "0%")
+        
+        # --- Site & CO2 Domain Breakdown ---
+        with st.expander("🏭 Site & CO₂ Supply Cost Breakdown", expanded=False):
+            col_site_1, col_site_2 = st.columns(2)
+            
+            with col_site_1:
+                st.markdown("**Annual Costs by Category**")
+                site_co2_breakdown_data = {
+                    'Category': ['CapEx', 'OpEx', 'Maintenance'],
+                    'Annual Cost (€)': [
+                        f"{site_co2_capex_annual_cat:,.0f}",
+                        f"{site_co2_opex_annual_cat:,.0f}",
+                        f"{site_co2_maintenance_annual_cat:,.0f}"
+                    ],
+                    'Cost per kg CH₄ (€)': [
+                        f"{site_co2_costs.get('capex_component', 0):.4f}",
+                        f"{site_co2_costs.get('opex_component', 0):.4f}",
+                        f"{site_co2_costs.get('maintenance_component', 0):.4f}"
+                    ],
+                    'Percentage of Site & CO₂': [
+                        f"{(site_co2_capex_annual_cat/site_co2_annual*100):.1f}%" if site_co2_annual > 0 else "0%",
+                        f"{(site_co2_opex_annual_cat/site_co2_annual*100):.1f}%" if site_co2_annual > 0 else "0%",
+                        f"{(site_co2_maintenance_annual_cat/site_co2_annual*100):.1f}%" if site_co2_annual > 0 else "0%"
+                    ]
+                }
+                st.table(pd.DataFrame(site_co2_breakdown_data))
+                
+                # Add Site vs CO2 breakdown
+                st.markdown("**Site vs CO₂ Supply Breakdown**")
+                site_total = site_capex_annual + site_opex_annual + site_maintenance_annual
+                co2_total = appro_co2_capex_annual + appro_co2_opex_annual + appro_co2_maintenance_annual
+                
+                st.write(f"**Site Total:** {site_total:,.0f} €/year")
+                st.write(f"  • CapEx: {site_capex_annual:,.0f} €")
+                st.write(f"  • OpEx: {site_opex_annual:,.0f} €")
+                st.write(f"  • Maintenance: {site_maintenance_annual:,.0f} €")
+                st.write("")
+                st.write(f"**CO₂ Supply Total:** {co2_total:,.0f} €/year")
+                st.write(f"  • CapEx: {appro_co2_capex_annual:,.0f} €")
+                st.write(f"  • OpEx: {appro_co2_opex_annual:,.0f} €")
+                st.write(f"  • Maintenance: {appro_co2_maintenance_annual:,.0f} €")
+            
+            with col_site_2:
+                st.markdown("**Contribution to Total LCOC**")
+                st.metric("Total Site & CO₂ Cost", f"{site_co2_annual:,.0f} €/year")
+                st.metric("Cost per kg CH₄", f"{site_co2_per_kg:.4f} €/kg")
+                st.metric("% of Total LCOC", 
+                         f"{(site_co2_per_kg/lcoc_results['lcoc_eur_per_kg']*100):.1f}%" if lcoc_results['lcoc_eur_per_kg'] > 0 else "0%")
+        
         
         # Detailed Cost Breakdown Bar Charts
         st.markdown("#### 📊 Detailed Cost Breakdown by Component")
