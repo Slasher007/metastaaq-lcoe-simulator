@@ -230,12 +230,15 @@ def display_monthly_ch4_production(monthly_production_tonnes, service_ratios):
             st.write(f"**{month[:3]}**: {production:.1f} Tonnes ({service_pct:.0f}%)")
 
 
-def display_calculated_parameters(h2_flowrate, ch4_flowrate, avg_service_ratio, cons_spec_ch4=None):
+def display_calculated_parameters(h2_flowrate, ch4_flowrate, avg_service_ratio, cons_spec_ch4=None, container=None):
     """Display calculated parameters in sidebar"""
-    st.sidebar.markdown("#### 📊 Calculated Parameters")
-    st.sidebar.metric("H₂ Flow Rate", f"{h2_flowrate} Nm³/h")
-    st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
-    st.sidebar.metric("Avg Service Ratio", f"{avg_service_ratio:.1%}")
+    if container is None:
+        container = st.sidebar
+        
+    container.markdown("#### 📊 Calculated Parameters")
+    container.metric("H₂ Flow Rate", f"{h2_flowrate} Nm³/h")
+    container.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
+    container.metric("Avg Service Ratio", f"{avg_service_ratio:.1%}")
     
     # Calculate and display methanation power consumption if cons_spec_ch4 is provided
     if cons_spec_ch4 is not None:
@@ -245,15 +248,15 @@ def display_calculated_parameters(h2_flowrate, ch4_flowrate, avg_service_ratio, 
         # Annual consumption (MWhe/year) = Puissance instantanée × Service Ratio × 8760 h / 1000
         annual_consumption_mwh = (puissance_instantanee_kw * avg_service_ratio * 8760) / 1000
         
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("**⚡ Methanation Power**")
-        st.sidebar.metric(
+        container.markdown("---")
+        container.markdown("**⚡ Methanation Power**")
+        container.metric(
             "Puissance Instantanée", 
             f"{puissance_instantanee_kw:.1f} kW",
             help=f"**Formula:** Débit CH₄ × Cons Spec CH₄\n\n"
                  f"**Calculation:** {ch4_flowrate} Nm³/h × {cons_spec_ch4} kWh/Nm³ = {puissance_instantanee_kw:.1f} kW"
         )
-        st.sidebar.metric(
+        container.metric(
             "Annual Elec. Consumption", 
             f"{annual_consumption_mwh:.1f} MWhe/year",
             help=f"**Formula:** Puissance instantanée × Service Ratio × 8760 h / 1000\n\n"

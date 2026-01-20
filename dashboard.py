@@ -133,12 +133,18 @@ def main():
     else:
         avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
     
+    # For Target Price strategy, use the display value from session state if simulation has run
+    if strategy_type == "Target Price-Based" and 'display_avg_service_ratio' in st.session_state:
+        avg_service_ratio = st.session_state['display_avg_service_ratio']
+    
     # Display calculated parameters in sidebar
+    calculated_params_placeholder = st.sidebar.empty()
     display_calculated_parameters(
         derived_params['h2_flowrate'], 
         derived_params['ch4_flowrate'], 
         avg_service_ratio,
-        cons_spec_ch4=methanation_econ.get('cons_spec_ch4')
+        cons_spec_ch4=methanation_econ.get('cons_spec_ch4'),
+        container=calculated_params_placeholder.container()
     )
     
     # Display monthly CH4 production
@@ -166,25 +172,23 @@ def main():
 
     strategy_changed_to_target = (st.session_state.last_strategy_type != strategy_type) and strategy_type == "Target Price-Based"
 
-    auto_refresh = st.sidebar.checkbox("Enable auto-refresh on data changes", value=False, help="Checks for data file changes every 10 seconds and re-runs simulation if changed.")
-
+    # Auto-refresh is always enabled - checks for data file changes every 10 seconds
     data_changed = False
-    if auto_refresh:
-        current_mtime = os.path.getmtime(DEFAULT_DATA_FILE)
-        if 'last_data_mtime' not in st.session_state:
-            st.session_state.last_data_mtime = current_mtime
-        if current_mtime > st.session_state.last_data_mtime:
-            st.session_state.last_data_mtime = current_mtime
-            data_content = load_data_file(DEFAULT_DATA_FILE)
-            if selected_years:
-                data_content = data_content[data_content['Annee'].isin(selected_years)]
-            data_changed = True
+    current_mtime = os.path.getmtime(DEFAULT_DATA_FILE)
+    if 'last_data_mtime' not in st.session_state:
+        st.session_state.last_data_mtime = current_mtime
+    if current_mtime > st.session_state.last_data_mtime:
+        st.session_state.last_data_mtime = current_mtime
+        data_content = load_data_file(DEFAULT_DATA_FILE)
+        if selected_years:
+            data_content = data_content[data_content['Annee'].isin(selected_years)]
+        data_changed = True
 
-        if 'last_check' not in st.session_state:
-            st.session_state.last_check = time.time()
-        if time.time() - st.session_state.last_check > 10:
-            st.session_state.last_check = time.time()
-            st.rerun()
+    if 'last_check' not in st.session_state:
+        st.session_state.last_check = time.time()
+    if time.time() - st.session_state.last_check > 10:
+        st.session_state.last_check = time.time()
+        st.rerun()
 
     # Create main tabs for different analysis sections
     main_tab1, main_tab2, main_tab3 = st.tabs(["🔋 Battery Arbitrage Optimization", "📊 LCOE & Energy Analysis", "💰 Battery LCOS Analysis"])
@@ -204,7 +208,7 @@ def main():
             monthly_ch4_production, target_prices, pv_price, ppa_price, pv_params,
             pv_energy_data, electrolyzer_econ, methanation_econ, site_co2_econ,
             go_enabled, go_cost_per_mwh, selected_years, params_changed, data_changed, 
-            strategy_changed_to_target
+            strategy_changed_to_target, calculated_params_placeholder=calculated_params_placeholder
         )
     
     with main_tab1:
@@ -237,7 +241,7 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                           monthly_ch4_production, target_prices, pv_price, ppa_price, pv_params,
                           pv_energy_data, electrolyzer_econ, methanation_econ, site_co2_econ,
                           go_enabled, go_cost_per_mwh, selected_years, params_changed, data_changed,
-                          strategy_changed_to_target):
+                          strategy_changed_to_target, calculated_params_placeholder=None):
     """Render the main LCOE analysis section (original dashboard content)"""
     
     # Create analysis plots
@@ -412,6 +416,21 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                                 total_hours_available = days_per_month_title.get(month, 30) * 24
                                 recomputed_service[month] = (actual_hours / total_hours_available) if total_hours_available > 0 else 0
                             st.session_state['computed_service_ratios'] = recomputed_service
+                            
+                            # Update sidebar with computed average service ratio
+                            computed_avg_service_ratio = sum(recomputed_service.values()) / len(recomputed_service) if recomputed_service else 0
+                            # Store for sidebar display update
+                            st.session_state['display_avg_service_ratio'] = computed_avg_service_ratio
+                            
+                            # Update Calculated Parameters section in sidebar immediately
+                            if calculated_params_placeholder is not None:
+                                display_calculated_parameters(
+                                    derived_params['h2_flowrate'], 
+                                    derived_params['ch4_flowrate'], 
+                                    computed_avg_service_ratio,
+                                    cons_spec_ch4=methanation_econ.get('cons_spec_ch4'),
+                                    container=calculated_params_placeholder.container()
+                                )
 
                         # Create operating hours chart
                         if strategy_type == "Service Ratio-Based":
@@ -548,6 +567,23 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                             pv_list.append(pv_mwh)
                             spot_list.append(spot_mwh)
                             ppa_list.append(ppa_mwh)
+
+                        # Update display average service ratio after loop for Target Price strategy
+                        if strategy_type == "Target Price-Based" and 'computed_service_ratios' in st.session_state:
+                            computed_ratios = st.session_state['computed_service_ratios']
+                            if computed_ratios:
+                                avg_ratio_val = sum(computed_ratios.values()) / len(computed_ratios)
+                                st.session_state['display_avg_service_ratio'] = avg_ratio_val
+                                
+                                # Update Calculated Parameters in sidebar
+                                if calculated_params_placeholder is not None:
+                                    display_calculated_parameters(
+                                        derived_params['h2_flowrate'], 
+                                        derived_params['ch4_flowrate'], 
+                                        avg_ratio_val,
+                                        cons_spec_ch4=methanation_econ.get('cons_spec_ch4'),
+                                        container=calculated_params_placeholder.container()
+                                    )
 
                         df_plot_data = pd.DataFrame({
                             'PV': pv_list,
