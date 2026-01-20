@@ -121,10 +121,24 @@ def main():
     st.session_state.pv_energy_data = pv_energy_data
     
     # Calculate derived parameters
-    derived_params = calculate_derived_parameters(electrolyser_power, electrolyser_specific_consumption)
-    monthly_ch4_production = calculate_monthly_ch4_production(
-        monthly_service_ratios, derived_params['ch4_flowrate'], derived_params['ch4_density']
-    )
+    try:
+        derived_params = calculate_derived_parameters(electrolyser_power, electrolyser_specific_consumption)
+        
+        # Validate that derived_params has all required keys
+        required_keys = ['h2_flowrate', 'ch4_flowrate', 'ch4_density', 'ch4_kg_per_day']
+        for key in required_keys:
+            if key not in derived_params:
+                st.error(f"❌ Missing key '{key}' in derived parameters. Please check electrolyzer settings.")
+                st.stop()
+        
+        monthly_ch4_production = calculate_monthly_ch4_production(
+            monthly_service_ratios, derived_params['ch4_flowrate'], derived_params['ch4_density']
+        )
+    except Exception as e:
+        st.error(f"❌ Error calculating derived parameters: {str(e)}")
+        st.error(f"Electrolyser Power: {electrolyser_power}, Specific Consumption: {electrolyser_specific_consumption}")
+        st.exception(e)
+        st.stop()
     
     # Calculate average service ratio (use computed ratios for Target Price when available)
     computed_ratios_state = st.session_state.get('computed_service_ratios') if strategy_type == "Target Price-Based" else None
@@ -138,14 +152,20 @@ def main():
         avg_service_ratio = st.session_state['display_avg_service_ratio']
     
     # Display calculated parameters in sidebar
-    calculated_params_placeholder = st.sidebar.empty()
-    display_calculated_parameters(
-        derived_params['h2_flowrate'], 
-        derived_params['ch4_flowrate'], 
-        avg_service_ratio,
-        cons_spec_ch4=methanation_econ.get('cons_spec_ch4'),
-        container=calculated_params_placeholder.container()
-    )
+    try:
+        calculated_params_placeholder = st.sidebar.empty()
+        display_calculated_parameters(
+            derived_params['h2_flowrate'], 
+            derived_params['ch4_flowrate'], 
+            avg_service_ratio,
+            cons_spec_ch4=methanation_econ.get('cons_spec_ch4'),
+            container=calculated_params_placeholder.container()
+        )
+    except Exception as e:
+        st.error(f"❌ Error displaying calculated parameters: {str(e)}")
+        st.error(f"H2 Flowrate: {derived_params.get('h2_flowrate', 'N/A')}, CH4 Flowrate: {derived_params.get('ch4_flowrate', 'N/A')}")
+        st.exception(e)
+        st.stop()
     
     # Display monthly CH4 production
     if strategy_type == "Service Ratio-Based":
