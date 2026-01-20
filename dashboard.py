@@ -133,6 +133,10 @@ def main():
     else:
         avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
     
+    # For Target Price strategy, use the display value from session state if simulation has run
+    if strategy_type == "Target Price-Based" and 'display_avg_service_ratio' in st.session_state:
+        avg_service_ratio = st.session_state['display_avg_service_ratio']
+    
     # Display calculated parameters in sidebar
     display_calculated_parameters(
         derived_params['h2_flowrate'], 
@@ -412,6 +416,11 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                                 total_hours_available = days_per_month_title.get(month, 30) * 24
                                 recomputed_service[month] = (actual_hours / total_hours_available) if total_hours_available > 0 else 0
                             st.session_state['computed_service_ratios'] = recomputed_service
+                            
+                            # Update sidebar with computed average service ratio
+                            computed_avg_service_ratio = sum(recomputed_service.values()) / len(recomputed_service) if recomputed_service else 0
+                            # Store for sidebar display update
+                            st.session_state['display_avg_service_ratio'] = computed_avg_service_ratio
 
                         # Create operating hours chart
                         if strategy_type == "Service Ratio-Based":
@@ -548,6 +557,12 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                             pv_list.append(pv_mwh)
                             spot_list.append(spot_mwh)
                             ppa_list.append(ppa_mwh)
+
+                        # Update display average service ratio after loop for Target Price strategy
+                        if strategy_type == "Target Price-Based" and 'computed_service_ratios' in st.session_state:
+                            computed_ratios = st.session_state['computed_service_ratios']
+                            if computed_ratios:
+                                st.session_state['display_avg_service_ratio'] = sum(computed_ratios.values()) / len(computed_ratios)
 
                         df_plot_data = pd.DataFrame({
                             'PV': pv_list,
