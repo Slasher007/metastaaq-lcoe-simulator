@@ -10,6 +10,20 @@ PAGE_CONFIG = {
     "initial_sidebar_state": "expanded"
 }
 
+import os
+import glob
+import re
+
+def get_latest_data_file():
+    """Find the most recent processed data file"""
+    files = glob.glob('processed_donnees_prix_spot_*.csv')
+    if not files:
+        return 'processed_donnees_prix_spot_FR_2021_2025_month_12.csv' # Fallback
+    
+    # Sort by modification time to find the newest one
+    files.sort(key=os.path.getmtime, reverse=True)
+    return files[0]
+
 # Default file paths
 DEFAULT_DATA_FILE = 'processed_donnees_prix_spot_FR_2021_2025_month_12.csv'
 LOGO_FILE = "STAAQ_HD.jpg"

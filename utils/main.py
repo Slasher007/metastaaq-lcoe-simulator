@@ -12,6 +12,24 @@ from datetime import datetime
 try:
     from utils.spot_price_download import download_spot_price_data
     from utils.spot_price_data_processing import process_prix_spot
+    
+    def update_config_with_latest_file(new_filename):
+        """Update config.py with the newest processed file name"""
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.py')
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            with open(config_path, 'w', encoding='utf-8') as f:
+                for line in lines:
+                    if 'DEFAULT_DATA_FILE =' in line:
+                        f.write(f"DEFAULT_DATA_FILE = '{new_filename}'\n")
+                    else:
+                        f.write(line)
+            print(f"📝 config.py mis à jour avec: {new_filename}")
+        except Exception as e:
+            print(f"❌ Erreur lors de la mise à jour de config.py: {e}")
+
 except ImportError as e:
     print(f"❌ Erreur d'import: {e}")
     sys.exit(1)
@@ -40,6 +58,10 @@ if __name__ == "__main__":
     if fichier_prix:
         print(f"✅ Données téléchargées dans: {fichier_prix}")
         print("🔄 Lancement du traitement des données...")
-        process_prix_spot(fichier_prix)
+        processed_file = process_prix_spot(fichier_prix)
+        
+        if processed_file:
+            update_config_with_latest_file(processed_file)
+            print(f"✅ Configuration mise à jour. Redémarrez le dashboard si nécessaire.")
     else:
         print("❌ Échec du téléchargement des données de prix spot.")

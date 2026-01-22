@@ -95,11 +95,11 @@ def process_prix_spot(fichier_prix=None):
         print(f"\n🔍 Aperçu final des données:")
         print(df_processed.head(10))
         
-
+        return output_filename
         
     except Exception as e:
         print(f"❌ Erreur lors du traitement: {e}")
-        return None, None
+        return None
 
 if __name__ == "__main__":
     fichier_prix = 'donnees_prix_spot_fr_2021_2025_month_8.csv'
