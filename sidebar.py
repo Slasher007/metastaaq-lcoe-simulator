@@ -28,7 +28,7 @@ def create_year_selection(data_content):
     selected_years = st.sidebar.multiselect(
         "Select years for analysis",
         options=available_years,
-        default=[2023] if 2024 in available_years else available_years[:1]
+        default=[2025] if 2025 in available_years else available_years[:1]
     )
     return selected_years
 
