@@ -22,14 +22,36 @@ def load_data_file(file_path):
 
 
 def create_year_selection(data_content):
-    """Create year selection widget"""
-    st.sidebar.markdown("#### 📅 Year Selection")
-    available_years = sorted(data_content['Annee'].unique()) if 'Annee' in data_content.columns else [2024, 2025]
+    """Create an improved year selection widget with period summary"""
+    st.sidebar.markdown("#### 📅 Time Horizon")
+    
+    if 'Annee' not in data_content.columns:
+        st.sidebar.error("❌ Column 'Annee' not found in data.")
+        return []
+        
+    # Sort years descending (most recent first) for better UX
+    available_years = sorted(data_content['Annee'].unique(), reverse=True)
+    
+    # User's preferred default
+    default_years = [2025] if 2025 in available_years else [available_years[0]]
+    
     selected_years = st.sidebar.multiselect(
-        "Select years for analysis",
+        "Select fiscal years for analysis",
         options=available_years,
-        default=[2025] if 2025 in available_years else available_years[:1]
+        default=default_years,
+        help="Data from selected years will be aggregated and averaged for the simulation."
     )
+    
+    if not selected_years:
+        st.sidebar.warning("⚠️ Select at least one year to run simulation.")
+    else:
+        # Provide a quick summary of the selected dataset period
+        if len(selected_years) > 1:
+            y_min, y_max = min(selected_years), max(selected_years)
+            st.sidebar.caption(f"📊 **Aggregated Period**: {y_min} → {y_max} ({len(selected_years)} years)")
+        else:
+            st.sidebar.caption(f"🎯 **Single Year Analysis**: {selected_years[0]}")
+            
     return selected_years
 
 
