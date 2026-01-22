@@ -57,7 +57,7 @@ def create_year_selection(data_content):
 
 def create_electrolyzer_parameters():
     """Create electrolyzer parameter inputs including economics"""
-    with st.sidebar.expander("⚡ Electrolyser", expanded=True):
+    with st.sidebar.expander("⚡ Electrolyser", expanded=False):
         st.markdown("**Technical Parameters**")
         electrolyser_power = st.slider(
             "Electrolyzer Power (MW)",
@@ -915,7 +915,7 @@ def create_monthly_service_ratios(allow_edit=True, preset_ratios=None):
     """
     monthly_service_ratios = {}
 
-    with st.sidebar.expander("📅 Service Ratios", expanded=True):
+    with st.sidebar.expander("📅 Service Ratios", expanded=False):
         if allow_edit:
             st.markdown("*Set individual availability ratios for each month (0.0 = off, 1.0 = always on)*")
             col1, col2 = st.columns(2)
@@ -969,7 +969,7 @@ def create_operation_strategy_selection():
 
 def create_price_parameters(strategy_type):
     """Create price parameter inputs"""
-    with st.sidebar.expander("💰 Price", expanded=True):
+    with st.sidebar.expander("💰 Price", expanded=False):
         if strategy_type == "Service Ratio-Based":
             st.info("ℹ️ Service Ratio strategy cumulates spot hours while keeping average cost below PPA price.")
         else:
@@ -1036,7 +1036,7 @@ def create_price_parameters(strategy_type):
 
 def create_pv_installation_parameters():
     """Create PV installation parameter inputs"""
-    with st.sidebar.expander("☀️ PV Installation", expanded=True):
+    with st.sidebar.expander("☀️ PV Installation", expanded=False):
         pv_project_years = st.slider(
             "Project Lifetime (years)",
             min_value=PARAM_RANGES["pv_project_years"]["min"],
