@@ -11,7 +11,7 @@ PAGE_CONFIG = {
 }
 
 # Default file paths
-DEFAULT_DATA_FILE = 'processed_donnees_prix_spot_fr_2021_2025_month_8.csv'
+DEFAULT_DATA_FILE = 'processed_donnees_prix_spot_FR_2021_2025_month_12.csv'
 LOGO_FILE = "STAAQ_HD.jpg"
 
 # PV Images

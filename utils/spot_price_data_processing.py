@@ -64,7 +64,7 @@ def traiter_donnees_pour_export(df):
     
     return df_processed
 
-def main(fichier_prix=None):
+def process_prix_spot(fichier_prix=None):
     """Fonction principale pour traiter et sauvegarder les données"""
     print("🚀 TRAITEMENT DES DONNÉES PRIX SPOT")
     print("="*50)
@@ -76,7 +76,9 @@ def main(fichier_prix=None):
         # Traiter les données selon le format demandé
         df_processed =traiter_donnees_pour_export(df_original)
         
-        output_filename = f'processed_{fichier_prix}.csv'
+        output_filename = f'processed_{fichier_prix}'
+        if output_filename.endswith('.csv.csv'):
+            output_filename = output_filename.replace('.csv.csv', '.csv')
 
         
         # Sauvegarder les données traitées
@@ -101,4 +103,4 @@ def main(fichier_prix=None):
 
 if __name__ == "__main__":
     fichier_prix = 'donnees_prix_spot_fr_2021_2025_month_8.csv'
-    main(fichier_prix) 
+    process_prix_spot(fichier_prix)

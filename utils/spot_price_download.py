@@ -32,10 +32,10 @@ def download_spot_price_data(api_key, annee_debut=2021, annee_fin=2025, mois_fin
         
         # Définir les dates précises
         start_date = datetime(annee_debut, 1, 1)
-        if annee_fin == datetime.now().year and mois_fin <= datetime.now().month:
-            end_date = datetime(annee_fin, mois_fin, 31)
-        else:
-            end_date = datetime(annee_fin, mois_fin, 31)
+        
+        import calendar
+        last_day = calendar.monthrange(annee_fin, mois_fin)[1]
+        end_date = datetime(annee_fin, mois_fin, last_day)
         
         print(f"📅 Période exacte: {start_date.strftime('%Y-%m-%d')} à {end_date.strftime('%Y-%m-%d')}")
         
