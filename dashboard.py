@@ -91,15 +91,15 @@ def main():
 
     
     # Create sidebar widgets
-    selected_years = create_year_selection(data_content)
+    selected_years, project_lifetime, discount_rate = create_year_selection(data_content)
     
     # Filter data by selected years
     if selected_years:
         data_content = data_content[data_content['Annee'].isin(selected_years)]
     
     # Strategy selection before service ratios
-    electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters()
-    methanation_econ = create_methanation_parameters(electrolyser_power, electrolyser_specific_consumption)
+    electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters(project_lifetime, discount_rate)
+    methanation_econ = create_methanation_parameters(electrolyser_power, electrolyser_specific_consumption, project_lifetime, discount_rate)
     site_co2_econ = create_site_co2_parameters()
     strategy_type = create_operation_strategy_selection()
     if strategy_type == "Target Price-Based":
@@ -107,7 +107,7 @@ def main():
     else:
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=True)
     target_prices, pv_price, ppa_price, go_enabled, go_cost_per_mwh = create_price_parameters(strategy_type)
-    pv_params = create_pv_installation_parameters()
+    pv_params = create_pv_installation_parameters(project_lifetime, discount_rate)
     st.session_state.pv_params = pv_params
     
     # Calculate PV energy production early for display

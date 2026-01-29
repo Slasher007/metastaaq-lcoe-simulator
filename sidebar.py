@@ -27,7 +27,7 @@ def create_year_selection(data_content):
     
     if 'Annee' not in data_content.columns:
         st.sidebar.error("❌ Column 'Annee' not found in data.")
-        return []
+        return [], DEFAULT_PARAMS["electrolyser_lifetime"], DEFAULT_PARAMS["discount_rate"]
         
     # Sort years descending (most recent first) for better UX
     available_years = sorted(data_content['Annee'].unique(), reverse=True)
@@ -52,10 +52,31 @@ def create_year_selection(data_content):
         else:
             st.sidebar.caption(f"🎯 **Single Year Analysis**: {selected_years[0]}")
             
-    return selected_years
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("#### 🏗️ Project General Parameters")
+    
+    project_lifetime = st.sidebar.slider(
+        "Project Lifetime (years)",
+        min_value=PARAM_RANGES["electrolyser_lifetime"]["min"],
+        max_value=PARAM_RANGES["electrolyser_lifetime"]["max"],
+        value=DEFAULT_PARAMS["electrolyser_lifetime"],
+        step=PARAM_RANGES["electrolyser_lifetime"]["step"],
+        help="Expected lifetime of the entire project"
+    )
+    
+    discount_rate = st.sidebar.slider(
+        "Discount Rate (%)",
+        min_value=PARAM_RANGES["discount_rate"]["min"],
+        max_value=PARAM_RANGES["discount_rate"]["max"],
+        value=DEFAULT_PARAMS["discount_rate"],
+        step=PARAM_RANGES["discount_rate"]["step"],
+        help="Discount rate for LCOE/LCOH/LCOCH4 calculation"
+    )
+        
+    return selected_years, project_lifetime, discount_rate
 
 
-def create_electrolyzer_parameters():
+def create_electrolyzer_parameters(project_lifetime, discount_rate):
     """Create electrolyzer parameter inputs including economics"""
     with st.sidebar.expander("⚡ Electrolyser", expanded=False):
         st.markdown("**Technical Parameters**")
@@ -94,24 +115,12 @@ def create_electrolyzer_parameters():
         st.markdown("---")
         st.markdown("### Economic Parameters (LCOH)")
         
-        # Project parameters
-        electrolyzer_lifetime = st.slider(
-            "Project Lifetime (years)",
-            min_value=PARAM_RANGES["electrolyser_lifetime"]["min"],
-            max_value=PARAM_RANGES["electrolyser_lifetime"]["max"],
-            value=DEFAULT_PARAMS["electrolyser_lifetime"],
-            step=PARAM_RANGES["electrolyser_lifetime"]["step"],
-            help="Expected lifetime of the electrolyzer project"
-        )
+        # Project parameters are now coming from create_year_selection
+        electrolyzer_lifetime = project_lifetime
+        electrolyzer_discount_rate = discount_rate
         
-        electrolyzer_discount_rate = st.slider(
-            "Discount Rate (%)",
-            min_value=PARAM_RANGES["electrolyser_discount_rate"]["min"],
-            max_value=PARAM_RANGES["electrolyser_discount_rate"]["max"],
-            value=DEFAULT_PARAMS["electrolyser_discount_rate"],
-            step=PARAM_RANGES["electrolyser_discount_rate"]["step"],
-            help="Discount rate for LCOH calculation"
-        )
+        st.caption(f"⏱️ Project Lifetime: {electrolyzer_lifetime} years (defined above)")
+        st.caption(f"📉 Discount Rate: {electrolyzer_discount_rate}% (defined above)")
         
         # ============================================
         # CAPEX SECTION
@@ -396,36 +405,24 @@ def create_electrolyzer_parameters():
     return electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ
 
 
-def create_methanation_parameters(electrolyser_power=None, electrolyser_specific_consumption=None):
+def create_methanation_parameters(electrolyser_power=None, electrolyser_specific_consumption=None, project_lifetime=None, discount_rate=None):
     """Create methanation parameter inputs including economics
     
     Args:
         electrolyser_power: Electrolyzer power in MW (optional, for calculation display)
         electrolyser_specific_consumption: Specific consumption in kWh/Nm³ H₂ (optional, for calculation display)
+        project_lifetime: Unified project lifetime
+        discount_rate: Unified discount rate
     """
     with st.sidebar.expander("🔥 Methanation", expanded=False):
         st.markdown("**Economic Parameters (LCOCH4)**")
         
-        # Project parameters
-        methanation_lifetime = st.slider(
-            "Project Lifetime (years)",
-            min_value=PARAM_RANGES["methanation_lifetime"]["min"],
-            max_value=PARAM_RANGES["methanation_lifetime"]["max"],
-            value=DEFAULT_PARAMS["methanation_lifetime"],
-            step=PARAM_RANGES["methanation_lifetime"]["step"],
-            help="Expected lifetime of the methanation project",
-            key="methanation_lifetime"
-        )
+        # Project parameters are now coming from create_year_selection
+        methanation_lifetime = project_lifetime if project_lifetime is not None else DEFAULT_PARAMS["methanation_lifetime"]
+        methanation_discount_rate = discount_rate if discount_rate is not None else DEFAULT_PARAMS["methanation_discount_rate"]
         
-        methanation_discount_rate = st.slider(
-            "Discount Rate (%)",
-            min_value=PARAM_RANGES["methanation_discount_rate"]["min"],
-            max_value=PARAM_RANGES["methanation_discount_rate"]["max"],
-            value=DEFAULT_PARAMS["methanation_discount_rate"],
-            step=PARAM_RANGES["methanation_discount_rate"]["step"],
-            help="Discount rate for LCOCH4 calculation",
-            key="methanation_discount_rate"
-        )
+        st.caption(f"⏱️ Project Lifetime: {methanation_lifetime} years (defined above)")
+        st.caption(f"📉 Discount Rate: {methanation_discount_rate}% (defined above)")
         
         # Specific consumption for CH4
         st.markdown("---")
@@ -1048,17 +1045,13 @@ def create_price_parameters(strategy_type):
 
 
 
-def create_pv_installation_parameters():
+def create_pv_installation_parameters(project_lifetime=None, discount_rate=None):
     """Create PV installation parameter inputs"""
     with st.sidebar.expander("☀️ PV Installation", expanded=False):
-        pv_project_years = st.slider(
-            "Project Lifetime (years)",
-            min_value=PARAM_RANGES["pv_project_years"]["min"],
-            max_value=PARAM_RANGES["pv_project_years"]["max"],
-            value=DEFAULT_PARAMS["pv_project_years"],
-            step=PARAM_RANGES["pv_project_years"]["step"],
-            help="Expected lifetime of the PV installation"
-        )
+        # Project parameters are now coming from create_year_selection
+        pv_project_years = project_lifetime if project_lifetime is not None else DEFAULT_PARAMS["pv_project_years"]
+        
+        st.caption(f"⏱️ Project Lifetime: {pv_project_years} years (defined above)")
 
         pv_surface_hectares = st.number_input(
             "Surface Area (hectares)",
@@ -1184,14 +1177,8 @@ def create_pv_installation_parameters():
             help="Annual OPEX as percentage of CAPEX"
         )
 
-        discount_rate = st.slider(
-            "Discount Rate (%)",
-            min_value=PARAM_RANGES["discount_rate"]["min"],
-            max_value=PARAM_RANGES["discount_rate"]["max"],
-            value=DEFAULT_PARAMS["discount_rate"],
-            step=PARAM_RANGES["discount_rate"]["step"],
-            help="Discount rate for LCOE calculation"
-        )
+        pv_discount_rate = discount_rate if discount_rate is not None else DEFAULT_PARAMS["discount_rate"]
+        st.caption(f"📉 Discount Rate: {pv_discount_rate}% (defined above)")
 
         use_calculated_opex = st.checkbox(
             "Use Calculated OPEX",
@@ -1299,7 +1286,7 @@ def create_pv_installation_parameters():
         'use_calculated_capex': use_calculated_capex,
         'pv_capex': pv_capex,
         'opex_percentage': opex_percentage,
-        'discount_rate': discount_rate,
+        'discount_rate': pv_discount_rate,
         'use_calculated_opex': use_calculated_opex,
         'pv_opex': pv_opex,
         'maintenance_percentage': maintenance_percentage,
@@ -1377,6 +1364,17 @@ def get_current_parameters(selected_years, electrolyser_power, h2_flowrate,
             'electrolyser_other_costs_annual': electrolyzer_econ['other_costs_annual'],
             'electrolyser_stack_replacement_cost': electrolyzer_econ['stack_replacement_cost'],
             'electrolyser_stack_replacement_years': electrolyzer_econ['stack_replacement_years']
+        })
+
+    # Add methanation economics if provided
+    if methanation_econ:
+        params.update({
+            'methanation_lifetime': methanation_econ['methanation_lifetime'],
+            'methanation_discount_rate': methanation_econ['methanation_discount_rate'],
+            'methanation_cons_spec_ch4': methanation_econ.get('cons_spec_ch4'),
+            'methanation_capex_total': methanation_econ['methanation_capex_total'],
+            'methanation_others_opex_annual': methanation_econ['others_opex_annual'],
+            'methanation_maintenance_annual': methanation_econ['methanation_maintenance_annual']
         })
     
     return params

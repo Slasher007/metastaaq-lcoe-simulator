@@ -60,21 +60,21 @@ def main():
     data_content = load_data_file(DEFAULT_DATA_FILE)
     
     # Create sidebar widgets
-    selected_years = create_year_selection(data_content)
+    selected_years, project_lifetime, discount_rate = create_year_selection(data_content)
     
     # Filter data by selected years
     if selected_years:
         data_content = data_content[data_content['Annee'].isin(selected_years)]
     
     # Get parameters from sidebar
-    electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters()
+    electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters(project_lifetime, discount_rate)
     strategy_type = create_operation_strategy_selection()
     if strategy_type == "Target Price-Based":
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=st.session_state.get('computed_service_ratios'))
     else:
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=True)
     target_prices, pv_price, ppa_price = create_price_parameters(strategy_type)
-    pv_params = create_pv_installation_parameters()
+    pv_params = create_pv_installation_parameters(project_lifetime, discount_rate)
     
     # Calculate derived parameters
     derived_params = calculate_derived_parameters(electrolyser_power, h2_flowrate)
