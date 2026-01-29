@@ -8,6 +8,7 @@ import requests
 import re
 import json
 import calendar
+import time
 
 
 def calculate_derived_parameters(electrolyser_power, h2_flowrate):
@@ -83,12 +84,24 @@ def calculate_pv_energy_production(pv_surface_hectares, power_density_mwp_per_ha
         'raddatabase': 'PVGIS-SARAH3',
         'fixed': 0
     }
-    pv_data = PvgisData(target, params)
-    pv_data.format_data()
-    monthly_pv_kwh = pv_data.get_monthly_pv_data()
     
-    # Convert PV energy from kWh to MWh
-    pv_energy_mwh = {month: kwh / 1000 for month, kwh in monthly_pv_kwh.items()}
+    # Initialize with default zero values for all months
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    pv_energy_mwh = {month: 0.0 for month in months}
+    
+    try:
+        pv_data = PvgisData(target, params)
+        pv_data.format_data()
+        monthly_pv_kwh = pv_data.get_monthly_pv_data()
+        
+        # Only update if we actually got data
+        if monthly_pv_kwh:
+            # Convert PV energy from kWh to MWh
+            for month, kwh in monthly_pv_kwh.items():
+                if month in pv_energy_mwh:
+                    pv_energy_mwh[month] = kwh / 1000
+    except Exception as e:
+        print(f"⚠️ Warning: Could not fetch PVGIS data (Connection Error). Using default zero values. Details: {e}")
     
     return {
         'estimated_power_mwp': estimated_power_mwp,
@@ -619,9 +632,18 @@ class PvgisData:
       def __init__(self, target, params):
         self.target = target
         self.params = params
-        self.r = requests.get(self.target,params=self.params)
+        try:
+            # Add timeout and retry logic or just a single robust attempt
+            self.r = requests.get(self.target, params=self.params, timeout=15)
+        except Exception as e:
+            print(f"❌ PVGIS Monthly Data Connection Error: {e}")
+            self.r = None
         
       def format_data(self):
+        if self.r is None:
+            self.json_data = "[]"
+            return
+            
         self.data = self.r.content.decode("utf-8")
         lines = self.data.splitlines()
 
@@ -670,10 +692,19 @@ class PvgisHourlyData:
     def __init__(self, target, params):
         self.target = target
         self.params = params
-        self.r = requests.get(self.target, params=self.params)
+        try:
+            self.r = requests.get(self.target, params=self.params, timeout=15)
+        except Exception as e:
+            print(f"❌ PVGIS Hourly Data Connection Error: {e}")
+            self.r = None
         
     def format_data(self):
         """Parse hourly data from PVGIS seriescalc API - supports both JSON and CSV formats"""
+        # Handle connection failure
+        if self.r is None:
+            self.hourly_data = []
+            return
+            
         # Check HTTP response status
         if self.r.status_code != 200:
             error_msg = f"PVGIS API returned status code {self.r.status_code}"
