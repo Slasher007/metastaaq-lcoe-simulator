@@ -98,7 +98,7 @@ def main():
         data_content = data_content[data_content['Annee'].isin(selected_years)]
     
     # Strategy selection before service ratios
-    electrolyser_power, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters()
+    electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters()
     methanation_econ = create_methanation_parameters(electrolyser_power, electrolyser_specific_consumption)
     site_co2_econ = create_site_co2_parameters()
     strategy_type = create_operation_strategy_selection()
@@ -122,7 +122,7 @@ def main():
     
     # Calculate derived parameters
     try:
-        derived_params = calculate_derived_parameters(electrolyser_power, electrolyser_specific_consumption)
+        derived_params = calculate_derived_parameters(electrolyser_power, h2_flowrate)
         
         # Validate that derived_params has all required keys
         required_keys = ['h2_flowrate', 'ch4_flowrate', 'ch4_density', 'ch4_kg_per_day']
@@ -176,7 +176,7 @@ def main():
         st.session_state.last_params = {}
     
     current_params = get_current_parameters(
-        selected_years, electrolyser_power, electrolyser_specific_consumption,
+        selected_years, electrolyser_power, h2_flowrate,
         monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
         go_enabled, go_cost_per_mwh, electrolyzer_econ, methanation_econ
     )

@@ -10,21 +10,32 @@ import json
 import calendar
 
 
-def calculate_derived_parameters(electrolyser_power, electrolyser_specific_consumption):
-    """Calculate derived parameters from electrolyzer specifications"""
+def calculate_derived_parameters(electrolyser_power, h2_flowrate):
+    """Calculate derived parameters from electrolyzer specifications
+    
+    Args:
+        electrolyser_power: Power in MW
+        h2_flowrate: H2 flow rate in Nm³/h (now an input parameter)
+    
+    Returns:
+        Dictionary with h2_flowrate, electrolyser_specific_consumption, ch4_flowrate, ch4_density, ch4_kg_per_day
+    """
     try:
         # Validate inputs
-        if electrolyser_specific_consumption == 0:
-            raise ValueError("Electrolyser specific consumption cannot be zero")
+        if h2_flowrate == 0:
+            raise ValueError("H2 flow rate cannot be zero")
         
-        h2_flowrate = round((electrolyser_power * 1000) / electrolyser_specific_consumption)
+        # Calculate specific consumption from power and flow rate
+        electrolyser_specific_consumption = (electrolyser_power * 1000) / h2_flowrate
+        
         stoechio_H2_CH4 = 4
         ch4_flowrate = round(h2_flowrate / stoechio_H2_CH4)
         ch4_density = 0.7168  # kg/Nm³ CH₄
         ch4_kg_per_day = ch4_flowrate * 24 * ch4_density
         
         return {
-            'h2_flowrate': h2_flowrate,
+            'h2_flowrate': round(h2_flowrate),
+            'electrolyser_specific_consumption': electrolyser_specific_consumption,
             'ch4_flowrate': ch4_flowrate,
             'ch4_density': ch4_density,
             'ch4_kg_per_day': ch4_kg_per_day
@@ -34,6 +45,7 @@ def calculate_derived_parameters(electrolyser_power, electrolyser_specific_consu
         print(f"Error in calculate_derived_parameters: {e}")
         return {
             'h2_flowrate': 0,
+            'electrolyser_specific_consumption': 4.8,  # Default fallback
             'ch4_flowrate': 0,
             'ch4_density': 0.7168,
             'ch4_kg_per_day': 0

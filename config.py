@@ -44,7 +44,8 @@ MONTHS = [
 # Default parameter values
 DEFAULT_PARAMS = {
     "electrolyser_power": 5.0,
-    "electrolyser_specific_consumption": 4.8,
+    "h2_flowrate": 1042.0,  # Nm³/h - now an input parameter
+    "electrolyser_specific_consumption": 4.8,  # kWh/Nm³ - now calculated from power and h2_flowrate
     "service_ratio": 0.98,
     "pv_price": 60.0,
     "ppa_price": 80.0,
@@ -155,7 +156,8 @@ DEFAULT_PARAMS = {
 # Parameter ranges
 PARAM_RANGES = {
     "electrolyser_power": {"min": 0.25, "max": 20.0, "step": 0.25},
-    "electrolyser_specific_consumption": {"min": 4.0, "max": 6.0, "step": 0.1},
+    "h2_flowrate": {"min": 100.0, "max": 5000.0, "step": 10.0},  # Nm³/h
+    "electrolyser_specific_consumption": {"min": 4.0, "max": 6.0, "step": 0.1},  # Still kept for backward compatibility
     "service_ratio": {"min": 0.0, "max": 1.0, "step": 0.01},
     "pv_price": {"min": 0.0, "max": 100.0, "step": 5.0},
     "ppa_price": {"min": 40.0, "max": 120.0, "step": 5.0},

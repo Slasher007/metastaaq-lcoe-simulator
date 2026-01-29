@@ -68,13 +68,27 @@ def create_electrolyzer_parameters():
             help="Power capacity of the electrolyzer in MW"
         )
 
-        electrolyser_specific_consumption = st.slider(
-            "Specific Consumption (kWh/Nm³ H₂)",
-            min_value=PARAM_RANGES["electrolyser_specific_consumption"]["min"],
-            max_value=PARAM_RANGES["electrolyser_specific_consumption"]["max"],
-            value=DEFAULT_PARAMS["electrolyser_specific_consumption"],
-            step=PARAM_RANGES["electrolyser_specific_consumption"]["step"],
-            help="Energy consumption per cubic meter of hydrogen produced"
+        # H₂ Flow Rate is now an INPUT parameter
+        h2_flowrate = st.slider(
+            "H₂ Flow Rate (Nm³/h)",
+            min_value=PARAM_RANGES["h2_flowrate"]["min"],
+            max_value=PARAM_RANGES["h2_flowrate"]["max"],
+            value=DEFAULT_PARAMS["h2_flowrate"],
+            step=PARAM_RANGES["h2_flowrate"]["step"],
+            help="Hydrogen flow rate in normal cubic meters per hour"
+        )
+        
+        # Calculate Specific Consumption as OUTPUT
+        if h2_flowrate > 0:
+            electrolyser_specific_consumption = (electrolyser_power * 1000) / h2_flowrate
+        else:
+            electrolyser_specific_consumption = DEFAULT_PARAMS["electrolyser_specific_consumption"]
+        
+        # Display the calculated specific consumption
+        st.metric(
+            "Specific Consumption (calculated)",
+            f"{electrolyser_specific_consumption:.2f} kWh/Nm³ H₂",
+            help="Calculated from Power and H₂ Flow Rate: (Power × 1000) / H₂ Flow Rate"
         )
     
         st.markdown("---")
@@ -379,7 +393,7 @@ def create_electrolyzer_parameters():
         'stack_replacement_years': stack_replacement_years
     }
     
-    return electrolyser_power, electrolyser_specific_consumption, electrolyzer_econ
+    return electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ
 
 
 def create_methanation_parameters(electrolyser_power=None, electrolyser_specific_consumption=None):
@@ -1301,14 +1315,14 @@ def create_pv_installation_parameters():
     }
 
 
-def get_current_parameters(selected_years, electrolyser_power, electrolyser_specific_consumption,
+def get_current_parameters(selected_years, electrolyser_power, h2_flowrate,
                           monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
                           go_enabled=False, go_cost_per_mwh=0.0, electrolyzer_econ=None, methanation_econ=None):
     """Get current parameters for change detection"""
     params = {
         'years': tuple(sorted(selected_years)) if selected_years else (),
         'power': electrolyser_power,
-        'consumption': electrolyser_specific_consumption,
+        'h2_flowrate': h2_flowrate,
         'monthly_service_ratios': tuple(sorted(monthly_service_ratios.items())),
         'target_prices': tuple(target_prices),
         'pv_price': pv_price,

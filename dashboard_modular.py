@@ -67,7 +67,7 @@ def main():
         data_content = data_content[data_content['Annee'].isin(selected_years)]
     
     # Get parameters from sidebar
-    electrolyser_power, electrolyser_specific_consumption = create_electrolyzer_parameters()
+    electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters()
     strategy_type = create_operation_strategy_selection()
     if strategy_type == "Target Price-Based":
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=st.session_state.get('computed_service_ratios'))
@@ -77,7 +77,7 @@ def main():
     pv_params = create_pv_installation_parameters()
     
     # Calculate derived parameters
-    derived_params = calculate_derived_parameters(electrolyser_power, electrolyser_specific_consumption)
+    derived_params = calculate_derived_parameters(electrolyser_power, h2_flowrate)
     monthly_ch4_production = calculate_monthly_ch4_production(
         monthly_service_ratios, derived_params['ch4_flowrate'], derived_params['ch4_density']
     )
@@ -105,7 +105,7 @@ def main():
         st.session_state.last_params = {}
     
     current_params = get_current_parameters(
-        selected_years, electrolyser_power, electrolyser_specific_consumption,
+        selected_years, electrolyser_power, h2_flowrate,
         monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params
     )
     
