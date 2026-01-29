@@ -99,7 +99,7 @@ def main():
     
     # Strategy selection before service ratios
     electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters(project_lifetime, discount_rate)
-    methanation_econ = create_methanation_parameters(electrolyser_power, electrolyser_specific_consumption, project_lifetime, discount_rate)
+    ch4_flowrate, cons_spec_ch4, methanation_econ = create_methanation_parameters(electrolyser_power, electrolyser_specific_consumption, project_lifetime, discount_rate)
     site_co2_econ = create_site_co2_parameters()
     strategy_type = create_operation_strategy_selection()
     if strategy_type == "Target Price-Based":

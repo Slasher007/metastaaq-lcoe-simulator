@@ -424,21 +424,33 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
         st.caption(f"⏱️ Project Lifetime: {methanation_lifetime} years (defined above)")
         st.caption(f"📉 Discount Rate: {methanation_discount_rate}% (defined above)")
         
-        # Specific consumption for CH4
+        # Technical Parameters
         st.markdown("---")
-        cons_spec_ch4 = st.slider(
-            "Cons Spec CH₄ (kWhₑ / Nm³ CH₄)",
-            min_value=PARAM_RANGES["methanation_cons_spec_ch4"]["min"],
-            max_value=PARAM_RANGES["methanation_cons_spec_ch4"]["max"],
-            value=DEFAULT_PARAMS["methanation_cons_spec_ch4"],
-            step=PARAM_RANGES["methanation_cons_spec_ch4"]["step"],
-            help="Specific electricity consumption for methanation per Nm³ of CH4 produced.\n\n"
-                 "**Calculation Formula:**\n"
-                 "• Puissance instantanée (kW) = Débit CH₄ (Nm³/h) × Cons Spec (kWh/Nm³)\n"
-                 "• Annual consumption (MWh/year) = Puissance × Service Ratio × 8760 h / 1000\n\n"
-                 "Results are displayed in the 'Calculated Parameters' section below.",
-            key="methanation_cons_spec_ch4"
+        st.markdown("**Technical Parameters**")
+        
+        # CH₄ Flow Rate is now an INPUT parameter
+        ch4_flowrate = st.slider(
+            "CH₄ Flow Rate (Nm³/h)",
+            min_value=PARAM_RANGES["ch4_flowrate"]["min"],
+            max_value=PARAM_RANGES["ch4_flowrate"]["max"],
+            value=DEFAULT_PARAMS["ch4_flowrate"],
+            step=PARAM_RANGES["ch4_flowrate"]["step"],
+            help="Methane flow rate in normal cubic meters per hour",
+            key="methanation_ch4_flowrate"
         )
+        
+        # Calculate Specific Consumption as OUTPUT (simple approach for now)
+        cons_spec_ch4 = DEFAULT_PARAMS["methanation_cons_spec_ch4"]
+        
+        # Display the calculated specific consumption
+        st.metric(
+            "Cons Spec CH₄ (calculated)",
+            f"{cons_spec_ch4:.2f} kWhₑ/Nm³ CH₄",
+            help="Calculated specific electricity consumption for methanation."
+        )
+        
+        st.markdown("---")
+        # cons_spec_ch4 is now calculated above (removed slider)
         
         # ============================================
         # CAPEX SECTION
@@ -795,10 +807,11 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
         'others_maintenance_annual': others_maintenance_annual,
         'other_costs_annual': other_costs_annual,
         'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg,
-        'cons_spec_ch4': cons_spec_ch4  # Specific consumption kWh/Nm³
+        'cons_spec_ch4': cons_spec_ch4,  # Specific consumption kWh/Nm³ (calculated)
+        'ch4_flowrate': ch4_flowrate  # CH4 flow rate Nm³/h (input parameter)
     }
     
-    return methanation_econ
+    return ch4_flowrate, cons_spec_ch4, methanation_econ
 
 
 def create_site_co2_parameters():

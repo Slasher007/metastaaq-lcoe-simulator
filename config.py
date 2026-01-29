@@ -59,8 +59,9 @@ DEFAULT_PARAMS = {
     "opex_percentage": 2.0,
     "discount_rate": 6.0,
     "pci_ch4_kwh_per_kg": 13.9,
-    # Methanation specific consumption
-    "methanation_cons_spec_ch4": 0.7,  # kWhₑ / Nm³ CH₄
+    # Methanation parameters
+    "ch4_flowrate": 260.0,  # Nm³/h - now an input parameter
+    "methanation_cons_spec_ch4": 0.7,  # kWhₑ / Nm³ CH₄ - now calculated from ch4_flowrate
     # Electrolyzer Economics (for LCOH calculation)
     # CapEx Components
     "electrolyser_capex_transformer": 250000.0,
@@ -171,8 +172,9 @@ PARAM_RANGES = {
     "opex_percentage": {"min": 0.5, "max": 5.0, "step": 0.1},
     "discount_rate": {"min": 0.0, "max": 12.0, "step": 0.5},
     "pci_ch4_kwh_per_kg": {"min": 10.0, "max": 20.0, "step": 0.1},
-    # Methanation specific consumption
-    "methanation_cons_spec_ch4": {"min": 0.1, "max": 2.0, "step": 0.1},
+    # Methanation parameters
+    "ch4_flowrate": {"min": 50.0, "max": 2000.0, "step": 10.0},  # Nm³/h
+    "methanation_cons_spec_ch4": {"min": 0.1, "max": 2.0, "step": 0.1},  # Still kept for backward compatibility
     # Electrolyzer Economics ranges
     # CapEx Components ranges
     "electrolyser_capex_transformer": {"min": 0.0, "max": 5000000.0, "step": 10000.0},
