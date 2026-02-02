@@ -6,7 +6,7 @@ matplotlib
 seaborn
 numpy
 beautifulsoup4
-streamlit
+streamlit>=1.42.0
 folium
 streamlit-folium
 supabase
