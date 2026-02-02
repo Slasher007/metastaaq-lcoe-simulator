@@ -157,7 +157,7 @@ DEFAULT_PARAMS = {
 # Parameter ranges
 PARAM_RANGES = {
     "electrolyser_power": {"min": 0.25, "max": 20.0, "step": 0.25},
-    "h2_flowrate": {"min": 100.0, "max": 5000.0, "step": 10.0},  # Nm³/h
+    "h2_flowrate": {"min": 100.0, "max": 5000.0, "step": 1.0},  # Nm³/h
     "electrolyser_specific_consumption": {"min": 4.0, "max": 6.0, "step": 0.1},  # Still kept for backward compatibility
     "service_ratio": {"min": 0.0, "max": 1.0, "step": 0.01},
     "pv_price": {"min": 0.0, "max": 100.0, "step": 5.0},
