@@ -12,12 +12,43 @@ def setup_sidebar_header():
     st.sidebar.markdown("### 🔧 Simulation Parameters")
 
 
-def load_data_file(file_path):
-    """Load the default data file"""
+def load_data_file(file_path=None, use_supabase=True):
+    """
+    Load spot price data from Supabase database
+    
+    Args:
+        file_path: Deprecated - no longer used (data is loaded from Supabase only)
+        use_supabase: Must be True (Supabase is the only data source)
+        
+    Returns:
+        DataFrame with spot price data
+        
+    Raises:
+        ConnectionError: If Supabase is not configured or unavailable
+    """
     try:
-        return pd.read_csv(file_path)
-    except FileNotFoundError:
-        st.error("❌ Default data file not found. Please ensure the data file is in the correct location.")
+        from supabase_service import load_spot_data_from_supabase, get_supabase_service
+        
+        service = get_supabase_service()
+        
+        if not service.is_connected:
+            st.error("❌ **Supabase not connected!**\n\nPlease check your `.env` file has valid credentials:\n- `SUPABASE_URL`\n- `SUPABASE_ANON_KEY`")
+            st.stop()
+        
+        df = load_spot_data_from_supabase()
+        
+        if df.empty:
+            st.error("❌ **No data in Supabase!**\n\nRun the import script to load data:\n```\npython scripts/import_csv_to_supabase.py\n```")
+            st.stop()
+        
+        st.sidebar.success("✅ Data loaded from Supabase")
+        return df
+        
+    except ImportError as e:
+        st.error(f"❌ **Supabase module not installed!**\n\nRun: `pip install supabase python-dotenv`\n\nError: {str(e)}")
+        st.stop()
+    except Exception as e:
+        st.error(f"❌ **Supabase error:** {str(e)}")
         st.stop()
 
 

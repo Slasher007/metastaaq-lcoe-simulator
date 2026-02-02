@@ -2,6 +2,13 @@
 MetaSTAAQ LCOE Simulation Dashboard - Modular Version
 """
 
+# Load environment variables from .env file (for Supabase credentials)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, using system environment variables
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
