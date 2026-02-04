@@ -283,3 +283,88 @@ def calculate_hybrid_strategy(df, target_price=15, ppa_price=80, pv_price=0, str
         )
     else:
         raise ValueError("strategy_type must be 'service_ratio' or 'target_price'")
+
+
+def calculate_optimal_monthly_ratios(df, annual_service_ratio=0.98, return_extended_info=False):
+    """
+    Optimize Monthly Ratios for a Target Annual Service Ratio:
+    1. Sorts ALL hours of the year by price.
+    2. Selects the top (annual_service_ratio * total_hours) cheapest hours.
+    3. Aggregates the selected hours back into monthly service ratios.
+    
+    Parameters:
+        df (pd.DataFrame): DataFrame containing electricity price data (needs 'year' and 'month')
+        annual_service_ratio (float): Target annual service ratio (0.0 to 1.0)
+        return_extended_info (bool): If True, returns additional info
+    
+    Returns:
+        dict: Operation hours by month {year: {month: hours}}
+        or tuple: (hours_dict, extended_info_dict) if return_extended_info=True
+    """
+    df = df.copy()
+    
+    # Handle datetime conversion if needed (similar to other strategies)
+    if 'timestamp' not in df.columns:
+        if df['Date'].dtype == 'datetime64[ns]':
+            df['timestamp'] = df['Date'].dt.strftime('%Y-%m-%d') + ' ' + df['Heure'].astype(str) + ':00:00'
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+        else:
+            df['timestamp'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Heure'].astype(str) + ':00:00')
+            
+    df['year'] = df['timestamp'].dt.year
+    df['month'] = df['timestamp'].dt.month
+    if 'price' not in df.columns:
+        df = df.rename(columns={'Prix': 'price'})
+
+    result = {}
+    extended_info = {}
+    
+    # Process per year to ensure annual ratio is respected per year
+    for year, group in df.groupby('year'):
+        year_str = str(year)
+        result[year_str] = {}
+        extended_info[year_str] = {}
+        
+        # Sort all hours in the year by price
+        sorted_group = group.sort_values('price')
+        total_hours_year = len(group)
+        target_hours_year = int(total_hours_year * annual_service_ratio)
+        
+        # Select cheap hours
+        selected_hours = sorted_group.head(target_hours_year)
+        
+        # Aggregate by month to get monthly hours
+        monthly_counts = selected_hours.groupby('month').size()
+        
+        # Iterate over all months in this year to ensure we populate even months with 0 hours
+        months_in_year = group['month'].unique()
+        
+        for month in months_in_year:
+            month_name = calendar.month_name[month]
+            
+            hours_in_month = len(group[group['month'] == month])
+            selected_hours_month = monthly_counts.get(month, 0)
+            
+            result[year_str][month_name] = int(selected_hours_month)
+            
+            # Calculate avg cost for this month (of selected hours)
+            if selected_hours_month > 0:
+                # Filter selected_hours for this month
+                month_selection = selected_hours[selected_hours['month'] == month]
+                avg_cost_month = month_selection['price'].mean()
+            else:
+                avg_cost_month = 0.0
+                
+            extended_info[year_str][month_name] = {
+                'target_hours': int(selected_hours_month),
+                'total_hours_available': hours_in_month,
+                'average_cost': avg_cost_month,
+                'spot_hours': int(selected_hours_month), # Pure spot strategy assumed
+                'ppa_hours': 0,
+                'service_ratio': selected_hours_month / hours_in_month if hours_in_month > 0 else 0,
+                'annual_service_ratio_target': annual_service_ratio
+            }
+            
+    if return_extended_info:
+        return result, extended_info
+    return result

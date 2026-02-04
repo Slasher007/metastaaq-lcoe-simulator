@@ -20,7 +20,9 @@ from mpl_toolkits.mplot3d import Axes3D
 
 # Import individual functions to have better control over plotting
 from calculate_max_hours import calculate_max_hours
-from calculate_operation_strategies import calculate_hybrid_strategy
+from calculate_max_hours import calculate_max_hours
+from calculate_operation_strategies import calculate_hybrid_strategy, calculate_optimal_monthly_ratios
+from display_table import display_table
 from display_table import display_table
 from calculate_percentage_difference import calculate_percentage_difference
 from get_required_hours_per_month_custom import get_required_hours_per_month_custom
@@ -49,7 +51,9 @@ from plots import (
 from calculations import (
     calculate_derived_parameters, calculate_monthly_ch4_production, calculate_pv_energy_production,
     calculate_battery_capacity, calculate_capex_opex, calculate_energy_breakdown,
-    calculate_monthly_breakdown, calculate_yearly_totals, calculate_pv_economics, calculate_pv_lcoe
+    calculate_battery_capacity, calculate_capex_opex, calculate_energy_breakdown,
+    calculate_monthly_breakdown, calculate_yearly_totals, calculate_pv_economics, calculate_pv_lcoe,
+    find_service_ratio_for_target_lcoch4
 )
 from calculate_lcoh import calculate_lcoh, calculate_lcoc
 
@@ -109,8 +113,14 @@ def main():
     ch4_flowrate, cons_spec_ch4, methanation_econ = create_methanation_parameters(electrolyser_power, electrolyser_specific_consumption, project_lifetime, discount_rate)
     site_co2_econ = create_site_co2_parameters()
     strategy_type = create_operation_strategy_selection()
-    if strategy_type == "Target Price-Based":
-        monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=st.session_state.get('computed_service_ratios'))
+    
+    # Define strategies where service ratios are computed, not input
+    computed_strategies = ["Target Price-Based", "Optimize Global Annual Service Ratio", "Target LCOCh4"]
+    
+    if strategy_type in computed_strategies:
+        # For computed strategies, we might interpret 'computed_service_ratios' from session state if available
+        preset = st.session_state.get('computed_service_ratios')
+        monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=preset)
     else:
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=True)
     target_prices, pv_price, ppa_price, go_enabled, go_cost_per_mwh = create_price_parameters(strategy_type)
@@ -343,12 +353,45 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                                 initial_service_ratio=initial_service_ratio,
                                 return_extended_info=True
                             )
-                        else:  # Target Price-Based
+                        elif strategy_type == "Target Price-Based":
                             strategy_key = 'target_price'
                             result, extended_info = calculate_hybrid_strategy(
                                 data_content, target_price, ppa_price, pv_price, 
                                 strategy_key, return_extended_info=True
                             )
+                        elif strategy_type == "Optimize Global Annual Service Ratio":
+                            annual_target = st.session_state.get('annual_service_ratio_target', 0.90)
+                            result, extended_info = calculate_optimal_monthly_ratios(
+                                data_content, annual_target, return_extended_info=True
+                            )
+                        elif strategy_type == "Target LCOCh4":
+                            target_lcoch4_val = st.session_state.get('target_lcoch4', 100.0)
+                            
+                            best_result_dict = find_service_ratio_for_target_lcoch4(
+                                target_lcoch4_val, 
+                                data_content, 
+                                electrolyser_power, 
+                                derived_params['h2_flowrate'], 
+                                methanation_econ, 
+                                cons_spec_ch4=methanation_econ.get('cons_spec_ch4'),
+                                pv_price=pv_price
+                            )
+                            
+                            if best_result_dict:
+                                optimal_ratio = best_result_dict['optimal_ratio']
+                                lcoch4_found = best_result_dict['lcoch4']
+                                st.success(f"✅ Found Optimal Annual Service Ratio: **{optimal_ratio:.1%}** (LCOCh4 ≈ {lcoch4_found:.2f} €/MWh)")
+                                
+                                # Re-calculate extended info for this optimal ratio to ensure full data availability for charts
+                                result, extended_info = calculate_optimal_monthly_ratios(
+                                    data_content, optimal_ratio, return_extended_info=True
+                                )
+                            else:
+                                st.error("❌ Could not find a service ratio strictly matching the target LCOCh4.")
+                                st.stop()
+                        else:
+                            st.error(f"Unknown strategy type: {strategy_type}")
+                            st.stop()
                         
                         # Force monthly operating hours to service ratio × days × 24 when using Service Ratio-Based strategy
                         if strategy_type == "Service Ratio-Based":

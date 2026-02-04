@@ -756,3 +756,185 @@ class PvgisHourlyData:
         if len(df) > 0:
             df = df.sort_values('timestamp').reset_index(drop=True)
         return df
+
+
+def find_service_ratio_for_target_lcoch4(
+    target_lcoch4,
+    df_prices,
+    electrolyzer_power,
+    h2_flowrate,
+    methanation_economics,
+    cons_spec_ch4,
+    pv_price=0,
+    h2_to_ch4_efficiency=0.95
+):
+    """
+    Find the optimal annual service ratio to reach a target LCOCh4.
+    Iteratively tests service ratios from 5% to 100% to find the closest match.
+    
+    Args:
+        target_lcoch4: Target LCOCh4 in €/MWh
+        df_prices: DataFrame with timestamp and price
+        electrolyzer_power: MW
+        h2_flowrate: Nm3/h
+        methanation_economics: Dict with economic parameters
+        cons_spec_ch4: Specific consumption for methanation (kWh/Nm3)
+        pv_price: Price of PV electricity (if mixed) - logic assumes simplifed spot usage for now if just optimizing ratio
+        h2_to_ch4_efficiency: efficiency
+        
+    Returns:
+        dict with optimal results: 'optimal_ratio', 'lcoch4', 'details'
+        or None if no solution found within reasonable bounds
+    """
+    from calculate_operation_strategies import calculate_optimal_monthly_ratios
+    from calculate_lcoch4 import calculate_lcoch4
+    
+    # Define search space for annual service ratio (5% to 100%)
+    ratios_to_test = np.linspace(0.05, 1.0, 20) # Test 20 points first
+    
+    best_ratio = None
+    min_diff = float('inf')
+    best_result = None
+    
+    # Add timestamp/year/month columns if missing (helper)
+    df = df_prices.copy()
+    if 'timestamp' not in df.columns:
+        if df['Date'].dtype == 'datetime64[ns]':
+            df['timestamp'] = df['Date'].dt.strftime('%Y-%m-%d') + ' ' + df['Heure'].astype(str) + ':00:00'
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+        else:
+            df['timestamp'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Heure'].astype(str) + ':00:00')
+    df['year'] = df['timestamp'].dt.year
+    df['month'] = df['timestamp'].dt.month
+    if 'price' not in df.columns:
+        df = df.rename(columns={'Prix': 'price'})
+
+    # 1. First coarse sweep
+    for ratio in ratios_to_test:
+        monthly_ratios_dict, extended_info = calculate_optimal_monthly_ratios(df, ratio, return_extended_info=True)
+        
+        # Calculate resulting LCOCh4
+        # We need to simulate the cost for this ratio
+        # Calculate annual average electricity cost from the selected hours
+        total_cost_year = 0
+        total_hours_year = 0
+        
+        for year, months in extended_info.items():
+            for month, info in months.items():
+                # We simply sum up the costs of the selected cheapest hours
+                # In calculate_optimal_monthly_ratios, we know avg_cost and hours
+                avg_cost = info['average_cost']
+                hours = info['target_hours']
+                total_cost_year += avg_cost * hours
+                total_hours_year += hours
+        
+        if total_hours_year == 0:
+            avg_elec_price = 0
+        else:
+            avg_elec_price = total_cost_year / total_hours_year
+            
+        # Simplification: Assume this electricity price applies to the whole consumption
+        # In a real rigorous simulation, we'd mix PV, but for targetting via grid/spot optimization:
+        electricity_costs_for_methanation = 0 # Placeholder, need actual consumption calculation
+        
+        # We need to calculate annual consumption to get annual cost
+        # Consumption = (Elec_Ely + Elec_Meth) * hours ? 
+        # Actually LCOCh4 function expects `electricity_costs_for_methanation` as a TOTAL ANNUAL VALUE (€)
+        
+        # Calculate annual productions and consumptions
+        # 1. H2 Production
+        # h2_flowrate (Nm3/h) * hours
+        h2_production_total_nm3 = h2_flowrate * total_hours_year / len(df['year'].unique()) # Average annual
+        h2_density = 0.08988 # kg/Nm3
+        h2_production_kg = h2_production_total_nm3 * h2_density
+        
+        # 2. Electricity Consumption
+        # Electrolyzer: Power * hours
+        elec_cons_ely_mwh = electrolyzer_power * total_hours_year / len(df['year'].unique())
+        
+        # Methanation:
+        # CH4 flow = H2 flow / 4
+        ch4_flow = h2_flowrate / 4
+        # Methanation power = CH4 flow * spec_cons
+        meth_power_mw = (ch4_flow * cons_spec_ch4) / 1000 # kW -> MW
+        elec_cons_meth_mwh = meth_power_mw * total_hours_year / len(df['year'].unique())
+        
+        # Total Elec Order of Magnitude
+        total_elec_mwh = elec_cons_ely_mwh + elec_cons_meth_mwh
+        
+        # Total Electricity Cost
+        total_electricity_cost = total_elec_mwh * avg_elec_price
+        
+        # Calculate LCOCh4
+        lcoch4_result = calculate_lcoch4(
+            h2_production_kg, 
+            methanation_economics, 
+            total_electricity_cost, 
+            h2_to_ch4_efficiency
+        )
+        
+        current_lcoch4 = lcoch4_result['lcoch4_eur_per_mwh']
+        
+        diff = abs(current_lcoch4 - target_lcoch4)
+        if diff < min_diff:
+            min_diff = diff
+            best_ratio = ratio
+            best_result = {
+                'optimal_ratio': ratio,
+                'lcoch4': current_lcoch4,
+                'lcoch4_eur_per_kg': lcoch4_result['lcoch4_eur_per_kg'],
+                'avg_elec_price': avg_elec_price,
+                'total_hours': total_hours_year / len(df['year'].unique()),
+                'monthly_ratios': monthly_ratios_dict
+            }
+            
+    # Optional: Refine search around best_ratio
+    if best_ratio:
+        ratios_fine = np.linspace(max(0.01, best_ratio - 0.05), min(1.0, best_ratio + 0.05), 10)
+        for ratio in ratios_fine:
+            monthly_ratios_dict, extended_info = calculate_optimal_monthly_ratios(df, ratio, return_extended_info=True)
+            
+            # Recalculate (Same logic as above - should ideally be factorized)
+            total_cost_year = 0
+            total_hours_year = 0
+            for year, months in extended_info.items():
+                for month, info in months.items():
+                    avg_cost = info['average_cost']
+                    hours = info['target_hours']
+                    total_cost_year += avg_cost * hours
+                    total_hours_year += hours
+            
+            avg_elec_price = total_cost_year / total_hours_year if total_hours_year > 0 else 0
+            
+            h2_production_total_nm3 = h2_flowrate * total_hours_year / len(df['year'].unique())
+            h2_production_kg = h2_production_total_nm3 * 0.08988
+            
+            elec_cons_ely_mwh = electrolyzer_power * total_hours_year / len(df['year'].unique())
+            ch4_flow = h2_flowrate / 4
+            meth_power_mw = (ch4_flow * cons_spec_ch4) / 1000
+            elec_cons_meth_mwh = meth_power_mw * total_hours_year / len(df['year'].unique())
+            total_elec_mwh = elec_cons_ely_mwh + elec_cons_meth_mwh
+            total_electricity_cost = total_elec_mwh * avg_elec_price
+            
+            lcoch4_result = calculate_lcoch4(
+                h2_production_kg, 
+                methanation_economics, 
+                total_electricity_cost, 
+                h2_to_ch4_efficiency
+            )
+            current_lcoch4 = lcoch4_result['lcoch4_eur_per_mwh']
+            
+            diff = abs(current_lcoch4 - target_lcoch4)
+            if diff < min_diff:
+                min_diff = diff
+                best_ratio = ratio
+                best_result = {
+                    'optimal_ratio': ratio,
+                    'lcoch4': current_lcoch4,
+                    'lcoch4_eur_per_kg': lcoch4_result['lcoch4_eur_per_kg'],
+                    'avg_elec_price': avg_elec_price,
+                    'total_hours': total_hours_year / len(df['year'].unique()),
+                    'monthly_ratios': monthly_ratios_dict
+                }
+
+    return best_result
