@@ -48,7 +48,7 @@ DEFAULT_PARAMS = {
     "electrolyser_specific_consumption": 4.8,  # kWh/Nm³ - now calculated from power and h2_flowrate
     "service_ratio": 0.98,
     "pv_price": 60.0,
-    "ppa_price": 80.0,
+    "ppa_price": 300.0,
     "target_price": 30.0,
     "pv_project_years": 20,
     "pv_surface_hectares": 1.0,
@@ -161,7 +161,7 @@ PARAM_RANGES = {
     "electrolyser_specific_consumption": {"min": 4.0, "max": 6.0, "step": 0.1},  # Still kept for backward compatibility
     "service_ratio": {"min": 0.0, "max": 1.0, "step": 0.01},
     "pv_price": {"min": 0.0, "max": 100.0, "step": 5.0},
-    "ppa_price": {"min": 40.0, "max": 120.0, "step": 5.0},
+    "ppa_price": {"min": 40.0, "max": 300.0, "step": 5.0},
     "target_price": {"min": 20.0, "max": 100.0, "step": 5.0},
     "pv_project_years": {"min": 15, "max": 30, "step": 1},
     "pv_surface_hectares": {"min": 0.1, "max": 20.0, "step": 0.1},
