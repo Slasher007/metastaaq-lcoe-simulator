@@ -54,6 +54,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     # Get available options
     available_years = sorted(data_content['Annee'].unique())
+    year_str = ", ".join(map(str, available_years)) if available_years else "All Years"
     month_names_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     available_months = sorted(data_content['Mois'].unique(), 
@@ -496,7 +497,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     ax_price.set_xlabel('Hour of Day', fontsize=12, fontweight='bold')
     ax_price.set_ylabel('Spot Price (€/MWh)', fontsize=12, fontweight='bold')
     n_data_points = len(data_content)
-    title = f'Electricity Spot Price Distribution by Hour and Operational Windows\nElectrolyser Power: {electrolyser_power:.1f} MW | Data Points: {n_data_points:,}'
+    title = f'Electricity Spot Price Distribution by Hour and Operational Windows ({year_str})\nElectrolyser Power: {electrolyser_power:.1f} MW | Data Points: {n_data_points:,}'
     ax_price.set_title(title, fontsize=14, fontweight='bold')
     ax_price.grid(True, alpha=0.3, axis='y')
     ax_price.legend(loc='upper left', fontsize=9)
@@ -737,7 +738,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ax.set_ylabel('State of Charge (%)', fontweight='bold')
             n_data_points = len(df_results)
             service_ratio_pct = avg_service_ratio * 100
-            title = f'Battery SoC Profile (Days {week_selector} to {week_selector + 7})\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+            title = f'Battery SoC Profile (Days {week_selector} to {week_selector + 7}) - {year_str}\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
             ax.set_title(title, fontweight='bold')
             ax.grid(True, alpha=0.3)
             ax.legend()
@@ -765,7 +766,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             axes[0].set_ylabel('Power (MW)', fontweight='bold')
             n_data_points = len(df_results)
             service_ratio_pct = avg_service_ratio * 100
-            title_base = f'Electrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+            title_base = f'Years: {year_str} | Electrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
             axes[0].set_title(f'Battery Charging/Discharging\n{title_base}', fontweight='bold')
             axes[0].legend()
             axes[0].grid(True, alpha=0.3)
@@ -817,7 +818,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             ax.set_xlabel('Hour of Day', fontweight='bold', fontsize=12)
             ax.set_ylabel('Cumulative PV Production (MWh)', fontweight='bold', fontsize=12)
-            ax.set_title('Cumulative Hourly PV Production (Total across entire year)', 
+            ax.set_title(f'Cumulative Hourly PV Production (Total across {year_str})', 
                         fontweight='bold', fontsize=14)
             ax.set_xticks(range(24))
             ax.set_xticklabels([f'{h:02d}:00' for h in range(24)], rotation=45, ha='right')
@@ -936,14 +937,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 lambda x: x['battery_discharge_mw'] * battery_cost_per_mwh if x['window_type'] in discharge_windows else 0,
                 axis=1
             )
-            df_hourly_cost['grid_supply_price'] = df_hourly_cost.apply(
-                lambda x: x['spot_price_eur_mwh'] if (ppa_price == 0 or x['spot_price_eur_mwh'] <= ppa_price) else np.nan,
-                axis=1
-            )
-
             scaling_factor = electrolyser_power
             for col in ['grid_charge_cost', 'revenue_sell_to_grid', 'ely_supply_savings',
-                        'ppa_baseline_cost', 'pv_baseline_cost', 'battery_lcos_cost', 'grid_supply_price']:
+                        'ppa_baseline_cost', 'pv_baseline_cost', 'battery_lcos_cost']:
                 df_hourly_cost[col] = df_hourly_cost[col] * scaling_factor
             
             df_hourly_cost['net_cashflow'] = (
@@ -969,7 +965,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                                 'spot_price_eur_mwh',
                                 'grid_charge_cost', 'revenue_sell_to_grid',
                                 'ely_supply_savings', 'ppa_baseline_cost', 'pv_baseline_cost',
-                                'battery_lcos_cost', 'grid_supply_price','net_cashflow',]
+                                'battery_lcos_cost', 'net_cashflow']
             print(df_hourly_cost[subset_columns])
             # Group by hour of day
             hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
@@ -987,8 +983,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 - hourly_profile['revenue_sell_to_grid']
                 - hourly_profile['ely_supply_savings']
             )
-            grid_supply_series = df_hourly_cost.groupby('hour_of_day')['grid_supply_price'].mean().dropna()
-             
+            # Removed grid_supply_series calculation
             #print(df_hourly_cost)
 
             fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
@@ -1070,11 +1065,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 ax.plot(hourly_profile.index, battery_series, label=battery_label,
                         color='gray', linewidth=1.5, alpha=0.7, linestyle='-.', marker='^')
 
-            if _grid_on:
-                ax.plot(grid_supply_series.index, -grid_supply_series.values,
-                        label='Grid supply price (cost ref)', color='blue',
-                        linewidth=1.5, alpha=0.7, linestyle=':', marker='d')
-
             # --- Net cashflow = revenue − costs (positive = profitable) ---
             net_series = (
                 hourly_profile['revenue_sell_to_grid']
@@ -1107,7 +1097,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 w for w, on in [('PV', _pv_on), ('Sell→Grid', _arb_on),
                                 ('Grid→Bat', _grid_on), ('Bat→Ely', _ely_on)] if on
             ]) or 'None'
-            title = (f'Hourly Cash Flows  [Active windows: {active_windows}]\n'
+            title = (f'Hourly Cash Flows ({year_str})  [Active windows: {active_windows}]\n'
                      f'Electrolyser Power: {electrolyser_power:.1f} MW | '
                      f'Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}')
             ax.set_title(title, fontweight='bold')
@@ -1262,7 +1252,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         ax.set_ylabel('Spot Price (€/MWh)', fontweight='bold')
         n_data_points = len(df_results)
         service_ratio_pct = avg_service_ratio * 100
-        title = f'Spot Prices at Selected Hours per Operational Window\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+        title = f'Spot Prices at Selected Hours per Operational Window ({year_str})\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
         ax.set_title(title, fontweight='bold')
         ax.grid(True, alpha=0.3)
         ax.legend()
