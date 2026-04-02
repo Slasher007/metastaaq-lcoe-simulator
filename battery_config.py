@@ -5,20 +5,26 @@ Parametric time windows and battery parameters for PV-Battery-Electrolyser optim
 
 # Parametric Time Windows (hours in 24h format)
 # Defaults aligned with battery_integration operational windows (non-overlapping)
+# Parametric Time Windows (hours in 24h format)
+# Defaults aligned with battery_integration operational windows (non-overlapping)
 DEFAULT_TIME_WINDOWS = {
     # 1. PV-priority charging window
+    "pv_charge_enabled": False,
     "pv_charge_start": 12,  # 12:00 - Start PV charging
     "pv_charge_end": 17,    # 17:00 - End PV charging
     
     # 2. Evening arbitrage discharge window
+    "sell_to_grid_enabled": True,
     "sell_to_grid_start": 18,  # 18:00 - Start selling to grid
-    "sell_to_grid_end": 23,    # 23:00 - End selling to grid
+    "sell_to_grid_end": 21,    # 21:00 - End selling to grid (4 hours: 18, 19, 20, 21)
     
     # 3. Spot charging window (grid charging at spot prices)
-    "grid_charging_start": 0,  # 00:00 - Start spot grid charging
-    "grid_charging_end": 5,    # 05:00 - End spot grid charging
+    "grid_charging_enabled": True,
+    "grid_charging_start": 2,  # 02:00 - Start spot grid charging
+    "grid_charging_end": 5,    # 05:00 - End spot grid charging (4 hours: 2, 3, 4, 5)
     
     # 4. Morning electrolyser supply window
+    "electrolyser_enabled": False,
     "electrolyser_start": 6,   # 06:00 - Start electrolyser operation
     "electrolyser_end": 11,    # 11:00 - End electrolyser operation
 }
@@ -35,8 +41,7 @@ DEFAULT_ELECTROLYSER_PARAMS = {
 # Battery Technical Parameters
 DEFAULT_BATTERY_PARAMS = {
     # Energy capacity (aligned with battery_integration default UI)
-    # Calculated as P_ely * PV charging window duration (6 hours)
-    "E_bat_max": DEFAULT_ELECTROLYSER_PARAMS["P_ely"] * (DEFAULT_TIME_WINDOWS["pv_charge_end"] - DEFAULT_TIME_WINDOWS["pv_charge_start"]),
+    "E_bat_max": 20.0,
     
     # Power limits (based on electrolyser power)
     "P_charge_max": DEFAULT_ELECTROLYSER_PARAMS["P_ely"],  # MW - Maximum charge power (equals electrolyser power)

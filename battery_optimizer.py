@@ -187,13 +187,13 @@ class BatteryOptimizer:
         """Determine which operational window the current hour belongs to"""
         tw = self.time_windows
         
-        if is_hour_in_window(hour, tw["electrolyser_start"], tw["electrolyser_end"]):
+        if tw.get("electrolyser_enabled", True) and is_hour_in_window(hour, tw["electrolyser_start"], tw["electrolyser_end"]):
             return "electrolyser"
-        elif is_hour_in_window(hour, tw["pv_charge_start"], tw["pv_charge_end"]):
+        elif tw.get("pv_charge_enabled", True) and is_hour_in_window(hour, tw["pv_charge_start"], tw["pv_charge_end"]):
             return "pv_charge"
-        elif is_hour_in_window(hour, tw["sell_to_grid_start"], tw["sell_to_grid_end"]):
+        elif tw.get("sell_to_grid_enabled", True) and is_hour_in_window(hour, tw["sell_to_grid_start"], tw["sell_to_grid_end"]):
             return "sell_to_grid"
-        elif is_hour_in_window(hour, tw["grid_charging_start"], tw["grid_charging_end"]):
+        elif tw.get("grid_charging_enabled", True) and is_hour_in_window(hour, tw["grid_charging_start"], tw["grid_charging_end"]):
             return "grid_charging"
         else:
             return "idle"
