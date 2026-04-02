@@ -63,6 +63,19 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     available_days = [day for day in day_order if day in data_content['DayOfWeek'].unique()]
     
+    # Check if available years changed from main dashboard selection
+    if 'battery_last_available_years' not in st.session_state:
+        st.session_state.battery_last_available_years = available_years
+        
+    if st.session_state.battery_last_available_years != available_years:
+        st.session_state.battery_last_available_years = available_years
+        st.session_state.battery_optimization_run = False
+        st.session_state.filters_applied = False
+        if 'filter_year' in st.session_state:
+            st.session_state.filter_year = available_years[0] if available_years else None
+        if 'selected_filter_year' in st.session_state:
+            st.session_state.selected_filter_year = available_years[0] if available_years else None
+    
     # Initialize session state for filters if not exists
     if 'filter_year' not in st.session_state:
         st.session_state.filter_year = available_years[0] if available_years else None  # Single year selection
