@@ -976,6 +976,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 'pv_baseline_cost': 'sum',
                 'battery_lcos_cost': 'sum'
             })
+            
+            # Convert values to k€
+            hourly_profile = hourly_profile / 1000.0
+
             hourly_profile['net_cashflow'] = (
                 hourly_profile['grid_charge_cost']
                 + hourly_profile['pv_baseline_cost']
@@ -1025,7 +1029,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                     v = hourly_profile.loc[hour, 'grid_charge_cost']
                     if v > 0:
                         ax.text(hour, -v / 2,
-                                f"-{v:.0f}€",
+                                f"-{v:.1f} k€",
                                 ha='center', va='center', fontsize=8, color='black', fontweight='bold')
 
             if _arb_on:
@@ -1035,7 +1039,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                     v = hourly_profile.loc[hour, 'revenue_sell_to_grid']
                     if v > 0:
                         ax.text(hour, v / 2,
-                                f"+{v:.0f}€",
+                                f"+{v:.1f} k€",
                                 ha='center', va='center', fontsize=8, color='black', fontweight='bold')
 
             if _ely_on:
@@ -1045,7 +1049,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                     v = hourly_profile.loc[hour, 'ely_supply_savings']
                     if v > 0:
                         ax.text(hour, v / 2,
-                                f"+{v:.0f}€",
+                                f"+{v:.1f} k€",
                                 ha='center', va='center', fontsize=8, color='black', fontweight='bold')
 
             # --- Lines: only render for enabled windows ---
@@ -1079,18 +1083,23 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                             where=net_series.values >= 0, color='green', alpha=0.12)   # profit → green
             ax.fill_between(net_series.index, 0, net_series.values,
                             where=net_series.values < 0,  color='red',   alpha=0.12)   # loss   → red
+            
+            # Determine a dynamic offset for net cashflow text
+            max_abs_val = net_series.abs().max()
+            dynamic_offset = max_abs_val * 0.05 if max_abs_val > 0 else 0.5
+            
             for hour, value in net_series.items():
                 if value != 0:
                     va     = 'bottom' if value >= 0 else 'top'
-                    offset = 3        if value >= 0 else -3
+                    offset = dynamic_offset if value >= 0 else -dynamic_offset
                     color  = 'darkgreen' if value >= 0 else 'darkred'
-                    ax.text(hour, value + offset, f"{value:+,.0f}€",
+                    ax.text(hour, value + offset, f"{value:+,.1f} k€",
                             ha='center', va=va, fontsize=8, color=color, fontweight='bold')
 
             ax.set_xticks(range(24))
             ax.set_xticklabels([f'{h:02d}h' for h in range(24)])
             ax.set_xlabel('Hour of Day', fontweight='bold')
-            ax.set_ylabel('Total Cumulated Cost / Revenue (€)', fontweight='bold')
+            ax.set_ylabel('Total Cumulated Cost / Revenue (k€)', fontweight='bold')
             n_data_points = len(df_results)
             service_ratio_pct = avg_service_ratio * 100
             active_windows = ', '.join([
