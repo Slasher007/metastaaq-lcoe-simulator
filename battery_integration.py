@@ -688,6 +688,11 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # Run simulation with hours instead of timestamps
             df_results, summary = optimizer.simulate_year(pv_profile, spot_prices, hours_of_day)
+            
+            # Match Month and Year to df_results for aggregation
+            df_results['Mois'] = data_content['Mois'].values
+            df_results['Annee'] = data_content['Annee'].values
+            
             #print("simulation is run")
             #print('PV profile:', pv_profile)
             # Store results in session state
@@ -1116,6 +1121,139 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
 
             st.pyplot(fig_hourly_cost)
             plt.close(fig_hourly_cost)
+
+            # --- Chart 2: Monthly Cash Flows ---
+            st.markdown("##### 📅 Monthly Cash Flows")
+            monthly_profile = df_hourly_cost.groupby('Mois').agg({
+                'grid_charge_cost': 'sum',
+                'revenue_sell_to_grid': 'sum',
+                'ely_supply_savings': 'sum',
+                'ppa_baseline_cost': 'sum',
+                'pv_baseline_cost': 'sum',
+                'battery_lcos_cost': 'sum'
+            })
+            # Convert to k€
+            monthly_profile = monthly_profile / 1000.0
+            
+            fig_monthly_cost, ax = plt.subplots(figsize=(12, 6))
+            
+            x_months = monthly_profile.index
+            cost_bottom = np.zeros(len(x_months))
+            revenue_bottom = np.zeros(len(x_months))
+            
+            if _grid_on:
+                ax.bar(x_months, -monthly_profile['grid_charge_cost'], label='Grid to Battery (cost)', color='red', alpha=0.7, bottom=-cost_bottom)
+                cost_bottom += monthly_profile['grid_charge_cost']
+            
+            if _pv_on:
+                ax.bar(x_months, -monthly_profile['pv_baseline_cost'], label='PV LCOE cost', color='gold', alpha=0.7, bottom=-cost_bottom)
+                cost_bottom += monthly_profile['pv_baseline_cost']
+
+            if _arb_on or _ely_on:
+                ax.bar(x_months, -monthly_profile['battery_lcos_cost'], label='Battery LCOS cost', color='gray', alpha=0.7, bottom=-cost_bottom)
+                cost_bottom += monthly_profile['battery_lcos_cost']
+                
+            if _arb_on:
+                ax.bar(x_months, monthly_profile['revenue_sell_to_grid'], label='Battery to Grid (revenue)', color='green', alpha=0.7, bottom=revenue_bottom)
+                revenue_bottom += monthly_profile['revenue_sell_to_grid']
+                
+            if _ely_on:
+                ax.bar(x_months, monthly_profile['ely_supply_savings'], label='Battery to Electrolyser (savings)', color='purple', alpha=0.7, bottom=revenue_bottom)
+                revenue_bottom += monthly_profile['ely_supply_savings']
+                
+            net_series_monthly = (
+                monthly_profile['revenue_sell_to_grid']
+                + monthly_profile['ely_supply_savings']
+                - monthly_profile['grid_charge_cost']
+                - monthly_profile['pv_baseline_cost']
+                - monthly_profile['battery_lcos_cost']
+            )
+            ax.plot(x_months, net_series_monthly.values, label='Net Cashflow', color='black', linewidth=2, linestyle='-', marker='o')
+            
+            max_abs_monthly = net_series_monthly.abs().max()
+            dynamic_offset_m = max_abs_monthly * 0.05 if max_abs_monthly > 0 else 0.5
+            
+            for m, value in zip(x_months, net_series_monthly.values):
+                if value != 0:
+                    va = 'bottom' if value >= 0 else 'top'
+                    offset = dynamic_offset_m if value >= 0 else -dynamic_offset_m
+                    color  = 'darkgreen' if value >= 0 else 'darkred'
+                    ax.text(m, value + offset, f"{value:+,.1f} k€", ha='center', va=va, fontsize=8, color=color, fontweight='bold')
+                    
+            import calendar
+            month_names = []
+            for m in x_months:
+                try:
+                    month_names.append(calendar.month_abbr[int(m)])
+                except (ValueError, TypeError):
+                    month_names.append(str(m)[:3].title())
+            ax.set_xticks(range(len(x_months)))
+            ax.set_xticklabels(month_names)
+            ax.set_xlabel('Month', fontweight='bold')
+            ax.set_ylabel('Total Monthly Cost / Revenue (k€)', fontweight='bold')
+            ax.set_title(f'Monthly Cash Flows ({year_str})', fontweight='bold')
+            ax.axhline(0, color='black', linewidth=0.8)
+            ax.legend(loc='best', fontsize=8)
+            st.pyplot(fig_monthly_cost)
+            plt.close(fig_monthly_cost)
+            
+            # --- Chart 3: Yearly Cash Flows ---
+            st.markdown("##### 📅 Yearly Cash Flows")
+            yearly_profile = monthly_profile.sum()
+            
+            fig_yearly_cost, ax = plt.subplots(figsize=(8, 6))
+            x_pos = [0]
+            
+            cost_acc = 0
+            rev_acc = 0
+            
+            if _grid_on:
+                ax.bar(x_pos, -yearly_profile['grid_charge_cost'], width=0.5, label='Grid to Battery (cost)', color='red', alpha=0.7, bottom=-cost_acc)
+                cost_acc += yearly_profile['grid_charge_cost']
+            
+            if _pv_on:
+                ax.bar(x_pos, -yearly_profile['pv_baseline_cost'], width=0.5, label='PV LCOE cost', color='gold', alpha=0.7, bottom=-cost_acc)
+                cost_acc += yearly_profile['pv_baseline_cost']
+
+            if _arb_on or _ely_on:
+                ax.bar(x_pos, -yearly_profile['battery_lcos_cost'], width=0.5, label='Battery LCOS cost', color='gray', alpha=0.7, bottom=-cost_acc)
+                cost_acc += yearly_profile['battery_lcos_cost']
+                
+            if _arb_on:
+                ax.bar(x_pos, yearly_profile['revenue_sell_to_grid'], width=0.5, label='Battery to Grid (revenue)', color='green', alpha=0.7, bottom=rev_acc)
+                rev_acc += yearly_profile['revenue_sell_to_grid']
+                
+            if _ely_on:
+                ax.bar(x_pos, yearly_profile['ely_supply_savings'], width=0.5, label='Battery to Electrolyser (savings)', color='purple', alpha=0.7, bottom=rev_acc)
+                rev_acc += yearly_profile['ely_supply_savings']
+                
+            net_yearly = (
+                yearly_profile['revenue_sell_to_grid']
+                + yearly_profile['ely_supply_savings']
+                - yearly_profile['grid_charge_cost']
+                - yearly_profile['pv_baseline_cost']
+                - yearly_profile['battery_lcos_cost']
+            )
+            
+            ax.plot([0], [net_yearly], color='black', marker='D', markersize=10, label='Net Cashflow', zorder=5)
+            
+            va = 'bottom' if net_yearly >= 0 else 'top'
+            max_abs_y = max(cost_acc, rev_acc) if max(cost_acc, rev_acc) > 0 else abs(net_yearly)
+            offset_y = max_abs_y * 0.05 if max_abs_y > 0 else 0.5
+            offset = offset_y if net_yearly >= 0 else -offset_y
+            color  = 'darkgreen' if net_yearly >= 0 else 'darkred'
+            ax.text(0, net_yearly + offset, f"{net_yearly:+,.1f} k€", ha='center', va=va, fontsize=10, color=color, fontweight='bold', bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.8, edgecolor=color))
+            
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels([str(year_str)])
+            ax.set_xlabel('Year', fontweight='bold')
+            ax.set_ylabel('Total Yearly Cost / Revenue (k€)', fontweight='bold')
+            ax.set_title(f'Yearly Cash Flows ({year_str})', fontweight='bold')
+            ax.axhline(0, color='black', linewidth=0.8)
+            ax.legend(loc='upper right', bbox_to_anchor=(1.4, 1), fontsize=8) # move legend out of way
+            fig_yearly_cost.tight_layout()
+            st.pyplot(fig_yearly_cost)
+            plt.close(fig_yearly_cost)
 
         with res_tab5:
             st.markdown("#### Complete Summary Statistics")
