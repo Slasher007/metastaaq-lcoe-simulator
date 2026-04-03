@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
+    DEFAULT_FINANCIAL_PARAMS,
     validate_time_windows, calculate_bess_lcos
 )
 
