@@ -261,6 +261,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     # Configuration section - make it hideable with expander - MOVED BEFORE CHART
     with st.expander("⚙️ Battery Configuration & Operational Time Windows", expanded=False):
+        # Helper to reset optimization state
+        def reset_optimization():
+            st.session_state.battery_optimization_run = False
+
         # Configuration in columns
         col1, col2 = st.columns([1, 2])
         
@@ -275,41 +279,99 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 "Energy Capacity (MWh)", 
                 min_value=1.0, max_value=50.0, value=default_capacity, step=0.5,
                 help=f"Maximum battery energy storage capacity (Default: {default_capacity} MWh)",
-                key='bat_capacity'
+                key='bat_capacity',
+                on_change=reset_optimization
             )
             
             st.number_input(
                 "Charge Power (MW)", 
                 min_value=0.5, max_value=25.0, value=float(electrolyser_power), step=0.5,
                 help="Maximum charging power (default: electrolyser power)",
-                key='bat_charge_power'
+                key='bat_charge_power',
+                on_change=reset_optimization
             )
             
             st.number_input(
                 "Discharge Power (MW)", 
                 min_value=0.5, max_value=25.0, value=float(electrolyser_power), step=0.5,
                 help="Maximum discharging power (default: electrolyser power)",
-                key='bat_discharge_power'
+                key='bat_discharge_power',
+                on_change=reset_optimization
             )
             
             st.slider(
                 "Round-trip Efficiency", 
                 min_value=0.80, max_value=1.00, value=float(DEFAULT_BATTERY_PARAMS['eta_rt']), step=0.01,
                 help="Battery round-trip efficiency",
-                key='bat_efficiency'
+                key='bat_efficiency',
+                on_change=reset_optimization
             )
             
             st.slider(
                 "Max Depth of Discharge", 
                 min_value=0.80, max_value=1.00, value=float(DEFAULT_BATTERY_PARAMS['DoD_max']), step=0.05,
-                key='bat_dod'
+                key='bat_dod',
+                on_change=reset_optimization
             )
             
+            # Financial parameters for LCOS
+            st.markdown("##### 💰 Financial Baseline Parameters")
+            
+            col_fin1, col_fin2 = st.columns(2)
+            with col_fin1:
+                capex_mwh = st.number_input(
+                    "CAPEX (€/MWh)", 
+                    min_value=50000, max_value=500000, value=int(DEFAULT_FINANCIAL_PARAMS['capex_per_mwh']), step=5000,
+                    help="Capital expenditure per MWh of capacity",
+                    key='bat_capex_mwh',
+                    on_change=reset_optimization
+                )
+                discount_rate = st.slider(
+                    "Discount Rate (%)", 
+                    min_value=0.0, max_value=20.0, value=float(DEFAULT_FINANCIAL_PARAMS['discount_rate'] * 100), step=0.5,
+                    help="Weighted Average Cost of Capital (WACC)",
+                    key='bat_discount_rate_pct',
+                    on_change=reset_optimization
+                ) / 100.0
+            
+            with col_fin2:
+                lifetime_years = st.number_input(
+                    "Project Lifetime (Years)", 
+                    min_value=5, max_value=30, value=int(DEFAULT_FINANCIAL_PARAMS['project_lifetime_years']), step=1,
+                    help="Duration of the project for amortization",
+                    key='bat_lifetime',
+                    on_change=reset_optimization
+                )
+                opex_pct = st.slider(
+                    "Annual OPEX (% of CAPEX)", 
+                    min_value=0.0, max_value=5.0, value=float(DEFAULT_FINANCIAL_PARAMS['opex_percent_capex'] * 100), step=0.1,
+                    help="Fixed annual operating expenses",
+                    key='bat_opex_pct',
+                    on_change=reset_optimization
+                ) / 100.0
+            
+            cycles_per_year = st.number_input(
+                "Expected Cycles per Year", 
+                min_value=50, max_value=500, value=int(DEFAULT_FINANCIAL_PARAMS['cycles_per_year']), step=1,
+                help="Assumed number of full discharge cycles per year for baseline LCOS",
+                key='bat_cycles_per_year',
+                on_change=reset_optimization
+            )
+
+            # Build financial params dict
+            fin_params = {
+                'capex_per_mwh': capex_mwh,
+                'discount_rate': discount_rate,
+                'project_lifetime_years': lifetime_years,
+                'opex_percent_capex': opex_pct,
+                'cycles_per_year': cycles_per_year
+            }
+
             # Dynamically calculate LCOS based on user inputs
             temp_params = DEFAULT_BATTERY_PARAMS.copy()
             temp_params['E_bat_max'] = st.session_state.get('bat_capacity', float(DEFAULT_BATTERY_PARAMS['E_bat_max']))
             temp_params['eta_rt'] = st.session_state.get('bat_efficiency', float(DEFAULT_BATTERY_PARAMS['eta_rt']))
-            lcos_live = calculate_bess_lcos(temp_params)
+            lcos_live = calculate_bess_lcos(temp_params, fin_params=fin_params)
             
             st.markdown("---")
             st.markdown("##### 📈 Levelized Cost of Storage (LCOS)")
@@ -581,8 +643,17 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         battery_params['eta_discharge'] = np.sqrt(battery_params['eta_rt'])
         battery_params['DoD_max'] = st.session_state.get('bat_dod', float(DEFAULT_BATTERY_PARAMS['DoD_max']))
         
+        # Build financial params from session state
+        fin_params = {
+            'capex_per_mwh': st.session_state.get('bat_capex_mwh', DEFAULT_FINANCIAL_PARAMS['capex_per_mwh']),
+            'discount_rate': st.session_state.get('bat_discount_rate_pct', DEFAULT_FINANCIAL_PARAMS['discount_rate']*100)/100.0,
+            'project_lifetime_years': st.session_state.get('bat_lifetime', DEFAULT_FINANCIAL_PARAMS['project_lifetime_years']),
+            'opex_percent_capex': st.session_state.get('bat_opex_pct', DEFAULT_FINANCIAL_PARAMS['opex_percent_capex']*100)/100.0,
+            'cycles_per_year': st.session_state.get('bat_cycles_per_year', DEFAULT_FINANCIAL_PARAMS['cycles_per_year'])
+        }
+        
         # Rigorous LCOS calculation instead of user slider input
-        lcos_results = calculate_bess_lcos(battery_params)
+        lcos_results = calculate_bess_lcos(battery_params, fin_params=fin_params)
         battery_params['cost_per_mwh'] = lcos_results['lcos_per_mwh']
         
         time_windows = DEFAULT_TIME_WINDOWS.copy()
