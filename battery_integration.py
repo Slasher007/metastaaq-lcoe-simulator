@@ -11,10 +11,9 @@ import matplotlib.pyplot as plt
 
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
-    validate_time_windows
+    validate_time_windows, calculate_bess_lcos
 )
 
-DEFAULT_BATTERY_COST_EUR_PER_MWH = 0 # €/MWh
 from battery_optimizer import BatteryOptimizer, generate_typical_pv_profile, load_pv_profile
 from battery_visualization import (
     plot_soc_profile, plot_power_flows, plot_economics_breakdown,
@@ -49,7 +48,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     #data_content = data_content[mask]
 
     # Add computed columns
-    data_content['Week'] = data_content['Date'].dt.isocalendar().week
+    data_content['Week'] = ((data_content['Date'].dt.day - 1) // 7) + 1
     data_content['DayOfWeek'] = data_content['Date'].dt.day_name()
     
     # Get available options
@@ -268,9 +267,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         with col1:
             st.subheader("⚙️ Battery Configuration")
             
-            if 'battery_cost_per_mwh' not in st.session_state:
-                st.session_state.battery_cost_per_mwh = DEFAULT_BATTERY_COST_EUR_PER_MWH
-            
             # Use default capacity from configuration
             default_capacity = float(DEFAULT_BATTERY_PARAMS['E_bat_max'])
             
@@ -309,15 +305,25 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 key='bat_dod'
             )
             
-            st.number_input(
-                "Battery Cost (€/MWh)",
-                min_value=0.0,
-                max_value=1000.0,
-                value=float(st.session_state.battery_cost_per_mwh),
-                step=10.0,
-                help="Assumed levelized cost for battery energy throughput",
-                key='battery_cost_per_mwh'
+            # Dynamically calculate LCOS based on user inputs
+            temp_params = DEFAULT_BATTERY_PARAMS.copy()
+            temp_params['E_bat_max'] = st.session_state.get('bat_capacity', float(DEFAULT_BATTERY_PARAMS['E_bat_max']))
+            temp_params['eta_rt'] = st.session_state.get('bat_efficiency', float(DEFAULT_BATTERY_PARAMS['eta_rt']))
+            lcos_live = calculate_bess_lcos(temp_params)
+            
+            st.markdown("---")
+            st.markdown("##### 📈 Levelized Cost of Storage (LCOS)")
+            st.metric(
+                label="LCOS per MWh delivered", 
+                value=f"{lcos_live['lcos_per_mwh']:,.1f} €/MWh",
+                help=f"Calculated rigorously from CAPEX, representing the baseline cost."
             )
+            st.metric(
+                label="Cost per Daily Cycle", 
+                value=f"{lcos_live['cost_per_cycle']:,.1f} €/day",
+                help="The cost of one full battery charge/discharge cycle per day."
+            )
+            st.markdown("---")
             
             # Electrolyser parameters (from main dashboard)
             st.subheader("⚡ Electrolyser")
@@ -574,7 +580,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         battery_params['eta_charge'] = np.sqrt(battery_params['eta_rt'])
         battery_params['eta_discharge'] = np.sqrt(battery_params['eta_rt'])
         battery_params['DoD_max'] = st.session_state.get('bat_dod', float(DEFAULT_BATTERY_PARAMS['DoD_max']))
-        battery_params['cost_per_mwh'] = st.session_state.get('battery_cost_per_mwh', DEFAULT_BATTERY_COST_EUR_PER_MWH)
+        
+        # Rigorous LCOS calculation instead of user slider input
+        lcos_results = calculate_bess_lcos(battery_params)
+        battery_params['cost_per_mwh'] = lcos_results['lcos_per_mwh']
         
         time_windows = DEFAULT_TIME_WINDOWS.copy()
         time_windows['pv_charge_enabled'] = st.session_state.get('pv_charge_enabled', DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
@@ -936,7 +945,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 lambda x: x['battery_charge_mw'] * pv_price if x['window_type'] == 'pv_charge' else 0,
                 axis=1
             )
-            battery_cost_per_mwh = battery_params.get('cost_per_mwh', DEFAULT_BATTERY_COST_EUR_PER_MWH)
+            # Use the live rigorously evaluated LCOS value immediately
+            battery_cost_per_mwh = lcos_live.get('lcos_per_mwh', 0.0)
             discharge_windows = {'sell_to_grid', 'electrolyser'}
             df_hourly_cost['battery_lcos_cost'] = df_hourly_cost.apply(
                 lambda x: x['battery_discharge_mw'] * battery_cost_per_mwh if x['window_type'] in discharge_windows else 0,
@@ -1069,10 +1079,13 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                         linewidth=1.5, alpha=0.7, linestyle='--', marker='s')
 
             if _arb_on or _ely_on:
-                battery_series = (-hourly_profile['battery_lcos_cost']).replace(0, np.nan)
-                battery_label = f'Battery LCOS cost ({battery_cost_per_mwh:.0f} €/MWh)'
-                ax.plot(hourly_profile.index, battery_series, label=battery_label,
-                        color='gray', linewidth=1.5, alpha=0.7, linestyle='-.', marker='^')
+                ax.bar(hourly_profile.index, -hourly_profile['battery_lcos_cost'],
+                       label=f'Battery LCOS cost ({battery_cost_per_mwh:.0f} €/MWh)', color='gray', alpha=0.7, bottom=-hourly_profile['grid_charge_cost'] - hourly_profile['pv_baseline_cost'])
+                for hour in hourly_profile.index:
+                    v = hourly_profile.loc[hour, 'battery_lcos_cost']
+                    if v > 0:
+                        y_pos = -hourly_profile.loc[hour, 'grid_charge_cost'] - hourly_profile.loc[hour, 'pv_baseline_cost'] - (v / 2)
+                        ax.text(hour, y_pos, f"-{v:.1f} k€", ha='center', va='center', fontsize=8, color='black', fontweight='bold')
 
             # --- Net cashflow = revenue − costs (positive = profitable) ---
             net_series = (
