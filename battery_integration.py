@@ -246,6 +246,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         # Use original data by default
         filtered_data = data_content
     
+    def reset_optimization():
+        """Callback to invalidate cached optimization results when parameters change."""
+        st.session_state['battery_optimization_run'] = False
+
     # Configuration section - make it hideable with expander - MOVED BEFORE CHART
     with st.expander("⚙️ Battery Configuration & Operational Time Windows", expanded=False):
         # Configuration in columns
@@ -446,12 +450,16 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     # Add shaded regions for operational time windows (behind the data)
     # Get time windows from session state or use defaults (configured to avoid overlap)
+    pv_enabled = st.session_state.get('pv_charge_enabled', DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
     pv_start = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
     pv_end = st.session_state.get('pv_end', DEFAULT_TIME_WINDOWS['pv_charge_end'])
+    arb_enabled = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
     arb_start = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['sell_to_grid_start'])
     arb_end = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['sell_to_grid_end'])
+    night_enabled = st.session_state.get('grid_charging_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
     night_start = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['grid_charging_start'])
     night_end = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['grid_charging_end'])
+    ely_enabled = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
     ely_start = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
     ely_end = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
     
