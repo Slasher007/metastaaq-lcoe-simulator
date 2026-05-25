@@ -314,7 +314,7 @@ CUSTOM_CSS = """
 """
 
 # Strategy types
-STRATEGY_TYPES = ["Service Ratio-Based", "Target Price-Based"]
+STRATEGY_TYPES = ["Service Ratio-Based", "Target Price-Based", "Optimize Global Annual Service Ratio", "Target LCOCh4"]
 
 # Colors for plots
 PLOT_COLORS = {
@@ -323,4 +323,55 @@ PLOT_COLORS = {
     "pv": "orange",
     "battery": "purple",
     "grid": "red"
+}
+
+# Electrolyzer Reference Data (Power MW -> {Flow Rate Nm3/h, Specific Consumption kWh/Nm3})
+ELECTROLYZER_REFERENCES = {
+    1.0: {"h2_flowrate": 208.0, "specific_consumption": 4.8},
+    2.5: {"h2_flowrate": 521.0, "specific_consumption": 4.8},
+    5.0: {"h2_flowrate": 1042.0, "specific_consumption": 4.8},
+    10.0: {"h2_flowrate": 2083.0, "specific_consumption": 4.8},
+    20.0: {"h2_flowrate": 4167.0, "specific_consumption": 4.8},
+}
+
+# Methanation Technology Presets
+METHANATION_PRESETS = {
+    "Biological": {
+        "capex_methanation_unit": 3500000.0,
+        "capex_purification_unit": 500000.0,
+        "capex_compressor": 200000.0,
+        "capex_ch4_storage": 100000.0,
+        "capex_grid_injection": 50000.0,
+        "others_capex": 100000.0,
+        # Maintenance (% of CAPEX)
+        "maintenance_ratios": {
+            "methanation_unit": 2.0,
+            "purification_unit": 2.0,
+            "compressor": 3.0,
+            "ch4_storage": 1.0,
+            "grid_injection": 1.0
+        },
+        # Operational
+        "cons_spec_ch4": 0.5, # kWh/Nm3 CH4 
+        "heat_consumption": 0.0 # MW thermal?
+    },
+    "Catalytic": {
+        "capex_methanation_unit": 4500000.0,
+        "capex_purification_unit": 0.0, # Often integrated
+        "capex_compressor": 300000.0,
+        "capex_ch4_storage": 150000.0,
+        "capex_grid_injection": 50000.0,
+        "others_capex": 150000.0,
+        # Maintenance (% of CAPEX)
+        "maintenance_ratios": {
+            "methanation_unit": 1.5,
+            "purification_unit": 0.0,
+            "compressor": 2.5,
+            "ch4_storage": 1.0,
+            "grid_injection": 1.0
+        },
+        # Operational
+        "cons_spec_ch4": 0.0,
+        "heat_consumption": 0.0 
+    }
 }

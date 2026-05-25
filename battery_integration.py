@@ -260,6 +260,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         # Use original data by default
         filtered_data = data_content
     
+    def reset_optimization():
+        """Callback to invalidate cached optimization results when parameters change."""
+        st.session_state['battery_optimization_run'] = False
+
     # Configuration section - make it hideable with expander - MOVED BEFORE CHART
     with st.expander("⚙️ Battery Configuration & Operational Time Windows", expanded=False):
         # Helper to reset optimization state
@@ -617,6 +621,43 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                      ha='center', va='top', fontsize=10, fontweight='bold',
                      color='darkgreen', bbox=dict(boxstyle='round,pad=0.5', 
                      facecolor='white', edgecolor='darkgreen', alpha=0.8), zorder=5)
+    
+    # Add statistics box: average price per operational window
+    stats_text = 'Avg per Window:\n'
+    
+    # PV Charging
+    if pv_enabled:
+        pv_data = data_content[(data_content['Heure'] >= pv_start) & (data_content['Heure'] <= pv_end)]
+        if len(pv_data) > 0:
+            stats_text += f'☀ PV: {pv_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Sell to Grid (Arbitrage)
+    if arb_enabled:
+        arb_data = data_content[(data_content['Heure'] >= arb_start) & (data_content['Heure'] <= arb_end)]
+        if len(arb_data) > 0:
+            stats_text += f'💰 Sell: {arb_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Grid Charging (Night) — handles midnight wrap
+    if night_enabled:
+        if night_start > night_end:
+            night_data = data_content[(data_content['Heure'] >= night_start) | (data_content['Heure'] <= night_end)]
+        else:
+            night_data = data_content[(data_content['Heure'] >= night_start) & (data_content['Heure'] <= night_end)]
+        if len(night_data) > 0:
+            stats_text += f'🔌 Grid: {night_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Supply to Electrolyser
+    if ely_enabled:
+        ely_data = data_content[(data_content['Heure'] >= ely_start) & (data_content['Heure'] <= ely_end)]
+        if len(ely_data) > 0:
+            stats_text += f'🔋 Ely: {ely_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Global statistics
+    overall_avg = data_content['Prix'].mean()
+    overall_min = data_content['Prix'].min()
+    overall_max = data_content['Prix'].max()
+    stats_text += f'──\nGlobal:\n'
+    stats_text += f'Avg: {overall_avg:.1f} | Min: {overall_min:.1f} | Max: {overall_max:.1f} €/MWh'
     
     # Add statistics box: average price per operational window
     stats_text = 'Avg per Window:\n'

@@ -4,7 +4,8 @@ Sidebar configuration and parameter inputs for the MetaSTAAQ Dashboard
 
 import streamlit as st
 import pandas as pd
-from config import DEFAULT_PARAMS, PARAM_RANGES, MONTHS, STRATEGY_TYPES
+import pandas as pd
+from config import DEFAULT_PARAMS, PARAM_RANGES, MONTHS, STRATEGY_TYPES, ELECTROLYZER_REFERENCES, METHANATION_PRESETS
 
 
 def setup_sidebar_header():
@@ -111,24 +112,38 @@ def create_electrolyzer_parameters(project_lifetime, discount_rate):
     """Create electrolyzer parameter inputs including economics"""
     with st.sidebar.expander("⚡ Electrolyser", expanded=False):
         st.markdown("**Technical Parameters**")
-        electrolyser_power = st.slider(
-            "Electrolyzer Power (MW)",
-            min_value=PARAM_RANGES["electrolyser_power"]["min"],
-            max_value=PARAM_RANGES["electrolyser_power"]["max"],
-            value=DEFAULT_PARAMS["electrolyser_power"],
-            step=PARAM_RANGES["electrolyser_power"]["step"],
-            help="Power capacity of the electrolyzer in MW"
-        )
+        
+        # Manufacturer Reference Selection
+        use_reference = st.checkbox("Use Manufacturer Reference?", value=False, help="Select standard electrolyzer models")
+        
+        if use_reference:
+            ref_power_options = list(ELECTROLYZER_REFERENCES.keys())
+            selected_ref_power = st.selectbox("Select Model Power (MW)", options=ref_power_options, index=2) # Default 5MW
+            
+            ref_data = ELECTROLYZER_REFERENCES[selected_ref_power]
+            electrolyser_power = selected_ref_power
+            h2_flowrate = ref_data["h2_flowrate"]
+            
+            st.info(f"**Model Specs:**\n- Power: {electrolyser_power} MW\n- Flow Rate: {h2_flowrate} Nm³/h")
+        else:
+            electrolyser_power = st.slider(
+                "Electrolyzer Power (MW)",
+                min_value=PARAM_RANGES["electrolyser_power"]["min"],
+                max_value=PARAM_RANGES["electrolyser_power"]["max"],
+                value=DEFAULT_PARAMS["electrolyser_power"],
+                step=PARAM_RANGES["electrolyser_power"]["step"],
+                help="Power capacity of the electrolyzer in MW"
+            )
 
-        # H₂ Flow Rate is now an INPUT parameter
-        h2_flowrate = st.slider(
-            "H₂ Flow Rate (Nm³/h)",
-            min_value=PARAM_RANGES["h2_flowrate"]["min"],
-            max_value=PARAM_RANGES["h2_flowrate"]["max"],
-            value=DEFAULT_PARAMS["h2_flowrate"],
-            step=PARAM_RANGES["h2_flowrate"]["step"],
-            help="Hydrogen flow rate in normal cubic meters per hour"
-        )
+            # H₂ Flow Rate is now an INPUT parameter
+            h2_flowrate = st.slider(
+                "H₂ Flow Rate (Nm³/h)",
+                min_value=PARAM_RANGES["h2_flowrate"]["min"],
+                max_value=PARAM_RANGES["h2_flowrate"]["max"],
+                value=DEFAULT_PARAMS["h2_flowrate"],
+                step=PARAM_RANGES["h2_flowrate"]["step"],
+                help="Hydrogen flow rate in normal cubic meters per hour"
+            )
         
         # Calculate Specific Consumption as OUTPUT
         if h2_flowrate > 0:
@@ -446,6 +461,18 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
         discount_rate: Unified discount rate
     """
     with st.sidebar.expander("🔥 Methanation", expanded=False):
+        st.markdown("**Methanation Technology**")
+        meth_tech = st.radio(
+            "Select Technology",
+            options=list(METHANATION_PRESETS.keys()),
+            index=0,
+            horizontal=True,
+            help="Choose between Biological and Catalytic methanation to load preset parameters."
+        )
+        
+        # Load preset for selected technology
+        preset = METHANATION_PRESETS[meth_tech]
+        
         st.markdown("**Economic Parameters (LCOCH4)**")
         
         # Project parameters are now coming from create_year_selection
@@ -471,13 +498,13 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
         )
         
         # Calculate Specific Consumption as OUTPUT (simple approach for now)
-        cons_spec_ch4 = DEFAULT_PARAMS["methanation_cons_spec_ch4"]
+        cons_spec_ch4 = preset["cons_spec_ch4"]
         
         # Display the calculated specific consumption
         st.metric(
-            "Cons Spec CH₄ (calculated)",
+            "Cons Spec CH₄ (from preset)",
             f"{cons_spec_ch4:.2f} kWhₑ/Nm³ CH₄",
-            help="Calculated specific electricity consumption for methanation."
+            help=f"Specific consumption for {meth_tech} methanation."
         )
         
         st.markdown("---")
@@ -494,50 +521,50 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
                 "Unité de méthanation (€)",
                 min_value=PARAM_RANGES["methanation_capex_methanation_unit"]["min"],
                 max_value=PARAM_RANGES["methanation_capex_methanation_unit"]["max"],
-                value=DEFAULT_PARAMS["methanation_capex_methanation_unit"],
+                value=preset["capex_methanation_unit"],
                 step=PARAM_RANGES["methanation_capex_methanation_unit"]["step"],
                 help="Methanation unit cost",
-                key="methanation_capex_methanation_unit"
+                key=f"methanation_capex_methanation_unit_{meth_tech}"
             )
             
             capex_purification_unit = st.number_input(
                 "Unité de purification & analyse (€)",
                 min_value=PARAM_RANGES["methanation_capex_purification_unit"]["min"],
                 max_value=PARAM_RANGES["methanation_capex_purification_unit"]["max"],
-                value=DEFAULT_PARAMS["methanation_capex_purification_unit"],
+                value=preset["capex_purification_unit"],
                 step=PARAM_RANGES["methanation_capex_purification_unit"]["step"],
                 help="Purification and analysis unit cost",
-                key="methanation_capex_purification_unit"
+                key=f"methanation_capex_purification_unit_{meth_tech}"
             )
             
             capex_compressor = st.number_input(
                 "Compresseur (€)",
                 min_value=PARAM_RANGES["methanation_capex_compressor"]["min"],
                 max_value=PARAM_RANGES["methanation_capex_compressor"]["max"],
-                value=DEFAULT_PARAMS["methanation_capex_compressor"],
+                value=preset["capex_compressor"],
                 step=PARAM_RANGES["methanation_capex_compressor"]["step"],
                 help="Compressor cost",
-                key="methanation_capex_compressor"
+                key=f"methanation_capex_compressor_{meth_tech}"
             )
             
             capex_ch4_storage = st.number_input(
                 "Stockage CH4 (€)",
                 min_value=PARAM_RANGES["methanation_capex_ch4_storage"]["min"],
                 max_value=PARAM_RANGES["methanation_capex_ch4_storage"]["max"],
-                value=DEFAULT_PARAMS["methanation_capex_ch4_storage"],
+                value=preset["capex_ch4_storage"],
                 step=PARAM_RANGES["methanation_capex_ch4_storage"]["step"],
                 help="CH4 storage cost",
-                key="methanation_capex_ch4_storage"
+                key=f"methanation_capex_ch4_storage_{meth_tech}"
             )
             
             capex_grid_injection = st.number_input(
                 "Injection réseau (€)",
                 min_value=PARAM_RANGES["methanation_capex_grid_injection"]["min"],
                 max_value=PARAM_RANGES["methanation_capex_grid_injection"]["max"],
-                value=DEFAULT_PARAMS["methanation_capex_grid_injection"],
+                value=preset["capex_grid_injection"],
                 step=PARAM_RANGES["methanation_capex_grid_injection"]["step"],
                 help="Grid injection cost",
-                key="methanation_capex_grid_injection"
+                key=f"methanation_capex_grid_injection_{meth_tech}"
             )
             
             # Others CapEx
@@ -545,10 +572,10 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
                 "Others CapEx (€)",
                 min_value=PARAM_RANGES["methanation_others_capex"]["min"],
                 max_value=PARAM_RANGES["methanation_others_capex"]["max"],
-                value=DEFAULT_PARAMS["methanation_others_capex"],
+                value=preset["others_capex"],
                 step=PARAM_RANGES["methanation_others_capex"]["step"],
                 help="Other capital expenditures",
-                key="methanation_others_capex"
+                key=f"methanation_others_capex_{meth_tech}"
             )
         
         # Calculate total CapEx
@@ -583,10 +610,10 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
             if electrolyser_power is not None and electrolyser_specific_consumption is not None:
                 # Calculate CH4 flowrate
                 h2_flowrate = (electrolyser_power * 1000) / electrolyser_specific_consumption
-                ch4_flowrate = h2_flowrate / 4  # Stoichiometry H2:CH4 = 4:1
+                ch4_flowrate_calc = h2_flowrate / 4  # Stoichiometry H2:CH4 = 4:1
                 
                 # Calculate instantaneous power
-                puissance_instantanee_kw = ch4_flowrate * cons_spec_ch4
+                puissance_instantanee_kw = ch4_flowrate_calc * cons_spec_ch4
                 
                 # Estimate with a default service ratio of 0.98 for display (will be recalculated with actual ratio later)
                 estimated_service_ratio = 0.98
@@ -599,9 +626,9 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
                     help=f"**Calculation Details:**\n\n"
                          f"**Step 1: CH₄ Flow Rate**\n"
                          f"• H₂ flow rate = {electrolyser_power} MW × 1000 / {electrolyser_specific_consumption} kWh/Nm³ = {h2_flowrate:.0f} Nm³/h\n"
-                         f"• CH₄ flow rate = {h2_flowrate:.0f} / 4 (stoichiometry) = {ch4_flowrate:.0f} Nm³/h\n\n"
+                         f"• CH₄ flow rate = {h2_flowrate:.0f} / 4 (stoichiometry) = {ch4_flowrate_calc:.0f} Nm³/h\n\n"
                          f"**Step 2: Instantaneous Power**\n"
-                         f"• Puissance = {ch4_flowrate:.0f} Nm³/h × {cons_spec_ch4} kWh/Nm³ = {puissance_instantanee_kw:.1f} kW\n\n"
+                         f"• Puissance = {ch4_flowrate_calc:.0f} Nm³/h × {cons_spec_ch4} kWh/Nm³ = {puissance_instantanee_kw:.1f} kW\n\n"
                          f"**Step 3: Annual Consumption**\n"
                          f"• Consumption = {puissance_instantanee_kw:.1f} kW × {estimated_service_ratio:.0%} × 8760 h / 1000 = {elec_methanation_unit_estimated:.1f} MWhe/year\n\n"
                          f"_Estimated with {estimated_service_ratio:.0%} service ratio. Final value calculated with actual service ratio in results._"
@@ -697,30 +724,30 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
                     "Unité de méthanation (%)",
                     min_value=PARAM_RANGES["methanation_maintenance_ratio_methanation_unit"]["min"],
                     max_value=PARAM_RANGES["methanation_maintenance_ratio_methanation_unit"]["max"],
-                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_methanation_unit"],
+                    value=preset["maintenance_ratios"]["methanation_unit"],
                     step=PARAM_RANGES["methanation_maintenance_ratio_methanation_unit"]["step"],
                     help="Annual maintenance as % of methanation unit CapEx",
-                    key="methanation_maintenance_ratio_methanation_unit"
+                    key=f"methanation_maintenance_ratio_methanation_unit_{meth_tech}"
                 )
                 
                 maintenance_ratio_purification_unit = st.number_input(
                     "Unité de purification & analyse (%)",
                     min_value=PARAM_RANGES["methanation_maintenance_ratio_purification_unit"]["min"],
                     max_value=PARAM_RANGES["methanation_maintenance_ratio_purification_unit"]["max"],
-                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_purification_unit"],
+                    value=preset["maintenance_ratios"]["purification_unit"],
                     step=PARAM_RANGES["methanation_maintenance_ratio_purification_unit"]["step"],
                     help="Annual maintenance as % of purification unit CapEx",
-                    key="methanation_maintenance_ratio_purification_unit"
+                    key=f"methanation_maintenance_ratio_purification_unit_{meth_tech}"
                 )
                 
                 maintenance_ratio_compressor = st.number_input(
                     "Compresseur (%)",
                     min_value=PARAM_RANGES["methanation_maintenance_ratio_compressor"]["min"],
                     max_value=PARAM_RANGES["methanation_maintenance_ratio_compressor"]["max"],
-                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_compressor"],
+                    value=preset["maintenance_ratios"]["compressor"],
                     step=PARAM_RANGES["methanation_maintenance_ratio_compressor"]["step"],
                     help="Annual maintenance as % of compressor CapEx",
-                    key="methanation_maintenance_ratio_compressor"
+                    key=f"methanation_maintenance_ratio_compressor_{meth_tech}"
                 )
             
             with col2:
@@ -728,20 +755,20 @@ def create_methanation_parameters(electrolyser_power=None, electrolyser_specific
                     "Stockage CH4 (%)",
                     min_value=PARAM_RANGES["methanation_maintenance_ratio_ch4_storage"]["min"],
                     max_value=PARAM_RANGES["methanation_maintenance_ratio_ch4_storage"]["max"],
-                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_ch4_storage"],
+                    value=preset["maintenance_ratios"]["ch4_storage"],
                     step=PARAM_RANGES["methanation_maintenance_ratio_ch4_storage"]["step"],
                     help="Annual maintenance as % of CH4 storage CapEx",
-                    key="methanation_maintenance_ratio_ch4_storage"
+                    key=f"methanation_maintenance_ratio_ch4_storage_{meth_tech}"
                 )
                 
                 maintenance_ratio_grid_injection = st.number_input(
                     "Injection réseau (%)",
                     min_value=PARAM_RANGES["methanation_maintenance_ratio_grid_injection"]["min"],
                     max_value=PARAM_RANGES["methanation_maintenance_ratio_grid_injection"]["max"],
-                    value=DEFAULT_PARAMS["methanation_maintenance_ratio_grid_injection"],
+                    value=preset["maintenance_ratios"]["grid_injection"],
                     step=PARAM_RANGES["methanation_maintenance_ratio_grid_injection"]["step"],
                     help="Annual maintenance as % of grid injection CapEx",
-                    key="methanation_maintenance_ratio_grid_injection"
+                    key=f"methanation_maintenance_ratio_grid_injection_{meth_tech}"
                 )
             
             st.markdown("**Others Maintenance**")
@@ -1027,11 +1054,16 @@ def create_price_parameters(strategy_type):
     with st.sidebar.expander("💰 Price", expanded=False):
         if strategy_type == "Service Ratio-Based":
             st.info("ℹ️ Service Ratio strategy cumulates spot hours while keeping average cost below PPA price.")
-        else:
+        elif strategy_type == "Target Price-Based":
             st.info("ℹ️ Target Price strategy cumulates spot hours while keeping cumulative average below target price.")
+        elif strategy_type == "Optimize Global Annual Service Ratio":
+            st.info("ℹ️ Optimizes monthly ratios to achieve a precise Global Annual Service Ratio.")
+        elif strategy_type == "Target LCOCh4":
+            st.info("ℹ️ Finds the optimal service ratio to achieve a specific Target LCOCh4.")
         
-        # Target prices (single price for Target Price-Based strategy)
+        # Target parameters depends on strategy
         target_prices = []
+        
         if strategy_type == "Target Price-Based":
             st.markdown("**Target Price (€/MWh):**")
             target_prices.append(st.slider(
@@ -1042,6 +1074,38 @@ def create_price_parameters(strategy_type):
                 step=PARAM_RANGES["target_price"]["step"],
                 help="Electrolyzer cumulates hours while cumulative average ≤ this target price"
             ))
+        elif strategy_type == "Optimize Global Annual Service Ratio":
+            st.markdown("**Optimization Target:**")
+            # Reuse a slider or create new one in session state
+            if 'annual_service_ratio_target' not in st.session_state:
+                st.session_state.annual_service_ratio_target = 0.90
+            
+            annual_target = st.slider(
+                "Global Annual Service Ratio Target",
+                min_value=0.1,
+                max_value=1.0,
+                value=st.session_state.annual_service_ratio_target,
+                step=0.01,
+                help="Target annual service ratio (e.g. 0.95 for 95%)"
+            )
+            st.session_state.annual_service_ratio_target = annual_target
+            # Use dummy target price list to maintain interface compatibility
+            target_prices = [0.0] 
+        elif strategy_type == "Target LCOCh4":
+            st.markdown("**Optimization Target:**")
+            if 'target_lcoch4' not in st.session_state:
+                st.session_state.target_lcoch4 = 100.0
+                
+            target_lcoch4 = st.slider(
+                "Target LCOCh4 (€/MWh)",
+                min_value=40.0,
+                max_value=300.0,
+                value=st.session_state.target_lcoch4,
+                step=5.0,
+                help="Target Levelized Cost of Methane"
+            )
+            st.session_state.target_lcoch4 = target_lcoch4
+            target_prices = [0.0]
         else:
             target_prices = [DEFAULT_PARAMS["target_price"]]
 
