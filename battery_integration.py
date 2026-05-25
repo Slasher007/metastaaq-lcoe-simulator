@@ -294,18 +294,82 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             st.slider(
                 "Max Depth of Discharge", 
                 min_value=0.80, max_value=1.00, value=float(DEFAULT_BATTERY_PARAMS['DoD_max']), step=0.05,
-                key='bat_dod'
+                key='bat_dod',
+                on_change=reset_optimization
             )
             
-            st.number_input(
-                "Battery Cost (€/MWh)",
-                min_value=0.0,
-                max_value=1000.0,
-                value=float(st.session_state.battery_cost_per_mwh),
-                step=10.0,
-                help="Assumed levelized cost for battery energy throughput",
-                key='battery_cost_per_mwh'
+            # Financial parameters for LCOS
+            st.markdown("##### 💰 Financial Baseline Parameters")
+            
+            col_fin1, col_fin2 = st.columns(2)
+            with col_fin1:
+                capex_mwh = st.number_input(
+                    "CAPEX (€/MWh)", 
+                    min_value=50000, max_value=500000, value=int(DEFAULT_FINANCIAL_PARAMS['capex_per_mwh']), step=5000,
+                    help="Capital expenditure per MWh of capacity",
+                    key='bat_capex_mwh',
+                    on_change=reset_optimization
+                )
+                discount_rate = st.slider(
+                    "Discount Rate (%)", 
+                    min_value=0.0, max_value=20.0, value=float(DEFAULT_FINANCIAL_PARAMS['discount_rate'] * 100), step=0.5,
+                    help="Weighted Average Cost of Capital (WACC)",
+                    key='bat_discount_rate_pct',
+                    on_change=reset_optimization
+                ) / 100.0
+            
+            with col_fin2:
+                lifetime_years = st.number_input(
+                    "Project Lifetime (Years)", 
+                    min_value=5, max_value=30, value=int(DEFAULT_FINANCIAL_PARAMS['project_lifetime_years']), step=1,
+                    help="Duration of the project for amortization",
+                    key='bat_lifetime',
+                    on_change=reset_optimization
+                )
+                opex_pct = st.slider(
+                    "Annual OPEX (% of CAPEX)", 
+                    min_value=0.0, max_value=5.0, value=float(DEFAULT_FINANCIAL_PARAMS['opex_percent_capex'] * 100), step=0.1,
+                    help="Fixed annual operating expenses",
+                    key='bat_opex_pct',
+                    on_change=reset_optimization
+                ) / 100.0
+            
+            cycles_per_year = st.number_input(
+                "Expected Cycles per Year", 
+                min_value=50, max_value=500, value=int(DEFAULT_FINANCIAL_PARAMS['cycles_per_year']), step=1,
+                help="Assumed number of full discharge cycles per year for baseline LCOS",
+                key='bat_cycles_per_year',
+                on_change=reset_optimization
             )
+
+            # Build financial params dict
+            fin_params = {
+                'capex_per_mwh': capex_mwh,
+                'discount_rate': discount_rate,
+                'project_lifetime_years': lifetime_years,
+                'opex_percent_capex': opex_pct,
+                'cycles_per_year': cycles_per_year
+            }
+
+            # Dynamically calculate LCOS based on user inputs
+            temp_params = DEFAULT_BATTERY_PARAMS.copy()
+            temp_params['E_bat_max'] = st.session_state.get('bat_capacity', float(DEFAULT_BATTERY_PARAMS['E_bat_max']))
+            temp_params['eta_rt'] = st.session_state.get('bat_efficiency', float(DEFAULT_BATTERY_PARAMS['eta_rt']))
+            lcos_live = calculate_bess_lcos(temp_params, fin_params=fin_params)
+            
+            st.markdown("---")
+            st.markdown("##### 📈 Levelized Cost of Storage (LCOS)")
+            st.metric(
+                label="LCOS per MWh delivered", 
+                value=f"{lcos_live['lcos_per_mwh']:,.1f} €/MWh",
+                help=f"Calculated rigorously from CAPEX, representing the baseline cost."
+            )
+            st.metric(
+                label="Cost per Daily Cycle", 
+                value=f"{lcos_live['cost_per_cycle']:,.1f} €/day",
+                help="The cost of one full battery charge/discharge cycle per day."
+            )
+            st.markdown("---")
             
             # Electrolyser parameters (from main dashboard)
             st.subheader("⚡ Electrolyser")
@@ -888,7 +952,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 lambda x: x['battery_charge_mw'] * pv_price if x['window_type'] == 'pv_charge' else 0,
                 axis=1
             )
-            battery_cost_per_mwh = battery_params.get('cost_per_mwh', DEFAULT_BATTERY_COST_EUR_PER_MWH)
+            # Use the live rigorously evaluated LCOS value immediately
+            battery_cost_per_mwh = lcos_live.get('lcos_per_mwh', 0.0)
             discharge_windows = {'sell_to_grid', 'electrolyser'}
             df_hourly_cost['battery_lcos_cost'] = df_hourly_cost.apply(
                 lambda x: x['battery_discharge_mw'] * battery_cost_per_mwh if x['window_type'] in discharge_windows else 0,
