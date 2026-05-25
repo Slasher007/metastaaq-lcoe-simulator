@@ -318,11 +318,18 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # Financial parameters for LCOS
             st.markdown("##### 💰 Financial Baseline Parameters")
             
+            st.toggle(
+                "Enable Battery LCOS in Cash Flows", 
+                value=st.session_state.get('bat_lcos_enabled', True),
+                key='bat_lcos_enabled',
+                on_change=reset_optimization
+            )
+            
             col_fin1, col_fin2 = st.columns(2)
             with col_fin1:
                 capex_mwh = st.number_input(
                     "CAPEX (€/MWh)", 
-                    min_value=50000, max_value=500000, value=int(DEFAULT_FINANCIAL_PARAMS['capex_per_mwh']), step=5000,
+                    min_value=0, max_value=500000, value=int(DEFAULT_FINANCIAL_PARAMS['capex_per_mwh']), step=5000,
                     help="Capital expenditure per MWh of capacity",
                     key='bat_capex_mwh',
                     on_change=reset_optimization
@@ -1018,7 +1025,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 axis=1
             )
             # Use the live rigorously evaluated LCOS value immediately
-            battery_cost_per_mwh = lcos_live.get('lcos_per_mwh', 0.0)
+            battery_cost_per_mwh = lcos_live.get('lcos_per_mwh', 0.0) if st.session_state.get('bat_lcos_enabled', True) else 0.0
             discharge_windows = {'sell_to_grid', 'electrolyser'}
             df_hourly_cost['battery_lcos_cost'] = df_hourly_cost.apply(
                 lambda x: x['battery_discharge_mw'] * battery_cost_per_mwh if x['window_type'] in discharge_windows else 0,
