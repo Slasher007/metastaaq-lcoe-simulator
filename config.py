@@ -150,7 +150,7 @@ DEFAULT_PARAMS = {
     "lcos_battery_replacement_years": 10,  # Battery replacement interval (years)
     "lcos_electricity_charging_cost": 0.042,  # Electricity Charging Cost ($/kWh-Purchased)
     # Legacy parameters for backward compatibility
-    "lcos_battery_capex_per_kwh": 300.0,  # Battery CAPEX (€/kWh) - legacy
+    "lcos_battery_capex_per_kwh": 0.0,  # Battery CAPEX (€/kWh) - legacy
     "lcos_battery_opex_percentage": 2.5,  # Battery O&M (% of CAPEX per year) - legacy
 }
 

@@ -157,44 +157,48 @@ def main():
     
     time_windows = DEFAULT_TIME_WINDOWS.copy()
     
-    with st.sidebar.expander("🌞 PV Charging Window", expanded=False):
+    with st.sidebar.expander("🌞 PV Charging", expanded=False):
+        time_windows['pv_charge_enabled'] = st.toggle("Activate PV Charging", value=DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
         time_windows['pv_charge_start'] = st.slider(
             "PV Charge Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_start'], 1,
-            help="Start of PV-priority charging"
+            help="Start of PV-priority charging", disabled=not time_windows['pv_charge_enabled']
         )
         time_windows['pv_charge_end'] = st.slider(
             "PV Charge End (hour)", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_end'], 1,
-            help="End of PV-priority charging"
+            help="End of PV-priority charging", disabled=not time_windows['pv_charge_enabled']
         )
     
-    with st.sidebar.expander("💰 Arbitrage Discharge Window", expanded=False):
-        time_windows['arbitrage_discharge_start'] = st.slider(
-            "Arbitrage Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS['arbitrage_discharge_start'], 1,
-            help="Start of evening arbitrage discharge"
+    with st.sidebar.expander("💰 Sell to grid", expanded=False):
+        time_windows['sell_to_grid_enabled'] = st.toggle("Activate Sell to grid", value=DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
+        time_windows['sell_to_grid_start'] = st.slider(
+            "Sell to grid Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('sell_to_grid_start', 18), 1,
+            help="Start of evening arbitrage discharge", disabled=not time_windows['sell_to_grid_enabled']
         )
-        time_windows['arbitrage_discharge_end'] = st.slider(
-            "Arbitrage End (hour)", 0, 23, DEFAULT_TIME_WINDOWS['arbitrage_discharge_end'], 1,
-            help="End of evening arbitrage discharge"
-        )
-    
-    with st.sidebar.expander("🌙 Night Charging Window", expanded=False):
-        time_windows['night_charge_start'] = st.slider(
-            "Night Charge Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS['night_charge_start'], 1,
-            help="Start of night charging from grid"
-        )
-        time_windows['night_charge_end'] = st.slider(
-            "Night Charge End (hour)", 0, 23, DEFAULT_TIME_WINDOWS['night_charge_end'], 1,
-            help="End of night charging from grid"
+        time_windows['sell_to_grid_end'] = st.slider(
+            "Sell to grid End (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('sell_to_grid_end', 23), 1,
+            help="End of evening arbitrage discharge", disabled=not time_windows['sell_to_grid_enabled']
         )
     
-    with st.sidebar.expander("⚡ Electrolyser Window", expanded=False):
+    with st.sidebar.expander("⚡ Grid Charging", expanded=False):
+        time_windows['grid_charging_enabled'] = st.toggle("Activate Grid Charging", value=DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
+        time_windows['grid_charging_start'] = st.slider(
+            "Grid Charge Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('grid_charging_start', 0), 1,
+            help="Start of night charging from grid", disabled=not time_windows['grid_charging_enabled']
+        )
+        time_windows['grid_charging_end'] = st.slider(
+            "Grid Charge End (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('grid_charging_end', 5), 1,
+            help="End of night charging from grid", disabled=not time_windows['grid_charging_enabled']
+        )
+    
+    with st.sidebar.expander("🔋 Supply to Electrolyser", expanded=False):
+        time_windows['electrolyser_enabled'] = st.toggle("Activate Supply to Electrolyser", value=DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
         time_windows['electrolyser_start'] = st.slider(
             "Electrolyser Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_start'], 1,
-            help="Start of electrolyser operation"
+            help="Start of electrolyser operation", disabled=not time_windows['electrolyser_enabled']
         )
         time_windows['electrolyser_end'] = st.slider(
             "Electrolyser End (hour)", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_end'], 1,
-            help="End of electrolyser operation"
+            help="End of electrolyser operation", disabled=not time_windows['electrolyser_enabled']
         )
     
     # Validate time windows
@@ -497,8 +501,8 @@ else:
                 if param_category == "Time Windows":
                     param_name = st.selectbox(
                         "Parameter",
-                        ["pv_charge_start", "pv_charge_end", "arbitrage_discharge_start",
-                         "arbitrage_discharge_end", "electrolyser_start", "electrolyser_end"]
+                        ["pv_charge_start", "pv_charge_end", "sell_to_grid_start",
+                         "sell_to_grid_end", "grid_charging_start", "grid_charging_end", "electrolyser_start", "electrolyser_end"]
                     )
                     param_values = st.text_input(
                         "Values to test (comma-separated)",
@@ -576,7 +580,7 @@ else:
                 
                 with col2:
                     param2 = st.selectbox("Parameter 2 (Y-axis)", 
-                                         ["P_charge_max", "E_bat_max", "arbitrage_discharge_start"])
+                                         ["P_charge_max", "E_bat_max", "sell_to_grid_start"])
                     values2 = st.text_input("Values 2", value="5,10,15,20,25")
                 
                 if st.button("Run 2D Sensitivity"):

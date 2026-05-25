@@ -66,10 +66,10 @@ class BatteryOptimizer:
         
         # Initialize results arrays
         results = {
-            'hour_of_day': hours_of_day,
+            'hour_of_day': np.array(hours_of_day).copy(),
             'battery_available_mwh': np.zeros(n_hours),  # Replaces pv_available_mw
-            'pv_profile_mw': pv_profile_mw.copy(),       # Keep raw PV data
-            'spot_price_eur_mwh': spot_prices_eur_mwh,
+            'pv_profile_mw': np.array(pv_profile_mw).copy() if pv_profile_mw is not None else np.zeros(n_hours),
+            'spot_price_eur_mwh': np.array(spot_prices_eur_mwh).copy(),
             
             # Battery state
             'soc': np.zeros(n_hours),
@@ -98,9 +98,8 @@ class BatteryOptimizer:
         # Simulation loop
         for t in range(n_hours):
             hour_of_day = int(hours_of_day[t])
-            results['hour_of_day'][t] = hour_of_day
             
-            pv_available = pv_profile_mw[t]
+            pv_available = results['pv_profile_mw'][t]
             spot_price = spot_prices_eur_mwh[t]
             
             # Apply self-discharge
@@ -187,13 +186,13 @@ class BatteryOptimizer:
         """Determine which operational window the current hour belongs to"""
         tw = self.time_windows
         
-        if is_hour_in_window(hour, tw["electrolyser_start"], tw["electrolyser_end"]):
+        if tw.get("electrolyser_enabled", True) and is_hour_in_window(hour, tw["electrolyser_start"], tw["electrolyser_end"]):
             return "electrolyser"
-        elif is_hour_in_window(hour, tw["pv_charge_start"], tw["pv_charge_end"]):
+        elif tw.get("pv_charge_enabled", True) and is_hour_in_window(hour, tw["pv_charge_start"], tw["pv_charge_end"]):
             return "pv_charge"
-        elif is_hour_in_window(hour, tw["sell_to_grid_start"], tw["sell_to_grid_end"]):
+        elif tw.get("sell_to_grid_enabled", True) and is_hour_in_window(hour, tw["sell_to_grid_start"], tw["sell_to_grid_end"]):
             return "sell_to_grid"
-        elif is_hour_in_window(hour, tw["grid_charging_start"], tw["grid_charging_end"]):
+        elif tw.get("grid_charging_enabled", True) and is_hour_in_window(hour, tw["grid_charging_start"], tw["grid_charging_end"]):
             return "grid_charging"
         else:
             return "idle"

@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
-    validate_time_windows
+    DEFAULT_FINANCIAL_PARAMS,
+    validate_time_windows, calculate_bess_lcos
 )
 
-DEFAULT_BATTERY_COST_EUR_PER_MWH = 300 # €/MWh
 from battery_optimizer import BatteryOptimizer, generate_typical_pv_profile, load_pv_profile
 from battery_visualization import (
     plot_soc_profile, plot_power_flows, plot_economics_breakdown,
@@ -49,11 +49,12 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     #data_content = data_content[mask]
 
     # Add computed columns
-    data_content['Week'] = data_content['Date'].dt.isocalendar().week
+    data_content['Week'] = ((data_content['Date'].dt.day - 1) // 7) + 1
     data_content['DayOfWeek'] = data_content['Date'].dt.day_name()
     
     # Get available options
     available_years = sorted(data_content['Annee'].unique())
+    year_str = ", ".join(map(str, available_years)) if available_years else "All Years"
     month_names_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     available_months = sorted(data_content['Mois'].unique(), 
@@ -62,6 +63,19 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     available_weeks = sorted(data_content['Week'].unique())
     day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     available_days = [day for day in day_order if day in data_content['DayOfWeek'].unique()]
+    
+    # Check if available years changed from main dashboard selection
+    if 'battery_last_available_years' not in st.session_state:
+        st.session_state.battery_last_available_years = available_years
+        
+    if st.session_state.battery_last_available_years != available_years:
+        st.session_state.battery_last_available_years = available_years
+        st.session_state.battery_optimization_run = False
+        st.session_state.filters_applied = False
+        if 'filter_year' in st.session_state:
+            st.session_state.filter_year = available_years[0] if available_years else None
+        if 'selected_filter_year' in st.session_state:
+            st.session_state.selected_filter_year = available_years[0] if available_years else None
     
     # Initialize session state for filters if not exists
     if 'filter_year' not in st.session_state:
@@ -252,47 +266,50 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
 
     # Configuration section - make it hideable with expander - MOVED BEFORE CHART
     with st.expander("⚙️ Battery Configuration & Operational Time Windows", expanded=False):
+        # Helper to reset optimization state
+        def reset_optimization():
+            st.session_state.battery_optimization_run = False
+
         # Configuration in columns
         col1, col2 = st.columns([1, 2])
         
         with col1:
             st.subheader("⚙️ Battery Configuration")
             
-            if 'battery_cost_per_mwh' not in st.session_state:
-                st.session_state.battery_cost_per_mwh = DEFAULT_BATTERY_COST_EUR_PER_MWH
-            
-            # Calculate default capacity based on electrolyser power and PV window
-            # Capacity = Power * Duration
-            default_pv_duration = DEFAULT_TIME_WINDOWS['pv_charge_end'] - DEFAULT_TIME_WINDOWS['pv_charge_start']
-            default_capacity = float(electrolyser_power * default_pv_duration)
+            # Use default capacity from configuration
+            default_capacity = float(DEFAULT_BATTERY_PARAMS['E_bat_max'])
             
             # Battery parameters with session state keys
             st.number_input(
                 "Energy Capacity (MWh)", 
                 min_value=1.0, max_value=50.0, value=default_capacity, step=0.5,
-                help=f"Maximum battery energy storage capacity (Default: {electrolyser_power} MW × {default_pv_duration}h = {default_capacity} MWh)",
-                key='bat_capacity'
+                help=f"Maximum battery energy storage capacity (Default: {default_capacity} MWh)",
+                key='bat_capacity',
+                on_change=reset_optimization
             )
             
             st.number_input(
                 "Charge Power (MW)", 
                 min_value=0.5, max_value=25.0, value=float(electrolyser_power), step=0.5,
                 help="Maximum charging power (default: electrolyser power)",
-                key='bat_charge_power'
+                key='bat_charge_power',
+                on_change=reset_optimization
             )
             
             st.number_input(
                 "Discharge Power (MW)", 
                 min_value=0.5, max_value=25.0, value=float(electrolyser_power), step=0.5,
                 help="Maximum discharging power (default: electrolyser power)",
-                key='bat_discharge_power'
+                key='bat_discharge_power',
+                on_change=reset_optimization
             )
             
             st.slider(
                 "Round-trip Efficiency", 
                 min_value=0.80, max_value=1.00, value=float(DEFAULT_BATTERY_PARAMS['eta_rt']), step=0.01,
                 help="Battery round-trip efficiency",
-                key='bat_efficiency'
+                key='bat_efficiency',
+                on_change=reset_optimization
             )
             
             st.slider(
@@ -305,11 +322,18 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             # Financial parameters for LCOS
             st.markdown("##### 💰 Financial Baseline Parameters")
             
+            st.toggle(
+                "Enable Battery LCOS in Cash Flows", 
+                value=st.session_state.get('bat_lcos_enabled', True),
+                key='bat_lcos_enabled',
+                on_change=reset_optimization
+            )
+            
             col_fin1, col_fin2 = st.columns(2)
             with col_fin1:
                 capex_mwh = st.number_input(
                     "CAPEX (€/MWh)", 
-                    min_value=50000, max_value=500000, value=int(DEFAULT_FINANCIAL_PARAMS['capex_per_mwh']), step=5000,
+                    min_value=0, max_value=500000, value=int(DEFAULT_FINANCIAL_PARAMS['capex_per_mwh']), step=5000,
                     help="Capital expenditure per MWh of capacity",
                     key='bat_capex_mwh',
                     on_change=reset_optimization
@@ -389,59 +413,71 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ])
             
             with tw_tab1:
+                pv_charge_enabled = st.toggle("Activate/Deactivate PV Charging", value=DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True), key='pv_charge_enabled')
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
                         "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_start'], 1, key='pv_start',
-                        help="PV charging window start (e.g., 10 = 10:00)"
+                        help="PV charging window start (e.g., 10 = 10:00)",
+                        disabled=not pv_charge_enabled
                     )
                 with col_b:
                     st.number_input(
                         "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_end'], 1, key='pv_end',
-                        help="PV charging window end"
+                        help="PV charging window end",
+                        disabled=not pv_charge_enabled
                     )
                 st.caption("All PV production charges the battery. Excess PV is curtailed.")
             
             with tw_tab2:
+                sell_to_grid_enabled = st.toggle("Activate/Deactivate Sell to grid", value=DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True), key='sell_to_grid_enabled')
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
                         "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['sell_to_grid_start'], 1, key='arb_start',
-                        help="Arbitrage discharge start"
+                        help="Arbitrage discharge start",
+                        disabled=not sell_to_grid_enabled
                     )
                 with col_b:
                     st.number_input(
                         "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['sell_to_grid_end'], 1, key='arb_end',
-                        help="Arbitrage discharge end"
+                        help="Arbitrage discharge end",
+                        disabled=not sell_to_grid_enabled
                     )
                 st.caption("Sell stored battery energy to the grid at high prices.")
             
             with tw_tab3:
+                grid_charging_enabled = st.toggle("Activate/Deactivate Grid Charging", value=DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True), key='grid_charging_enabled')
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
                         "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['grid_charging_start'], 1, key='night_start',
-                        help="Night charging window start"
+                        help="Night charging window start",
+                        disabled=not grid_charging_enabled
                     )
                 with col_b:
                     st.number_input(
                         "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['grid_charging_end'], 1, key='night_end',
-                        help="Night charging window end (can be < start for midnight wrap)"
+                        help="Night charging window end (can be < start for midnight wrap)",
+                        disabled=not grid_charging_enabled
                     )
                 
                 st.caption("Buy from grid during low prices (can wrap midnight: 23-04 means 23:00-04:00).")
             
             with tw_tab4:
+                electrolyser_enabled = st.toggle("Activate/Deactivate Supply to Electrolyser", value=DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True), key='electrolyser_enabled')
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
                         "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_start'], 1, key='ely_start',
-                        help="Electrolyser supply window start"
+                        help="Electrolyser supply window start",
+                        disabled=not electrolyser_enabled
                     )
                 with col_b:
                     st.number_input(
                         "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_end'], 1, key='ely_end',
-                        help="Electrolyser supply window end"
+                        help="Electrolyser supply window end",
+                        disabled=not electrolyser_enabled
                     )
                 st.caption("Discharge battery to supply the electrolyser.")
     
@@ -453,35 +489,42 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     pv_enabled = st.session_state.get('pv_charge_enabled', DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
     pv_start = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
     pv_end = st.session_state.get('pv_end', DEFAULT_TIME_WINDOWS['pv_charge_end'])
+    
     arb_enabled = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
     arb_start = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['sell_to_grid_start'])
     arb_end = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['sell_to_grid_end'])
+    
     night_enabled = st.session_state.get('grid_charging_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
     night_start = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['grid_charging_start'])
     night_end = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['grid_charging_end'])
+    
     ely_enabled = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
     ely_start = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
     ely_end = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
     
     # PV Charging window [start, end] inclusive -> shade [start-0.5, end+0.5]
-    ax_price.axvspan(pv_start - 0.5, pv_end + 0.5, alpha=0.15, color='gold', zorder=1)
+    if pv_enabled:
+        ax_price.axvspan(pv_start - 0.5, pv_end + 0.5, alpha=0.15, color='gold', zorder=1)
     
     # Sell to grid (Arbitrage) window [start, end] inclusive
-    ax_price.axvspan(arb_start - 0.5, arb_end + 0.5, alpha=0.15, color='green', zorder=1)
+    if arb_enabled:
+        ax_price.axvspan(arb_start - 0.5, arb_end + 0.5, alpha=0.15, color='green', zorder=1)
     
     # Buy from grid (Night/Spot Charging) window - may wrap around midnight
-    if night_start > night_end:
-        # Wraps around midnight (e.g., 23-04)
-        # Shade from start-0.5 to 23.5 (end of hour 23)
-        ax_price.axvspan(night_start - 0.5, 23.5 + 0.5, alpha=0.15, color='red', zorder=1) # Covers start to 23
-        # Shade from -0.5 (start of hour 0) to end+0.5
-        ax_price.axvspan(-0.5, night_end + 0.5, alpha=0.15, color='red', zorder=1)
-    else:
-        # Same day
-        ax_price.axvspan(night_start - 0.5, night_end + 0.5, alpha=0.15, color='red', zorder=1)
+    if night_enabled:
+        if night_start > night_end:
+            # Wraps around midnight (e.g., 23-04)
+            # Shade from start-0.5 to 23.5 (end of hour 23)
+            ax_price.axvspan(night_start - 0.5, 23.5 + 0.5, alpha=0.15, color='red', zorder=1) # Covers start to 23
+            # Shade from -0.5 (start of hour 0) to end+0.5
+            ax_price.axvspan(-0.5, night_end + 0.5, alpha=0.15, color='red', zorder=1)
+        else:
+            # Same day
+            ax_price.axvspan(night_start - 0.5, night_end + 0.5, alpha=0.15, color='red', zorder=1)
     
     # Supply to Electrolyser window
-    ax_price.axvspan(ely_start - 0.5, ely_end + 0.5, alpha=0.15, color='purple', zorder=1)
+    if ely_enabled:
+        ax_price.axvspan(ely_start - 0.5, ely_end + 0.5, alpha=0.15, color='purple', zorder=1)
     
     # Prepare data for scatter plot by hour
     means = []
@@ -534,7 +577,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     ax_price.set_xlabel('Hour of Day', fontsize=12, fontweight='bold')
     ax_price.set_ylabel('Spot Price (€/MWh)', fontsize=12, fontweight='bold')
     n_data_points = len(data_content)
-    title = f'Electricity Spot Price Distribution by Hour and Operational Windows\nElectrolyser Power: {electrolyser_power:.1f} MW | Data Points: {n_data_points:,}'
+    title = f'Electricity Spot Price Distribution by Hour and Operational Windows ({year_str})\nElectrolyser Power: {electrolyser_power:.1f} MW | Data Points: {n_data_points:,}'
     ax_price.set_title(title, fontsize=14, fontweight='bold')
     ax_price.grid(True, alpha=0.3, axis='y')
     ax_price.legend(loc='upper left', fontsize=9)
@@ -544,36 +587,77 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     text_y_position = y_max * 0.95  # Position text at 95% of max y value
     
     # Buy from grid - center in the night window
-    if night_start > night_end:
-        # Wraps around midnight - center between midnight and morning
-        night_center = (night_end + 1) / 2
-    else:
-        night_center = (night_start + night_end + 1) / 2
-    ax_price.text(night_center, text_y_position, 'Grid Charging',
-                 ha='center', va='top', fontsize=10, fontweight='bold',
-                 color='darkred', bbox=dict(boxstyle='round,pad=0.5', 
-                 facecolor='white', edgecolor='darkred', alpha=0.8), zorder=5)
+    if night_enabled:
+        if night_start > night_end:
+            # Wraps around midnight - center between midnight and morning
+            night_center = (night_end + 1) / 2
+        else:
+            night_center = (night_start + night_end + 1) / 2
+        ax_price.text(night_center, text_y_position, 'Grid Charging',
+                     ha='center', va='top', fontsize=10, fontweight='bold',
+                     color='darkred', bbox=dict(boxstyle='round,pad=0.5', 
+                     facecolor='white', edgecolor='darkred', alpha=0.8), zorder=5)
     
     # Supply to Electrolyser - center in electrolyser window
-    ely_center = (ely_start + ely_end + 1) / 2
-    ax_price.text(ely_center, text_y_position, 'Supply to\nElectrolyser', 
-                 ha='center', va='top', fontsize=10, fontweight='bold',
-                 color='purple', bbox=dict(boxstyle='round,pad=0.5', 
-                 facecolor='white', edgecolor='purple', alpha=0.8), zorder=5)
+    if ely_enabled:
+        ely_center = (ely_start + ely_end + 1) / 2
+        ax_price.text(ely_center, text_y_position, 'Supply to\nElectrolyser', 
+                     ha='center', va='top', fontsize=10, fontweight='bold',
+                     color='purple', bbox=dict(boxstyle='round,pad=0.5', 
+                     facecolor='white', edgecolor='purple', alpha=0.8), zorder=5)
     
     # PV Charging - center in PV window
-    pv_center = (pv_start + pv_end + 1) / 2
-    ax_price.text(pv_center, text_y_position, 'PV Charging', 
-                 ha='center', va='top', fontsize=10, fontweight='bold',
-                 color='darkgoldenrod', bbox=dict(boxstyle='round,pad=0.5', 
-                 facecolor='white', edgecolor='darkgoldenrod', alpha=0.8), zorder=5)
+    if pv_enabled:
+        pv_center = (pv_start + pv_end + 1) / 2
+        ax_price.text(pv_center, text_y_position, 'PV Charging', 
+                     ha='center', va='top', fontsize=10, fontweight='bold',
+                     color='darkgoldenrod', bbox=dict(boxstyle='round,pad=0.5', 
+                     facecolor='white', edgecolor='darkgoldenrod', alpha=0.8), zorder=5)
     
     # Sell to grid - center in arbitrage window
-    arb_center = (arb_start + arb_end + 1) / 2
-    ax_price.text(arb_center, text_y_position, 'Sell to grid', 
-                 ha='center', va='top', fontsize=10, fontweight='bold',
-                 color='darkgreen', bbox=dict(boxstyle='round,pad=0.5', 
-                 facecolor='white', edgecolor='darkgreen', alpha=0.8), zorder=5)
+    if arb_enabled:
+        arb_center = (arb_start + arb_end + 1) / 2
+        ax_price.text(arb_center, text_y_position, 'Sell to grid', 
+                     ha='center', va='top', fontsize=10, fontweight='bold',
+                     color='darkgreen', bbox=dict(boxstyle='round,pad=0.5', 
+                     facecolor='white', edgecolor='darkgreen', alpha=0.8), zorder=5)
+    
+    # Add statistics box: average price per operational window
+    stats_text = 'Avg per Window:\n'
+    
+    # PV Charging
+    if pv_enabled:
+        pv_data = data_content[(data_content['Heure'] >= pv_start) & (data_content['Heure'] <= pv_end)]
+        if len(pv_data) > 0:
+            stats_text += f'☀ PV: {pv_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Sell to Grid (Arbitrage)
+    if arb_enabled:
+        arb_data = data_content[(data_content['Heure'] >= arb_start) & (data_content['Heure'] <= arb_end)]
+        if len(arb_data) > 0:
+            stats_text += f'💰 Sell: {arb_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Grid Charging (Night) — handles midnight wrap
+    if night_enabled:
+        if night_start > night_end:
+            night_data = data_content[(data_content['Heure'] >= night_start) | (data_content['Heure'] <= night_end)]
+        else:
+            night_data = data_content[(data_content['Heure'] >= night_start) & (data_content['Heure'] <= night_end)]
+        if len(night_data) > 0:
+            stats_text += f'🔌 Grid: {night_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Supply to Electrolyser
+    if ely_enabled:
+        ely_data = data_content[(data_content['Heure'] >= ely_start) & (data_content['Heure'] <= ely_end)]
+        if len(ely_data) > 0:
+            stats_text += f'🔋 Ely: {ely_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Global statistics
+    overall_avg = data_content['Prix'].mean()
+    overall_min = data_content['Prix'].min()
+    overall_max = data_content['Prix'].max()
+    stats_text += f'──\nGlobal:\n'
+    stats_text += f'Avg: {overall_avg:.1f} | Min: {overall_min:.1f} | Max: {overall_max:.1f} €/MWh'
     
     # Add statistics box: average price per operational window
     stats_text = 'Avg per Window:\n'
@@ -636,15 +720,31 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         battery_params['eta_charge'] = np.sqrt(battery_params['eta_rt'])
         battery_params['eta_discharge'] = np.sqrt(battery_params['eta_rt'])
         battery_params['DoD_max'] = st.session_state.get('bat_dod', float(DEFAULT_BATTERY_PARAMS['DoD_max']))
-        battery_params['cost_per_mwh'] = st.session_state.get('battery_cost_per_mwh', DEFAULT_BATTERY_COST_EUR_PER_MWH)
+        
+        # Build financial params from session state
+        fin_params = {
+            'capex_per_mwh': st.session_state.get('bat_capex_mwh', DEFAULT_FINANCIAL_PARAMS['capex_per_mwh']),
+            'discount_rate': st.session_state.get('bat_discount_rate_pct', DEFAULT_FINANCIAL_PARAMS['discount_rate']*100)/100.0,
+            'project_lifetime_years': st.session_state.get('bat_lifetime', DEFAULT_FINANCIAL_PARAMS['project_lifetime_years']),
+            'opex_percent_capex': st.session_state.get('bat_opex_pct', DEFAULT_FINANCIAL_PARAMS['opex_percent_capex']*100)/100.0,
+            'cycles_per_year': st.session_state.get('bat_cycles_per_year', DEFAULT_FINANCIAL_PARAMS['cycles_per_year'])
+        }
+        
+        # Rigorous LCOS calculation instead of user slider input
+        lcos_results = calculate_bess_lcos(battery_params, fin_params=fin_params)
+        battery_params['cost_per_mwh'] = lcos_results['lcos_per_mwh']
         
         time_windows = DEFAULT_TIME_WINDOWS.copy()
+        time_windows['pv_charge_enabled'] = st.session_state.get('pv_charge_enabled', DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
         time_windows['pv_charge_start'] = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
         time_windows['pv_charge_end'] = st.session_state.get('pv_end', DEFAULT_TIME_WINDOWS['pv_charge_end'])
+        time_windows['sell_to_grid_enabled'] = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
         time_windows['sell_to_grid_start'] = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['sell_to_grid_start'])
         time_windows['sell_to_grid_end'] = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['sell_to_grid_end'])
+        time_windows['grid_charging_enabled'] = st.session_state.get('grid_charging_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
         time_windows['grid_charging_start'] = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['grid_charging_start'])
         time_windows['grid_charging_end'] = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['grid_charging_end'])
+        time_windows['electrolyser_enabled'] = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
         time_windows['electrolyser_start'] = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
         time_windows['electrolyser_end'] = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
         
@@ -746,6 +846,11 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # Run simulation with hours instead of timestamps
             df_results, summary = optimizer.simulate_year(pv_profile, spot_prices, hours_of_day)
+            
+            # Match Month and Year to df_results for aggregation
+            df_results['Mois'] = data_content['Mois'].values
+            df_results['Annee'] = data_content['Annee'].values
+            
             #print("simulation is run")
             #print('PV profile:', pv_profile)
             # Store results in session state
@@ -796,7 +901,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ax.set_ylabel('State of Charge (%)', fontweight='bold')
             n_data_points = len(df_results)
             service_ratio_pct = avg_service_ratio * 100
-            title = f'Battery SoC Profile (Days {week_selector} to {week_selector + 7})\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+            title = f'Battery SoC Profile (Days {week_selector} to {week_selector + 7}) - {year_str}\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
             ax.set_title(title, fontweight='bold')
             ax.grid(True, alpha=0.3)
             ax.legend()
@@ -824,7 +929,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             axes[0].set_ylabel('Power (MW)', fontweight='bold')
             n_data_points = len(df_results)
             service_ratio_pct = avg_service_ratio * 100
-            title_base = f'Electrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+            title_base = f'Years: {year_str} | Electrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
             axes[0].set_title(f'Battery Charging/Discharging\n{title_base}', fontweight='bold')
             axes[0].legend()
             axes[0].grid(True, alpha=0.3)
@@ -876,7 +981,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             ax.set_xlabel('Hour of Day', fontweight='bold', fontsize=12)
             ax.set_ylabel('Cumulative PV Production (MWh)', fontweight='bold', fontsize=12)
-            ax.set_title('Cumulative Hourly PV Production (Total across entire year)', 
+            ax.set_title(f'Cumulative Hourly PV Production (Total across {year_str})', 
                         fontweight='bold', fontsize=14)
             ax.set_xticks(range(24))
             ax.set_xticklabels([f'{h:02d}:00' for h in range(24)], rotation=45, ha='right')
@@ -990,20 +1095,15 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 axis=1
             )
             # Use the live rigorously evaluated LCOS value immediately
-            battery_cost_per_mwh = lcos_live.get('lcos_per_mwh', 0.0)
+            battery_cost_per_mwh = lcos_live.get('lcos_per_mwh', 0.0) if st.session_state.get('bat_lcos_enabled', True) else 0.0
             discharge_windows = {'sell_to_grid', 'electrolyser'}
             df_hourly_cost['battery_lcos_cost'] = df_hourly_cost.apply(
                 lambda x: x['battery_discharge_mw'] * battery_cost_per_mwh if x['window_type'] in discharge_windows else 0,
                 axis=1
             )
-            df_hourly_cost['grid_supply_price'] = df_hourly_cost.apply(
-                lambda x: x['spot_price_eur_mwh'] if (ppa_price == 0 or x['spot_price_eur_mwh'] <= ppa_price) else np.nan,
-                axis=1
-            )
-
             scaling_factor = electrolyser_power
             for col in ['grid_charge_cost', 'revenue_sell_to_grid', 'ely_supply_savings',
-                        'ppa_baseline_cost', 'pv_baseline_cost', 'battery_lcos_cost', 'grid_supply_price']:
+                        'ppa_baseline_cost', 'pv_baseline_cost', 'battery_lcos_cost']:
                 df_hourly_cost[col] = df_hourly_cost[col] * scaling_factor
             
             df_hourly_cost['net_cashflow'] = (
@@ -1029,7 +1129,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                                 'spot_price_eur_mwh',
                                 'grid_charge_cost', 'revenue_sell_to_grid',
                                 'ely_supply_savings', 'ppa_baseline_cost', 'pv_baseline_cost',
-                                'battery_lcos_cost', 'grid_supply_price','net_cashflow',]
+                                'battery_lcos_cost', 'net_cashflow']
             print(df_hourly_cost[subset_columns])
             # Group by hour of day
             hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
@@ -1040,6 +1140,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 'pv_baseline_cost': 'sum',
                 'battery_lcos_cost': 'sum'
             })
+            
+            # Convert values to k€
+            hourly_profile = hourly_profile / 1000.0
+
             hourly_profile['net_cashflow'] = (
                 hourly_profile['grid_charge_cost']
                 + hourly_profile['pv_baseline_cost']
@@ -1047,72 +1151,271 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 - hourly_profile['revenue_sell_to_grid']
                 - hourly_profile['ely_supply_savings']
             )
-            grid_supply_series = df_hourly_cost.groupby('hour_of_day')['grid_supply_price'].mean().dropna()
-             
+            # Removed grid_supply_series calculation
             #print(df_hourly_cost)
 
             fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
             
-            # Stacked bars for System Costs
-            ax.bar(hourly_profile.index, hourly_profile['grid_charge_cost'], label='Grid to Battery', color='red', alpha=0.7)
+            # --- Read toggle states for selected windows ---
+            _pv_on   = st.session_state.get('pv_charge_enabled',    DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
+            _arb_on  = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
+            _grid_on = st.session_state.get('grid_charging_enabled',DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
+            _ely_on  = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
+
+            _pv_s    = st.session_state.get('pv_start',    DEFAULT_TIME_WINDOWS['pv_charge_start'])
+            _pv_e    = st.session_state.get('pv_end',      DEFAULT_TIME_WINDOWS['pv_charge_end'])
+            _arb_s   = st.session_state.get('arb_start',   DEFAULT_TIME_WINDOWS['sell_to_grid_start'])
+            _arb_e   = st.session_state.get('arb_end',     DEFAULT_TIME_WINDOWS['sell_to_grid_end'])
+            _ngt_s   = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['grid_charging_start'])
+            _ngt_e   = st.session_state.get('night_end',   DEFAULT_TIME_WINDOWS['grid_charging_end'])
+            _ely_s   = st.session_state.get('ely_start',   DEFAULT_TIME_WINDOWS['electrolyser_start'])
+            _ely_e   = st.session_state.get('ely_end',     DEFAULT_TIME_WINDOWS['electrolyser_end'])
+
+            # --- Background shading for active windows ---
+            if _pv_on:
+                ax.axvspan(_pv_s - 0.5, _pv_e + 0.5, alpha=0.08, color='gold', zorder=0, label='_nolegend_')
+            if _arb_on:
+                ax.axvspan(_arb_s - 0.5, _arb_e + 0.5, alpha=0.08, color='green', zorder=0, label='_nolegend_')
+            if _grid_on:
+                if _ngt_s > _ngt_e:  # wraps midnight
+                    ax.axvspan(_ngt_s - 0.5, 23.5, alpha=0.08, color='red', zorder=0, label='_nolegend_')
+                    ax.axvspan(-0.5, _ngt_e + 0.5, alpha=0.08, color='red', zorder=0, label='_nolegend_')
+                else:
+                    ax.axvspan(_ngt_s - 0.5, _ngt_e + 0.5, alpha=0.08, color='red', zorder=0, label='_nolegend_')
+            if _ely_on:
+                ax.axvspan(_ely_s - 0.5, _ely_e + 0.5, alpha=0.08, color='purple', zorder=0, label='_nolegend_')
+
+            # --- Bars: costs DOWN (negative), revenue UP (positive) ---
+            if _grid_on:
+                ax.bar(hourly_profile.index, -hourly_profile['grid_charge_cost'],
+                       label='Grid to Battery (cost ↓)', color='red', alpha=0.7)
+                for hour in hourly_profile.index:
+                    v = hourly_profile.loc[hour, 'grid_charge_cost']
+                    if v > 0:
+                        ax.text(hour, -v / 2,
+                                f"-{v:.1f} k€",
+                                ha='center', va='center', fontsize=8, color='black', fontweight='bold')
+
+            if _arb_on:
+                ax.bar(hourly_profile.index, hourly_profile['revenue_sell_to_grid'],
+                       label='Battery to Grid (revenue ↑)', color='green', alpha=0.7)
+                for hour in hourly_profile.index:
+                    v = hourly_profile.loc[hour, 'revenue_sell_to_grid']
+                    if v > 0:
+                        ax.text(hour, v / 2,
+                                f"+{v:.1f} k€",
+                                ha='center', va='center', fontsize=8, color='black', fontweight='bold')
+
+            if _ely_on:
+                ax.bar(hourly_profile.index, hourly_profile['ely_supply_savings'],
+                       label='Battery to Electrolyser (savings ↑)', color='purple', alpha=0.7)
+                for hour in hourly_profile.index:
+                    v = hourly_profile.loc[hour, 'ely_supply_savings']
+                    if v > 0:
+                        ax.text(hour, v / 2,
+                                f"+{v:.1f} k€",
+                                ha='center', va='center', fontsize=8, color='black', fontweight='bold')
+
+            # --- Lines: only render for enabled windows ---
+            ax.plot(hourly_profile.index, -hourly_profile['ppa_baseline_cost'],
+                    label=f'PPA baseline cost ({ppa_price} €/MWh)', color='orange',
+                    linewidth=2, alpha=0.8, linestyle='-', marker='o')
+
+            if _pv_on:
+                pv_series = (-hourly_profile['pv_baseline_cost']).replace(0, np.nan)
+                ax.plot(hourly_profile.index, pv_series,
+                        label=f'PV LCOE cost ({pv_price} €/MWh)', color='gold',
+                        linewidth=1.5, alpha=0.7, linestyle='--', marker='s')
+
+            if _arb_on or _ely_on:
+                ax.bar(hourly_profile.index, -hourly_profile['battery_lcos_cost'],
+                       label=f'Battery LCOS cost ({battery_cost_per_mwh:.0f} €/MWh)', color='gray', alpha=0.7, bottom=-hourly_profile['grid_charge_cost'] - hourly_profile['pv_baseline_cost'])
+                for hour in hourly_profile.index:
+                    v = hourly_profile.loc[hour, 'battery_lcos_cost']
+                    if v > 0:
+                        y_pos = -hourly_profile.loc[hour, 'grid_charge_cost'] - hourly_profile.loc[hour, 'pv_baseline_cost'] - (v / 2)
+                        ax.text(hour, y_pos, f"-{v:.1f} k€", ha='center', va='center', fontsize=8, color='black', fontweight='bold')
+
+            # --- Net cashflow = revenue − costs (positive = profitable) ---
+            net_series = (
+                hourly_profile['revenue_sell_to_grid']
+                + hourly_profile['ely_supply_savings']
+                - hourly_profile['grid_charge_cost']
+                - hourly_profile['pv_baseline_cost']
+                - hourly_profile['battery_lcos_cost']
+            )
+            ax.plot(net_series.index, net_series.values,
+                    label='Net Cashflow', color='black', linewidth=2, alpha=0.9, linestyle='-', marker='o')
+            ax.fill_between(net_series.index, 0, net_series.values,
+                            where=net_series.values >= 0, color='green', alpha=0.12)   # profit → green
+            ax.fill_between(net_series.index, 0, net_series.values,
+                            where=net_series.values < 0,  color='red',   alpha=0.12)   # loss   → red
             
-            # Revenue as negative bars - explicitly labeled as "Sell to Grid"
-            ax.bar(hourly_profile.index, -hourly_profile['revenue_sell_to_grid'], label='Battery to Grid', color='green', alpha=0.7)
+            # Determine a dynamic offset for net cashflow text
+            max_abs_val = net_series.abs().max()
+            dynamic_offset = max_abs_val * 0.05 if max_abs_val > 0 else 0.5
             
-            # Supply to Electrolyser savings as negative bars (cost avoided)
-            ax.bar(hourly_profile.index, -hourly_profile['ely_supply_savings'], label='Battery to Electrolyser', color='purple', alpha=0.7)
-            
-            # Add cost labels on each bar (only show if value is significant)
-            for hour in hourly_profile.index:
-                # Grid charging cost (at base)
-                if hourly_profile.loc[hour, 'grid_charge_cost'] > 0:
-                    ax.text(hour, hourly_profile.loc[hour, 'grid_charge_cost'] / 2, 
-                           f"{hourly_profile.loc[hour, 'grid_charge_cost']:.0f}€", 
-                           ha='center', va='center', fontsize=8, color='black', fontweight='bold')
-                
-                # Sell to Grid revenue (negative)
-                if hourly_profile.loc[hour, 'revenue_sell_to_grid'] > 0:
-                    ax.text(hour, -hourly_profile.loc[hour, 'revenue_sell_to_grid'] / 2, 
-                           f"-{hourly_profile.loc[hour, 'revenue_sell_to_grid']:.0f}€", 
-                           ha='center', va='center', fontsize=8, color='black', fontweight='bold')
-                
-                # Supply to Electrolyser savings (negative)
-                if hourly_profile.loc[hour, 'ely_supply_savings'] > 0:
-                    ax.text(hour, -hourly_profile.loc[hour, 'ely_supply_savings'] / 2, 
-                           f"-{hourly_profile.loc[hour, 'ely_supply_savings']:.0f}€", 
-                           ha='center', va='center', fontsize=8, color='black', fontweight='bold')
-            
-            # PPA Baseline as a line (Constant PPA supply)
-            ax.plot(hourly_profile.index, hourly_profile['ppa_baseline_cost'], label=f'PPA ({ppa_price} €/MWh)', color='orange', linewidth=2, alpha=0.8, linestyle='-', marker='o')
-            pv_series = hourly_profile['pv_baseline_cost'].replace(0, np.nan)
-            ax.plot(hourly_profile.index, pv_series, label=f'PV LCOE ({pv_price} €/MWh)', color='gold', linewidth=1.5, alpha=0.7, linestyle='--', marker='s')
-            battery_series = hourly_profile['battery_lcos_cost'].replace(0, np.nan)
-            battery_label = f'Battery LCOS ({battery_cost_per_mwh:.0f} €/MWh)'
-            ax.plot(hourly_profile.index, battery_series, label=battery_label, color='gray', linewidth=1.5, alpha=0.7, linestyle='-.', marker='^')
-            ax.plot(grid_supply_series.index, grid_supply_series.values, label='Grid to Electrolyser', color='blue', linewidth=1.5, alpha=0.7, linestyle=':', marker='d')
-            net_series = hourly_profile['net_cashflow']
-            ax.plot(net_series.index, net_series.values, label='Net Cashflow', color='black', linewidth=2, alpha=0.8, linestyle='-', marker='o')
-            ax.fill_between(net_series.index, 0, net_series.values, where=net_series.values>=0, color='red', alpha=0.1)
-            ax.fill_between(net_series.index, 0, net_series.values, where=net_series.values<0, color='green', alpha=0.1)
             for hour, value in net_series.items():
                 if value != 0:
-                    va = 'bottom' if value >= 0 else 'top'
-                    offset = 3 if value >= 0 else -3
-                    ax.text(hour, value + offset, f"{value:,.0f}€", ha='center', va=va, fontsize=8, color='red', fontweight='bold')
-            
+                    va     = 'bottom' if value >= 0 else 'top'
+                    offset = dynamic_offset if value >= 0 else -dynamic_offset
+                    color  = 'darkgreen' if value >= 0 else 'darkred'
+                    ax.text(hour, value + offset, f"{value:+,.1f} k€",
+                            ha='center', va=va, fontsize=8, color=color, fontweight='bold')
+
             ax.set_xticks(range(24))
+            ax.set_xticklabels([f'{h:02d}h' for h in range(24)])
             ax.set_xlabel('Hour of Day', fontweight='bold')
-            ax.set_ylabel('Total Cumulated Cost (€)', fontweight='bold')
+            ax.set_ylabel('Total Cumulated Cost / Revenue (k€)', fontweight='bold')
             n_data_points = len(df_results)
             service_ratio_pct = avg_service_ratio * 100
-            title = f'Hourly Cash Flows\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+            active_windows = ', '.join([
+                w for w, on in [('PV', _pv_on), ('Sell→Grid', _arb_on),
+                                ('Grid→Bat', _grid_on), ('Bat→Ely', _ely_on)] if on
+            ]) or 'None'
+            title = (f'Hourly Cash Flows ({year_str})  [Active windows: {active_windows}]\n'
+                     f'Electrolyser Power: {electrolyser_power:.1f} MW | '
+                     f'Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}')
             ax.set_title(title, fontweight='bold')
-            ax.legend()
+            ax.legend(loc='upper left', fontsize=8)
             ax.grid(True, alpha=0.3)
             ax.axhline(0, color='black', linewidth=0.8)
-            
+
             st.pyplot(fig_hourly_cost)
             plt.close(fig_hourly_cost)
+
+            # --- Chart 2: Monthly Cash Flows ---
+            st.markdown("##### 📅 Monthly Cash Flows")
+            monthly_profile = df_hourly_cost.groupby('Mois').agg({
+                'grid_charge_cost': 'sum',
+                'revenue_sell_to_grid': 'sum',
+                'ely_supply_savings': 'sum',
+                'ppa_baseline_cost': 'sum',
+                'pv_baseline_cost': 'sum',
+                'battery_lcos_cost': 'sum'
+            })
+            # Convert to k€
+            monthly_profile = monthly_profile / 1000.0
+            
+            fig_monthly_cost, ax = plt.subplots(figsize=(12, 6))
+            
+            x_months = monthly_profile.index
+            cost_bottom = np.zeros(len(x_months))
+            revenue_bottom = np.zeros(len(x_months))
+            
+            if _grid_on:
+                ax.bar(x_months, -monthly_profile['grid_charge_cost'], label='Grid to Battery (cost)', color='red', alpha=0.7, bottom=-cost_bottom)
+                cost_bottom += monthly_profile['grid_charge_cost']
+            
+            if _pv_on:
+                ax.bar(x_months, -monthly_profile['pv_baseline_cost'], label='PV LCOE cost', color='gold', alpha=0.7, bottom=-cost_bottom)
+                cost_bottom += monthly_profile['pv_baseline_cost']
+
+            if _arb_on or _ely_on:
+                ax.bar(x_months, -monthly_profile['battery_lcos_cost'], label='Battery LCOS cost', color='gray', alpha=0.7, bottom=-cost_bottom)
+                cost_bottom += monthly_profile['battery_lcos_cost']
+                
+            if _arb_on:
+                ax.bar(x_months, monthly_profile['revenue_sell_to_grid'], label='Battery to Grid (revenue)', color='green', alpha=0.7, bottom=revenue_bottom)
+                revenue_bottom += monthly_profile['revenue_sell_to_grid']
+                
+            if _ely_on:
+                ax.bar(x_months, monthly_profile['ely_supply_savings'], label='Battery to Electrolyser (savings)', color='purple', alpha=0.7, bottom=revenue_bottom)
+                revenue_bottom += monthly_profile['ely_supply_savings']
+                
+            net_series_monthly = (
+                monthly_profile['revenue_sell_to_grid']
+                + monthly_profile['ely_supply_savings']
+                - monthly_profile['grid_charge_cost']
+                - monthly_profile['pv_baseline_cost']
+                - monthly_profile['battery_lcos_cost']
+            )
+            ax.plot(x_months, net_series_monthly.values, label='Net Cashflow', color='black', linewidth=2, linestyle='-', marker='o')
+            
+            max_abs_monthly = net_series_monthly.abs().max()
+            dynamic_offset_m = max_abs_monthly * 0.05 if max_abs_monthly > 0 else 0.5
+            
+            for m, value in zip(x_months, net_series_monthly.values):
+                if value != 0:
+                    va = 'bottom' if value >= 0 else 'top'
+                    offset = dynamic_offset_m if value >= 0 else -dynamic_offset_m
+                    color  = 'darkgreen' if value >= 0 else 'darkred'
+                    ax.text(m, value + offset, f"{value:+,.1f} k€", ha='center', va=va, fontsize=8, color=color, fontweight='bold')
+                    
+            import calendar
+            month_names = []
+            for m in x_months:
+                try:
+                    month_names.append(calendar.month_abbr[int(m)])
+                except (ValueError, TypeError):
+                    month_names.append(str(m)[:3].title())
+            ax.set_xticks(range(len(x_months)))
+            ax.set_xticklabels(month_names)
+            ax.set_xlabel('Month', fontweight='bold')
+            ax.set_ylabel('Total Monthly Cost / Revenue (k€)', fontweight='bold')
+            ax.set_title(f'Monthly Cash Flows ({year_str})', fontweight='bold')
+            ax.axhline(0, color='black', linewidth=0.8)
+            ax.legend(loc='best', fontsize=8)
+            st.pyplot(fig_monthly_cost)
+            plt.close(fig_monthly_cost)
+            
+            # --- Chart 3: Yearly Cash Flows ---
+            st.markdown("##### 📅 Yearly Cash Flows")
+            yearly_profile = monthly_profile.sum()
+            
+            fig_yearly_cost, ax = plt.subplots(figsize=(8, 6))
+            x_pos = [0]
+            
+            cost_acc = 0
+            rev_acc = 0
+            
+            if _grid_on:
+                ax.bar(x_pos, -yearly_profile['grid_charge_cost'], width=0.5, label='Grid to Battery (cost)', color='red', alpha=0.7, bottom=-cost_acc)
+                cost_acc += yearly_profile['grid_charge_cost']
+            
+            if _pv_on:
+                ax.bar(x_pos, -yearly_profile['pv_baseline_cost'], width=0.5, label='PV LCOE cost', color='gold', alpha=0.7, bottom=-cost_acc)
+                cost_acc += yearly_profile['pv_baseline_cost']
+
+            if _arb_on or _ely_on:
+                ax.bar(x_pos, -yearly_profile['battery_lcos_cost'], width=0.5, label='Battery LCOS cost', color='gray', alpha=0.7, bottom=-cost_acc)
+                cost_acc += yearly_profile['battery_lcos_cost']
+                
+            if _arb_on:
+                ax.bar(x_pos, yearly_profile['revenue_sell_to_grid'], width=0.5, label='Battery to Grid (revenue)', color='green', alpha=0.7, bottom=rev_acc)
+                rev_acc += yearly_profile['revenue_sell_to_grid']
+                
+            if _ely_on:
+                ax.bar(x_pos, yearly_profile['ely_supply_savings'], width=0.5, label='Battery to Electrolyser (savings)', color='purple', alpha=0.7, bottom=rev_acc)
+                rev_acc += yearly_profile['ely_supply_savings']
+                
+            net_yearly = (
+                yearly_profile['revenue_sell_to_grid']
+                + yearly_profile['ely_supply_savings']
+                - yearly_profile['grid_charge_cost']
+                - yearly_profile['pv_baseline_cost']
+                - yearly_profile['battery_lcos_cost']
+            )
+            
+            ax.plot([0], [net_yearly], color='black', marker='D', markersize=10, label='Net Cashflow', zorder=5)
+            
+            va = 'bottom' if net_yearly >= 0 else 'top'
+            max_abs_y = max(cost_acc, rev_acc) if max(cost_acc, rev_acc) > 0 else abs(net_yearly)
+            offset_y = max_abs_y * 0.05 if max_abs_y > 0 else 0.5
+            offset = offset_y if net_yearly >= 0 else -offset_y
+            color  = 'darkgreen' if net_yearly >= 0 else 'darkred'
+            ax.text(0, net_yearly + offset, f"{net_yearly:+,.1f} k€", ha='center', va=va, fontsize=10, color=color, fontweight='bold', bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.8, edgecolor=color))
+            
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels([str(year_str)])
+            ax.set_xlabel('Year', fontweight='bold')
+            ax.set_ylabel('Total Yearly Cost / Revenue (k€)', fontweight='bold')
+            ax.set_title(f'Yearly Cash Flows ({year_str})', fontweight='bold')
+            ax.axhline(0, color='black', linewidth=0.8)
+            ax.legend(loc='upper right', bbox_to_anchor=(1.4, 1), fontsize=8) # move legend out of way
+            fig_yearly_cost.tight_layout()
+            st.pyplot(fig_yearly_cost)
+            plt.close(fig_yearly_cost)
 
         with res_tab5:
             st.markdown("#### Complete Summary Statistics")
@@ -1152,18 +1455,47 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             }
             st.table(pd.DataFrame(summary_data))
         
+        # --- Read toggle states (same keys used in chart above) ---
+        _kpi_pv_on   = st.session_state.get('pv_charge_enabled',    DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
+        _kpi_arb_on  = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
+        _kpi_grid_on = st.session_state.get('grid_charging_enabled',DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
+        _kpi_ely_on  = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
+
         cash_totals = st.session_state.get('battery_cash_totals')
         if cash_totals:
-            revenue_total = cash_totals['sell_revenue'] + cash_totals['ely_savings']
-            cost_total = cash_totals['grid_cost'] + cash_totals['pv_cost'] + cash_totals['battery_cost']
-            net_cash = cost_total - revenue_total
+            # Revenue: only count enabled revenue streams
+            revenue_total = (
+                (cash_totals['sell_revenue'] if _kpi_arb_on  else 0.0)
+                + (cash_totals['ely_savings'] if _kpi_ely_on else 0.0)
+            )
+            # Cost: only count enabled cost streams
+            cost_total = (
+                (cash_totals['grid_cost']    if _kpi_grid_on else 0.0)
+                + (cash_totals['pv_cost']    if _kpi_pv_on   else 0.0)
+                + (cash_totals['battery_cost'] if (_kpi_arb_on or _kpi_ely_on) else 0.0)
+            )
         else:
             revenue_total = summary['total_revenue_eur']
-            cost_total = summary['total_cost_eur']
-            net_cash = cost_total - revenue_total
-        
+            cost_total    = summary['total_cost_eur']
+
+        # Net = revenue − cost  →  positive = profitable
+        net_cash = revenue_total - cost_total
+
+        # Build dynamic label for supply cost card
+        cost_parts = []
+        if _kpi_grid_on: cost_parts.append("Grid")
+        if _kpi_pv_on:   cost_parts.append("PV")
+        if _kpi_arb_on or _kpi_ely_on: cost_parts.append("Battery")
+        cost_label = "Supply Cost (" + (" + ".join(cost_parts) if cost_parts else "None active") + ")"
+
+        # Build dynamic label for revenue card
+        rev_parts = []
+        if _kpi_arb_on: rev_parts.append("Sell→Grid")
+        if _kpi_ely_on: rev_parts.append("Bat→Ely")
+        rev_label = "Revenue (" + (" + ".join(rev_parts) if rev_parts else "None active") + ")"
+
         col_rev, col_cost, col_net = st.columns(3)
-        
+
         def _kpi_card(label, value, color_bg, color_text, sign_prefix=""):
             st.markdown(
                 f"""
@@ -1181,17 +1513,18 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 """,
                 unsafe_allow_html=True
             )
-        
+
         with col_rev:
-            _kpi_card("Revenue (Battery Output)", revenue_total, "#e6f4ea", "#1b4332", "+")
-        
+            _kpi_card(rev_label, revenue_total, "#e6f4ea", "#1b4332", "+")
+
         with col_cost:
-            _kpi_card("Supply Cost (Grid + PV + Battery)", cost_total, "#fdecea", "#8a1c1c", "-")
-        
+            _kpi_card(cost_label, cost_total, "#fdecea", "#8a1c1c", "-")
+
         with col_net:
-            card_color = "#fdecea" if net_cash >= 0 else "#e6f4ea"
-            card_text = "#8a1c1c" if net_cash >= 0 else "#1b4332"
-            net_sign = "-" if net_cash >= 0 else "+"
+            # positive net = profitable (green), negative = loss (red)
+            card_color = "#e6f4ea" if net_cash >= 0 else "#fdecea"
+            card_text  = "#1b4332" if net_cash >= 0 else "#8a1c1c"
+            net_sign   = "+" if net_cash >= 0 else "-"
             _kpi_card("Net Cashflow", abs(net_cash), card_color, card_text, net_sign)
         
         # --- Chart 3: Selected Hours & Spot Prices per Operational Window ---
@@ -1228,7 +1561,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         ax.set_ylabel('Spot Price (€/MWh)', fontweight='bold')
         n_data_points = len(df_results)
         service_ratio_pct = avg_service_ratio * 100
-        title = f'Spot Prices at Selected Hours per Operational Window\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
+        title = f'Spot Prices at Selected Hours per Operational Window ({year_str})\nElectrolyser Power: {electrolyser_power:.1f} MW | Service Ratio: {service_ratio_pct:.1f}% | Data Points: {n_data_points:,}'
         ax.set_title(title, fontweight='bold')
         ax.grid(True, alpha=0.3)
         ax.legend()

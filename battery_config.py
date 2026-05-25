@@ -5,20 +5,26 @@ Parametric time windows and battery parameters for PV-Battery-Electrolyser optim
 
 # Parametric Time Windows (hours in 24h format)
 # Defaults aligned with battery_integration operational windows (non-overlapping)
+# Parametric Time Windows (hours in 24h format)
+# Defaults aligned with battery_integration operational windows (non-overlapping)
 DEFAULT_TIME_WINDOWS = {
     # 1. PV-priority charging window
+    "pv_charge_enabled": False,
     "pv_charge_start": 12,  # 12:00 - Start PV charging
     "pv_charge_end": 17,    # 17:00 - End PV charging
     
     # 2. Evening arbitrage discharge window
+    "sell_to_grid_enabled": True,
     "sell_to_grid_start": 18,  # 18:00 - Start selling to grid
-    "sell_to_grid_end": 23,    # 23:00 - End selling to grid
+    "sell_to_grid_end": 21,    # 21:00 - End selling to grid (4 hours: 18, 19, 20, 21)
     
     # 3. Spot charging window (grid charging at spot prices)
-    "grid_charging_start": 0,  # 00:00 - Start spot grid charging
-    "grid_charging_end": 5,    # 05:00 - End spot grid charging
+    "grid_charging_enabled": True,
+    "grid_charging_start": 2,  # 02:00 - Start spot grid charging
+    "grid_charging_end": 5,    # 05:00 - End spot grid charging (4 hours: 2, 3, 4, 5)
     
     # 4. Morning electrolyser supply window
+    "electrolyser_enabled": False,
     "electrolyser_start": 6,   # 06:00 - Start electrolyser operation
     "electrolyser_end": 11,    # 11:00 - End electrolyser operation
 }
@@ -35,8 +41,7 @@ DEFAULT_ELECTROLYSER_PARAMS = {
 # Battery Technical Parameters
 DEFAULT_BATTERY_PARAMS = {
     # Energy capacity (aligned with battery_integration default UI)
-    # Calculated as P_ely * PV charging window duration (6 hours)
-    "E_bat_max": DEFAULT_ELECTROLYSER_PARAMS["P_ely"] * (DEFAULT_TIME_WINDOWS["pv_charge_end"] - DEFAULT_TIME_WINDOWS["pv_charge_start"]),
+    "E_bat_max": 20.0,
     
     # Power limits (based on electrolyser power)
     "P_charge_max": DEFAULT_ELECTROLYSER_PARAMS["P_ely"],  # MW - Maximum charge power (equals electrolyser power)
@@ -44,9 +49,9 @@ DEFAULT_BATTERY_PARAMS = {
     
     # Efficiency (one-way and round-trip)
     # Note: battery_integration recomputes eta_charge/eta_discharge from eta_rt
-    "eta_charge": 0.959,  # Charging efficiency (one-way, sqrt of 0.92)
-    "eta_discharge": 0.959,  # Discharging efficiency (one-way, sqrt of 0.92)
-    "eta_rt": 0.92,  # Round-trip efficiency (typical Li-ion battery)
+    "eta_charge": 0.94868,  # Charging efficiency (one-way, sqrt of 0.90)
+    "eta_discharge": 0.94868,  # Discharging efficiency (one-way, sqrt of 0.90)
+    "eta_rt": 0.90,  # Round-trip efficiency (typical Li-ion battery)
     
     # State of Charge (SoC) constraints
     "SoC_min": 0.00,  # Minimum SoC (10% = 10% DoD protection)
@@ -58,6 +63,15 @@ DEFAULT_BATTERY_PARAMS = {
     
     # Self-discharge
     "self_discharge_rate": 0.0000,  # Per hour (0.01% per hour = 2.4% per day for Li-ion)
+}
+
+# Financial Parameters for LCOS
+DEFAULT_FINANCIAL_PARAMS = {
+    "capex_per_mwh": 150000.0,    # €/MWh - typical BESS capital expenditure (3M€ for 20MWh)
+    "opex_percent_capex": 0.00,   # Set to 0% since electricity OPEX is handled in grid cost
+    "discount_rate": 0.08,        # 8% (r)
+    "project_lifetime_years": 20, # 20 years (n)
+    "cycles_per_year": 365,       # 1 cycle per day
 }
 
 # Penalty Parameters
@@ -192,4 +206,48 @@ def calculate_max_hydrogen_production(battery_params, electrolyser_params, time_
         "can_support_full_operation": can_support_full_operation,
         "electrolyser_duration_hours": ely_duration,
         "capacity_utilization": min(1.0, available_energy_mwh / required_energy_mwh) if required_energy_mwh > 0 else 0
+    }
+
+def calculate_bess_lcos(battery_params, fin_params=None):
+    """
+    Methodology to Calculate LCOS per Daily Cycle
+    Returns dictionary with lcos_per_mwh and cost_per_cycle
+    """
+    if fin_params is None:
+        fin_params = DEFAULT_FINANCIAL_PARAMS
+        
+    E_rated = battery_params.get("E_bat_max", 20.0)
+    eta = battery_params.get("eta_rt", 0.92)
+    
+    # Step 2 — Calculate Energy Delivered per Cycle
+    E_cycle = E_rated * eta
+    
+    # Step 3 — Calculate Annual Energy Delivered
+    N_cycles = fin_params.get("cycles_per_year", 365)
+    E_annual = E_cycle * N_cycles
+    
+    # Step 4 — Annualize CAPEX
+    capex = E_rated * fin_params.get("capex_per_mwh", 250000.0)
+    r = fin_params.get("discount_rate", 0.08)
+    n = fin_params.get("project_lifetime_years", 15)
+    
+    capex_annual = (capex * r) / (1 - (1 + r)**(-n))
+    
+    # Step 5 — Compute Total Annual Cost (excluding electricity cost)
+    opex_annual = capex * fin_params.get("opex_percent_capex", 0.02)
+    cost_annual = capex_annual + opex_annual
+    
+    # Step 6 — Calculate LCOS
+    lcos_per_mwh = cost_annual / E_annual if E_annual > 0 else 0
+    
+    # Step 7 — Convert LCOS to Cost per Daily Cycle
+    cost_cycle = lcos_per_mwh * E_cycle
+    
+    return {
+        "lcos_per_mwh": lcos_per_mwh,
+        "cost_per_cycle": cost_cycle,
+        "capex_annual": capex_annual,
+        "opex_annual": opex_annual,
+        "E_cycle": E_cycle,
+        "E_annual": E_annual
     }
