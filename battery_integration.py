@@ -618,14 +618,43 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                      color='darkgreen', bbox=dict(boxstyle='round,pad=0.5', 
                      facecolor='white', edgecolor='darkgreen', alpha=0.8), zorder=5)
     
-    # Add statistics box
-    avg_price = data_content['Prix'].mean()
-    min_price = data_content['Prix'].min()
-    max_price = data_content['Prix'].max()
-    stats_text = f'Dataset Statistics:\n'
-    stats_text += f'Avg: {avg_price:.1f} €/MWh\n'
-    stats_text += f'Min: {min_price:.1f} €/MWh\n'
-    stats_text += f'Max: {max_price:.1f} €/MWh'
+    # Add statistics box: average price per operational window
+    stats_text = 'Avg per Window:\n'
+    
+    # PV Charging
+    if pv_enabled:
+        pv_data = data_content[(data_content['Heure'] >= pv_start) & (data_content['Heure'] <= pv_end)]
+        if len(pv_data) > 0:
+            stats_text += f'☀ PV: {pv_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Sell to Grid (Arbitrage)
+    if arb_enabled:
+        arb_data = data_content[(data_content['Heure'] >= arb_start) & (data_content['Heure'] <= arb_end)]
+        if len(arb_data) > 0:
+            stats_text += f'💰 Sell: {arb_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Grid Charging (Night) — handles midnight wrap
+    if night_enabled:
+        if night_start > night_end:
+            night_data = data_content[(data_content['Heure'] >= night_start) | (data_content['Heure'] <= night_end)]
+        else:
+            night_data = data_content[(data_content['Heure'] >= night_start) & (data_content['Heure'] <= night_end)]
+        if len(night_data) > 0:
+            stats_text += f'🔌 Grid: {night_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Supply to Electrolyser
+    if ely_enabled:
+        ely_data = data_content[(data_content['Heure'] >= ely_start) & (data_content['Heure'] <= ely_end)]
+        if len(ely_data) > 0:
+            stats_text += f'🔋 Ely: {ely_data["Prix"].mean():.1f} €/MWh\n'
+    
+    # Global statistics
+    overall_avg = data_content['Prix'].mean()
+    overall_min = data_content['Prix'].min()
+    overall_max = data_content['Prix'].max()
+    stats_text += f'──\nGlobal:\n'
+    stats_text += f'Avg: {overall_avg:.1f} | Min: {overall_min:.1f} | Max: {overall_max:.1f} €/MWh'
+    
     ax_price.text(0.98, 0.97, stats_text, transform=ax_price.transAxes,
                  verticalalignment='top', horizontalalignment='right',
                  bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
