@@ -41,7 +41,7 @@ from ui_components import (
 from sidebar import (
     setup_sidebar_header, load_data_file, create_year_selection, create_electrolyzer_parameters,
     create_methanation_parameters, create_site_co2_parameters, create_monthly_service_ratios, create_operation_strategy_selection,
-    create_price_parameters, create_pv_installation_parameters, get_current_parameters
+    create_price_parameters, create_pv_installation_parameters, create_battery_parameters, get_current_parameters
 )
 from plots import (
     create_monthly_price_analysis_plot, create_price_distribution_box_plot, create_price_distribution_by_hour_box_plot,
@@ -137,6 +137,10 @@ def main():
     )
     st.session_state.pv_energy_data = pv_energy_data
     
+    # Battery parameters — separate from PV, with independent power & capacity
+    battery_params = create_battery_parameters(estimated_pv_power_mwp=pv_energy_data.get('estimated_power_mwp'))
+    st.session_state.battery_params = battery_params
+    
     # Calculate derived parameters
     try:
         derived_params = calculate_derived_parameters(electrolyser_power, h2_flowrate)
@@ -195,7 +199,8 @@ def main():
     current_params = get_current_parameters(
         selected_years, electrolyser_power, h2_flowrate,
         monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
-        go_enabled, go_cost_per_mwh, electrolyzer_econ, methanation_econ
+        battery_params=battery_params,
+        go_enabled=go_enabled, go_cost_per_mwh=go_cost_per_mwh, electrolyzer_econ=electrolyzer_econ, methanation_econ=methanation_econ
     )
 
     current_params['strategy_type'] = strategy_type
@@ -243,7 +248,7 @@ def main():
             data_content, strategy_type, monthly_service_ratios, avg_service_ratio,
             electrolyser_power, electrolyser_specific_consumption, derived_params,
             monthly_ch4_production, target_prices, pv_price, ppa_price, pv_params,
-            pv_energy_data, electrolyzer_econ, methanation_econ, site_co2_econ,
+            pv_energy_data, battery_params, electrolyzer_econ, methanation_econ, site_co2_econ,
             go_enabled, go_cost_per_mwh, selected_years, params_changed, data_changed, 
             strategy_changed_to_target, calculated_params_placeholder=calculated_params_placeholder
         )
@@ -276,7 +281,7 @@ def main():
 def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, avg_service_ratio,
                           electrolyser_power, electrolyser_specific_consumption, derived_params,
                           monthly_ch4_production, target_prices, pv_price, ppa_price, pv_params,
-                          pv_energy_data, electrolyzer_econ, methanation_econ, site_co2_econ,
+                          pv_energy_data, battery_params, electrolyzer_econ, methanation_econ, site_co2_econ,
                           go_enabled, go_cost_per_mwh, selected_years, params_changed, data_changed,
                           strategy_changed_to_target, calculated_params_placeholder=None):
     """Render the main LCOE analysis section (original dashboard content)"""
@@ -443,20 +448,16 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                             pv_params['loss']
                         )
                         
-                        # Calculate battery capacity if included
-                        battery_capacity_mwh = 0
-                        if pv_params['include_battery']:
-                            battery_capacity_mwh = calculate_battery_capacity(
-                                pv_params['storage_hours'], 
-                                pv_energy_data['estimated_power_mwp']
-                            )
+                        # Use battery capacity from battery_params (already calculated: power × charging hours)
+                        battery_capacity_mwh = battery_params.get('battery_capacity_mwh', 0) if battery_params.get('include_battery', False) else 0
+                        battery_power_mw = battery_params.get('battery_power_mw', 0) if battery_params.get('include_battery', False) else 0
                         
                         # Calculate CAPEX and OPEX
                         capex_opex_data = calculate_capex_opex(
                             pv_energy_data['estimated_power_kwp'],
                             pv_params['pv_cost_per_wp'],
                             battery_capacity_mwh,
-                            pv_params['battery_cost_per_kwh'],
+                            battery_params.get('battery_cost_per_kwh', 0),
                             pv_params['opex_percentage'],
                             pv_params['use_calculated_capex'],
                             pv_params['use_calculated_opex'],
@@ -467,7 +468,7 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                         # Calculate energy breakdown
                         energy_breakdown = calculate_energy_breakdown(
                             extended_info, monthly_service_ratios, electrolyser_power,
-                            pv_energy_data['pv_energy_mwh'], pv_params['include_battery'], battery_capacity_mwh
+                            pv_energy_data['pv_energy_mwh'], battery_params.get('include_battery', False), battery_capacity_mwh
                         )
                         
                         # Compute service ratios from actual hours for Target Price strategy (for titles)
@@ -564,9 +565,9 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                         
                         # Create energy coverage chart
                         if strategy_type == "Target Price-Based":
-                            coverage_title = f"### 🔋 Monthly Energy Coverage (Target Price Strategy) - Based on Actual Operating Hours:" if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"### 🔋 Monthly Energy Coverage (Target Price Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Based on Actual Operating Hours:"
+                            coverage_title = f"### 🔋 Monthly Energy Coverage (Target Price Strategy) - Based on Actual Operating Hours:" if not (battery_params.get('include_battery', False) and battery_capacity_mwh > 0) else f"### 🔋 Monthly Energy Coverage (Target Price Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Based on Actual Operating Hours:"
                         else:
-                            coverage_title = f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy) " if not (pv_params['include_battery'] and battery_capacity_mwh > 0) else f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:"
+                            coverage_title = f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy) " if not (battery_params.get('include_battery', False) and battery_capacity_mwh > 0) else f"### 🔋 Monthly Energy Coverage (Service Ratio Strategy, with {battery_capacity_mwh:.1f} MWh Daily Battery Storage) - Spot/PPA Breakdown:"
                         st.markdown(coverage_title, unsafe_allow_html=True)
                         
                         # Prepare data for plotting based on strategy type
@@ -661,7 +662,7 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                             'PPA': ppa_list
                         }, index=list(monthly_service_ratios.keys()))
                         
-                        if pv_params['include_battery'] and battery_capacity_mwh > 0:
+                        if battery_params.get('include_battery', False) and battery_capacity_mwh > 0:
                             # Add battery columns
                             df_plot_data['Spot Direct'] = df_plot_data['Spot'] * 0.7  # Estimate 70% direct
                             df_plot_data['Spot Battery'] = df_plot_data['Spot'] * 0.3  # Estimate 30% battery
@@ -679,7 +680,7 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                             max_monthly_energy = {m: electrolyser_power * 24 * days_per_month[m] for m in days_per_month}
                         fig2 = create_energy_coverage_chart(
                             df_plot_data,
-                            pv_params['include_battery'],
+                            battery_params.get('include_battery', False),
                             battery_capacity_mwh,
                             integrate_ppa,
                             monthly_service_ratios=(recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios),
@@ -688,7 +689,7 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                         st.pyplot(fig2)
                         
                         # Modify the pie chart section to have two pies side by side
-                        pie_section_title = f"### 🥧 Energy Coverage Distribution (with {pv_params['storage_hours']}h Daily Battery):" if pv_params['include_battery'] and battery_capacity_mwh > 0 else "### 🥧 Energy Coverage Distribution:"
+                        pie_section_title = f"### 🥧 Energy Coverage Distribution (with {battery_params.get('charging_hours', 0)}h Daily Battery):" if battery_params.get('include_battery', False) and battery_capacity_mwh > 0 else "### 🥧 Energy Coverage Distribution:"
                         st.markdown(pie_section_title, unsafe_allow_html=True)
                         col1, col2 = st.columns(2)
                         with col1:
@@ -696,7 +697,7 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                             pie_service_ratios = recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios
                             fig3 = create_energy_distribution_pie_chart(
                                 df_plot_data,
-                                pv_params['include_battery'],
+                                battery_params.get('include_battery', False),
                                 battery_capacity_mwh,
                                 integrate_ppa,
                                 pie_service_ratios
@@ -764,13 +765,13 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                         ratios_for_breakdown = recomputed_service if strategy_type == "Target Price-Based" else monthly_service_ratios
                         monthly_breakdown = calculate_monthly_breakdown(
                             df_plot_data, ratios_for_breakdown, pv_price,
-                            actual_spot_price, ppa_price, pv_params['include_battery'],
+                            actual_spot_price, ppa_price, battery_params.get('include_battery', False),
                             battery_capacity_mwh, integrate_ppa, go_enabled, go_cost_per_mwh
                         )
                         
                         # Calculate yearly totals
                         yearly_average = calculate_yearly_totals(
-                            df_plot_data, pv_params['include_battery'], battery_capacity_mwh,
+                            df_plot_data, battery_params.get('include_battery', False), battery_capacity_mwh,
                             integrate_ppa, pv_price, actual_spot_price, ppa_price, go_enabled, go_cost_per_mwh
                         )
                         
@@ -820,7 +821,7 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                         else:
                             total_yearly_ch4_tonnes = sum(monthly_ch4_production.values())
                         # Avoid double counting when battery columns are present
-                        if pv_params['include_battery'] and battery_capacity_mwh > 0:
+                        if battery_params.get('include_battery', False) and battery_capacity_mwh > 0:
                             cols_to_sum = ['PV', 'Spot Direct', 'Spot Battery']
                             if integrate_ppa and 'PPA' in df_plot_data.columns:
                                 cols_to_sum.append('PPA')

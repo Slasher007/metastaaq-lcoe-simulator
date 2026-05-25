@@ -1218,36 +1218,6 @@ def create_pv_installation_parameters(project_lifetime=None, discount_rate=None)
             help="Cost per watt peak for PV installation"
         )
 
-        include_battery = st.checkbox(
-            "Include Battery Storage",
-            value=False,
-            help="Include battery storage in the analysis"
-        )
-
-        storage_hours = 0
-        battery_cost_per_kwh = 0
-        if include_battery:
-            storage_hours = st.slider(
-                "Storage Hours",
-                min_value=PARAM_RANGES["storage_hours"]["min"],
-                max_value=PARAM_RANGES["storage_hours"]["max"],
-                value=DEFAULT_PARAMS["storage_hours"],
-                step=PARAM_RANGES["storage_hours"]["step"],
-                help="Daily storage capacity in hours"
-            )
-
-            battery_capacity_mwh = storage_hours * estimated_power_mwp
-            st.write(f"**Daily Battery Capacity**: {battery_capacity_mwh:.2f} MWh/day ({storage_hours}h × {estimated_power_mwp:.2f} MWp)")
-
-            battery_cost_per_kwh = st.slider(
-                "Battery Cost (€/kWh)",
-                min_value=PARAM_RANGES["battery_cost_per_kwh"]["min"],
-                max_value=PARAM_RANGES["battery_cost_per_kwh"]["max"],
-                value=DEFAULT_PARAMS["battery_cost_per_kwh"],
-                step=PARAM_RANGES["battery_cost_per_kwh"]["step"],
-                help="Cost per kWh for battery storage"
-            )
-
         use_calculated_capex = st.checkbox(
             "Use Calculated CAPEX",
             value=True,
@@ -1258,15 +1228,9 @@ def create_pv_installation_parameters(project_lifetime=None, discount_rate=None)
         if use_calculated_capex:
             # estimated_power_kwp is in kWp; convert to Wp for €/Wp input
             pv_capex_calculated = (estimated_power_kwp * 1000) * pv_cost_per_wp
-            # Convert MWh to kWh for cost per kWh
-            battery_capex = (battery_capacity_mwh * 1000) * battery_cost_per_kwh if include_battery else 0
-            total_capex_calculated = pv_capex_calculated + battery_capex
             
             st.write(f"**Calculated CAPEX**:")
             st.write(f"• PV: {pv_capex_calculated:,.0f} €")
-            if include_battery:
-                st.write(f"• Battery: {battery_capex:,.0f} €")
-            st.write(f"• **Total: {total_capex_calculated:,.0f} €**")
         else:
             pv_capex = st.number_input(
                 "PV CAPEX (€)",
@@ -1296,25 +1260,11 @@ def create_pv_installation_parameters(project_lifetime=None, discount_rate=None)
 
         pv_opex = 0
         if use_calculated_opex:
-            # Calculate OPEX from total CAPEX (PV + Battery)
-            if use_calculated_capex:
-                total_capex_for_opex = total_capex_calculated
-                pv_opex_calculated = pv_capex_calculated * opex_percentage / 100
-                battery_opex_calculated = battery_capex * opex_percentage / 100 if include_battery else 0
-            else:
-                # Convert MWh to kWh for cost per kWh
-                manual_battery_capex = ((battery_capacity_mwh * 1000) * battery_cost_per_kwh) if include_battery else 0
-                total_capex_for_opex = pv_capex + manual_battery_capex
-                pv_opex_calculated = pv_capex * opex_percentage / 100
-                battery_opex_calculated = manual_battery_capex * opex_percentage / 100 if include_battery else 0
-
-            pv_opex = total_capex_for_opex * opex_percentage / 100
+            pv_opex_calculated = pv_capex_calculated * opex_percentage / 100
+            pv_opex = pv_opex_calculated
             
             st.write(f"**Calculated OPEX ({opex_percentage}% of CAPEX)**:")
             st.write(f"• PV: {pv_opex_calculated:,.0f} €/year")
-            if include_battery:
-                st.write(f"• Battery: {battery_opex_calculated:,.0f} €/year")
-            st.write(f"• **Total: {pv_opex:,.0f} €/year**")
         else:
             pv_opex = st.number_input(
                 "PV OPEX (€/year)",
@@ -1324,61 +1274,41 @@ def create_pv_installation_parameters(project_lifetime=None, discount_rate=None)
                 help="Manual PV OPEX input"
             )
         
-        # Add Maintenance section
+        # Maintenance section (PV only)
         st.markdown("---")
         st.markdown("#### 🔧 Maintenance")
         
-        maintenance_percentage = st.slider(
-            "Maintenance Percentage (% of CAPEX/year)",
+        pv_maintenance_percentage = st.slider(
+            "PV Maintenance (% of PV CAPEX/year)",
             min_value=0.0,
             max_value=5.0,
             value=1.0,
             step=0.1,
-            help="Annual maintenance cost as percentage of CAPEX"
+            help="Annual PV maintenance cost as percentage of PV CAPEX"
         )
         
         if use_calculated_capex:
-            pv_maintenance = pv_capex_calculated * maintenance_percentage / 100
-            battery_maintenance = battery_capex * maintenance_percentage / 100 if include_battery else 0
-            total_maintenance = pv_maintenance + battery_maintenance
-            
-            st.write(f"**Calculated Maintenance ({maintenance_percentage}% of CAPEX)**:")
-            st.write(f"• PV: {pv_maintenance:,.0f} €/year")
-            if include_battery:
-                st.write(f"• Battery: {battery_maintenance:,.0f} €/year")
-            st.write(f"• **Total: {total_maintenance:,.0f} €/year**")
+            pv_maintenance = pv_capex_calculated * pv_maintenance_percentage / 100
+            st.write(f"• PV Maintenance: {pv_maintenance:,.0f} €/year")
         else:
-            manual_battery_capex_for_maint = ((battery_capacity_mwh * 1000) * battery_cost_per_kwh) if include_battery else 0
-            pv_maintenance = pv_capex * maintenance_percentage / 100
-            battery_maintenance = manual_battery_capex_for_maint * maintenance_percentage / 100 if include_battery else 0
-            total_maintenance = pv_maintenance + battery_maintenance
-            
-            st.write(f"**Calculated Maintenance ({maintenance_percentage}% of CAPEX)**:")
-            st.write(f"• PV: {pv_maintenance:,.0f} €/year")
-            if include_battery:
-                st.write(f"• Battery: {battery_maintenance:,.0f} €/year")
-            st.write(f"• **Total: {total_maintenance:,.0f} €/year**")
+            pv_maintenance = pv_capex * pv_maintenance_percentage / 100
+            st.write(f"• PV Maintenance: {pv_maintenance:,.0f} €/year")
         
         # Financial Summary
         st.markdown("---")
         st.markdown("#### 💰 Financial Summary")
         
-        if use_calculated_capex:
-            st.info(f"**Annual Costs:**\n\n"
-                   f"• CAPEX (annualized): Calculated in LCOE\n\n"
-                   f"• OpEx: {pv_opex:,.0f} €/year\n\n"
-                   f"• Maintenance: {total_maintenance:,.0f} €/year\n\n"
-                   f"• **Total Annual O&M**: {pv_opex + total_maintenance:,.0f} €/year")
+        st.info(f"**PV Annual Costs:**\n\n"
+               f"• CAPEX (annualized): Calculated in LCOE\n\n"
+               f"• OpEx: {pv_opex:,.0f} €/year\n\n"
+               f"• Maintenance: {pv_maintenance:,.0f} €/year\n\n"
+               f"• **Total Annual O&M**: {pv_opex + pv_maintenance:,.0f} €/year")
 
     # Calculate final values for return
     if use_calculated_capex:
         final_pv_capex = pv_capex_calculated
-        final_battery_capex = battery_capex
-        final_total_capex = total_capex_calculated
     else:
         final_pv_capex = pv_capex
-        final_battery_capex = ((battery_capacity_mwh * 1000) * battery_cost_per_kwh) if include_battery else 0
-        final_total_capex = pv_capex + final_battery_capex
     
     return {
         'pv_project_years': pv_project_years,
@@ -1387,31 +1317,158 @@ def create_pv_installation_parameters(project_lifetime=None, discount_rate=None)
         'estimated_power_mwp': estimated_power_mwp,
         'estimated_power_kwp': estimated_power_kwp,
         'pv_cost_per_wp': pv_cost_per_wp,
-        'include_battery': include_battery,
-        'storage_hours': storage_hours,
-        'battery_capacity_mwh': battery_capacity_mwh if include_battery else 0,
-        'battery_cost_per_kwh': battery_cost_per_kwh,
         'use_calculated_capex': use_calculated_capex,
         'pv_capex': pv_capex,
         'opex_percentage': opex_percentage,
         'discount_rate': pv_discount_rate,
         'use_calculated_opex': use_calculated_opex,
         'pv_opex': pv_opex,
-        'maintenance_percentage': maintenance_percentage,
+        'pv_maintenance_percentage': pv_maintenance_percentage,
         'pv_maintenance': pv_maintenance,
-        'battery_maintenance': battery_maintenance if include_battery else 0,
-        'total_maintenance': total_maintenance,
         'pv_capex_calculated': final_pv_capex,
-        'battery_capex_calculated': final_battery_capex,
-        'total_capex_calculated': final_total_capex,
         'lat': lat,
         'lon': lon,
         'loss': loss
     }
 
 
+def create_battery_parameters(estimated_pv_power_mwp=None):
+    """Create battery storage parameter inputs — independent from PV.
+    
+    Args:
+        estimated_pv_power_mwp: PV estimated power (MWp) for reference display only
+    
+    Returns:
+        dict with battery parameters
+    """
+    with st.sidebar.expander("🔋 Battery Storage", expanded=False):
+        include_battery = st.checkbox(
+            "Include Battery Storage",
+            value=False,
+            help="Add a battery energy storage system to the analysis"
+        )
+        
+        if not include_battery:
+            return {
+                'include_battery': False,
+                'battery_power_mw': 0,
+                'charging_hours': 0,
+                'battery_capacity_mwh': 0,
+                'battery_cost_per_kwh': 0,
+                'battery_maintenance_percentage': 1.0,
+                'battery_capex': 0,
+                'battery_opex': 0,
+                'battery_opex_pct': 2.0,
+                'battery_maintenance': 0,
+            }
+        
+        st.markdown("**Battery Sizing**")
+        
+        battery_power_mw = st.number_input(
+            "Battery Power (MW)",
+            min_value=0.1,
+            max_value=100.0,
+            value=5.0,
+            step=0.5,
+            help="Maximum charge/discharge power of the battery system"
+        )
+        
+        charging_hours = st.slider(
+            "Charging Hours (h)",
+            min_value=1,
+            max_value=24,
+            value=4,
+            step=1,
+            help="Number of hours the battery charges per day (determines energy capacity)"
+        )
+        
+        # Auto-calculated capacity
+        battery_capacity_mwh = battery_power_mw * charging_hours
+        
+        col_cap1, col_cap2 = st.columns(2)
+        with col_cap1:
+            st.metric("Battery Power", f"{battery_power_mw:.1f} MW")
+        with col_cap2:
+            st.metric("Battery Capacity", f"{battery_capacity_mwh:.1f} MWh",
+                     delta=f"{charging_hours}h × {battery_power_mw:.1f} MW",
+                     delta_color="off")
+        
+        if estimated_pv_power_mwp:
+            st.caption(f"📐 PV Reference Power: {estimated_pv_power_mwp:.1f} MWp")
+        
+        st.markdown("---")
+        st.markdown("**Battery Economics**")
+        
+        battery_cost_per_kwh = st.slider(
+            "Battery Cost (€/kWh)",
+            min_value=100,
+            max_value=800,
+            value=DEFAULT_PARAMS["battery_cost_per_kwh"],
+            step=10,
+            help="Cost per kWh of battery storage capacity"
+        )
+        
+        # Calculate battery CAPEX
+        battery_capex = (battery_capacity_mwh * 1000) * battery_cost_per_kwh
+        
+        st.markdown("---")
+        st.markdown("#### 🔧 Battery Maintenance")
+        
+        battery_maintenance_percentage = st.slider(
+            "Battery Maintenance (% of Battery CAPEX/year)",
+            min_value=0.0,
+            max_value=5.0,
+            value=1.0,
+            step=0.1,
+            help="Annual battery maintenance cost as percentage of battery CAPEX",
+            key="battery_maint_pct"
+        )
+        
+        battery_maintenance = battery_capex * battery_maintenance_percentage / 100
+        
+        # Battery OPEX (as % of battery CAPEX, same as PV opex %)
+        battery_opex_pct = st.slider(
+            "Battery OPEX (% of Battery CAPEX/year)",
+            min_value=0.0,
+            max_value=10.0,
+            value=2.0,
+            step=0.5,
+            help="Annual battery operational expenditure as percentage of battery CAPEX",
+            key="battery_opex_pct"
+        )
+        battery_opex = battery_capex * battery_opex_pct / 100
+        
+        # Financial Summary
+        st.markdown("---")
+        st.markdown("#### 💰 Battery Financial Summary")
+        
+        st.info(
+            f"**Battery System:**\n\n"
+            f"• Power: **{battery_power_mw:.1f} MW** | Capacity: **{battery_capacity_mwh:.1f} MWh** "
+            f"({charging_hours}h × {battery_power_mw:.1f} MW)\n\n"
+            f"• CAPEX: **{battery_capex:,.0f} €** ({battery_cost_per_kwh} €/kWh)\n\n"
+            f"• OpEx: **{battery_opex:,.0f} €/year**\n\n"
+            f"• Maintenance: **{battery_maintenance:,.0f} €/year**\n\n"
+            f"• **Total Annual O&M**: **{battery_opex + battery_maintenance:,.0f} €/year**"
+        )
+        
+        return {
+            'include_battery': True,
+            'battery_power_mw': battery_power_mw,
+            'charging_hours': charging_hours,
+            'battery_capacity_mwh': battery_capacity_mwh,
+            'battery_cost_per_kwh': battery_cost_per_kwh,
+            'battery_maintenance_percentage': battery_maintenance_percentage,
+            'battery_capex': battery_capex,
+            'battery_opex': battery_opex,
+            'battery_maintenance': battery_maintenance,
+            'battery_opex_pct': battery_opex_pct,
+        }
+
+
 def get_current_parameters(selected_years, electrolyser_power, h2_flowrate,
                           monthly_service_ratios, target_prices, pv_price, ppa_price, pv_params,
+                          battery_params=None,
                           go_enabled=False, go_cost_per_mwh=0.0, electrolyzer_econ=None, methanation_econ=None):
     """Get current parameters for change detection"""
     params = {
@@ -1427,23 +1484,33 @@ def get_current_parameters(selected_years, electrolyser_power, h2_flowrate,
         'pv_project_years': pv_params['pv_project_years'],
         'pv_surface_hectares': pv_params['pv_surface_hectares'],
         'power_density_mwp_per_ha': pv_params['power_density_mwp_per_ha'],
-        'include_battery': pv_params['include_battery'],
-        'storage_hours': pv_params['storage_hours'],
         'pv_cost_per_wp': pv_params['pv_cost_per_wp'],
-        'battery_cost_per_kwh': pv_params['battery_cost_per_kwh'],
         'use_calculated_capex': pv_params['use_calculated_capex'],
         'opex_percentage': pv_params['opex_percentage'],
         'use_calculated_opex': pv_params['use_calculated_opex'],
         'pv_capex': pv_params['pv_capex'],
         'pv_opex': pv_params['pv_opex'],
-        'maintenance_percentage': pv_params['maintenance_percentage'],
+        'pv_maintenance_percentage': pv_params['pv_maintenance_percentage'],
         'pv_maintenance': pv_params['pv_maintenance'],
-        'battery_maintenance': pv_params['battery_maintenance'],
-        'total_maintenance': pv_params['total_maintenance'],
         'lat': pv_params['lat'],
         'lon': pv_params['lon'],
         'loss': pv_params['loss']
     }
+    
+    # Add battery parameters if provided
+    if battery_params:
+        params.update({
+            'include_battery': battery_params.get('include_battery', False),
+            'battery_power_mw': battery_params.get('battery_power_mw', 0),
+            'charging_hours': battery_params.get('charging_hours', 0),
+            'battery_capacity_mwh': battery_params.get('battery_capacity_mwh', 0),
+            'battery_cost_per_kwh': battery_params.get('battery_cost_per_kwh', 0),
+            'battery_maintenance_percentage': battery_params.get('battery_maintenance_percentage', 1.0),
+            'battery_capex': battery_params.get('battery_capex', 0),
+            'battery_opex': battery_params.get('battery_opex', 0),
+            'battery_maintenance': battery_params.get('battery_maintenance', 0),
+            'battery_opex_pct': battery_params.get('battery_opex_pct', 2.0),
+        })
     
     # Add electrolyzer economics if provided
     if electrolyzer_econ:

@@ -157,9 +157,9 @@ def display_pv_images():
                     f"{pv_params['loss']:.1f}",
                     f"{pv_params['pv_project_years']}",
                     f"{pv_params['pv_cost_per_wp']:.2f}",
-                    'Yes' if pv_params['include_battery'] else 'No',
-                    f"{pv_params['storage_hours']:.1f}" if pv_params['include_battery'] else 'N/A',
-                    f"{pv_params['battery_cost_per_kwh']:.0f}" if pv_params['include_battery'] else 'N/A',
+                    'Yes' if st.session_state.get('battery_params', {}).get('include_battery', False) else 'No',
+                    f"{st.session_state.get('battery_params', {}).get('charging_hours', 0):.1f}" if st.session_state.get('battery_params', {}).get('include_battery', False) else 'N/A',
+                    f"{st.session_state.get('battery_params', {}).get('battery_cost_per_kwh', 0):.0f}" if st.session_state.get('battery_params', {}).get('include_battery', False) else 'N/A',
                     f"{yearly_pv_mwh:.1f}",
                     "PVGIS-SARAH3",
                     "Crystalline silicon"
